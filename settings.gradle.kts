@@ -15,3 +15,5 @@ dependencyResolutionManagement {
 
 rootProject.name = "dataflow-editor"
 include(":composeApp")
+include(":plugin-api")
+include(":plugins:sample-plugin")

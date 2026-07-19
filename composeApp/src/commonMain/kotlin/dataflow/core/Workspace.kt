@@ -40,6 +40,7 @@ class Workspace(private val scope: CoroutineScope) {
     fun t(key: String) = dataflow.i18n.tr(lang, key)
 
     init {
+        Platform.loadPlugins() // 플러그인이 제공하는 컴포넌트를 프로젝트 폴더에 반영
         refreshFiles()
         loadSession()
     }
