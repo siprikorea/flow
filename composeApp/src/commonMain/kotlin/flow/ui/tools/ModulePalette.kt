@@ -74,22 +74,32 @@ internal fun ModulePalette(ws: Workspace) {
     }
 }
 
-// Collapsible category section (click the header to expand/collapse).
+// Collapsible category section (click the header to expand/collapse). Starts collapsed.
 @Composable
 private fun Section(title: String, dot: Color? = null, content: @Composable () -> Unit) {
-    var expanded by remember(title) { mutableStateOf(true) }
-    Column(Modifier.fillMaxWidth()) {
+    var expanded by remember(title) { mutableStateOf(false) }
+    val (hoverSrc, hovered) = rememberHover()
+    Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Row(
-            Modifier.fillMaxWidth().plainClick { expanded = !expanded }.padding(start = 2.dp, top = 10.dp, bottom = 4.dp),
+            Modifier.fillMaxWidth()
+                .hoverable(hoverSrc)
+                .background(if (hovered) Palette.hoverBg else Color.Transparent, RoundedCornerShape(5.dp))
+                .plainClick { expanded = !expanded }
+                .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Txt(if (expanded) "▾" else "▸", 9.sp, Palette.dimText)
+            // expanded = filled/bright, collapsed = dim → clear visual state
+            Txt(if (expanded) "▾" else "▸", 10.sp, if (expanded) Palette.accent else Palette.subText, weight = FontWeight.Bold)
             if (dot != null) Box(Modifier.size(6.dp).background(dot, RoundedCornerShape(3.dp)))
-            Txt(title.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            Txt(title.uppercase(), 11.sp, if (expanded) Palette.text else Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
         }
         if (expanded) {
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+            // a little gap between the header and its items
+            Column(
+                Modifier.fillMaxWidth().padding(top = 6.dp, bottom = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) { content() }
         }
     }
 }
