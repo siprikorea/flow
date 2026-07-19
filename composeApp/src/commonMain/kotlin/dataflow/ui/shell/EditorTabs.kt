@@ -38,8 +38,9 @@ fun EditorTabs(ws: Workspace) {
                     name = doc.fileName.removeSuffix(".json"),
                     active = i == ws.activeIndex,
                     isComp = ws.isComponentFile(doc.fileName),
+                    dirty = doc.dirty,
                     onSelect = { ws.select(i) },
-                    onClose = { ws.closeDoc(i) },
+                    onClose = { ws.requestClose(i) },
                 )
             }
             Box(
@@ -51,7 +52,7 @@ fun EditorTabs(ws: Workspace) {
 }
 
 @Composable
-private fun Tab(name: String, active: Boolean, isComp: Boolean, onSelect: () -> Unit, onClose: () -> Unit) {
+private fun Tab(name: String, active: Boolean, isComp: Boolean, dirty: Boolean, onSelect: () -> Unit, onClose: () -> Unit) {
     val (hoverSrc, hovered) = rememberHover()
     Column {
         Box(Modifier.height(2.dp).fillMaxWidth().background(if (active) Palette.accent else Color.Transparent))
@@ -75,10 +76,15 @@ private fun Tab(name: String, active: Boolean, isComp: Boolean, onSelect: () -> 
                 weight = if (active) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
             )
-            Txt(
-                "×", 13.sp, if (hovered || active) Palette.subText else Color.Transparent,
-                modifier = Modifier.plainClick(onClose).padding(horizontal = 3.dp),
-            )
+            // 수정됨: 평소 점(•), hover 시 닫기(×)
+            if (dirty && !hovered) {
+                Txt("●", 10.sp, Palette.accentSoft, modifier = Modifier.padding(horizontal = 3.dp))
+            } else {
+                Txt(
+                    "×", 13.sp, if (hovered || active) Palette.subText else Color.Transparent,
+                    modifier = Modifier.plainClick(onClose).padding(horizontal = 3.dp),
+                )
+            }
         }
     }
 }

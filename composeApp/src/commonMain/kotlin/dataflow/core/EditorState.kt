@@ -70,6 +70,10 @@ class EditorState(
     private val future = ArrayDeque<String>()
     private val simJobs = mutableSetOf<Job>()
 
+    // 마지막으로 저장된(또는 열린) 시점의 정규화 시그니처. dirty 판정 기준.
+    var savedSig by mutableStateOf("")
+        private set
+
     // 파일 내용으로 문서 초기화
     fun load(flow: FlowFile) {
         nodes = flow.nodes
@@ -82,10 +86,28 @@ class EditorState(
         running = false
         past.clear()
         future.clear()
+        savedSig = flowJson()
     }
 
-    // 파일에 저장할 JSON
-    fun flowJson(): String = json.encodeToString(FlowFile(1, nodes, edges, seq))
+    // 파일에 저장할 JSON — 실행 상태(status/active)는 초기화해 영속화하지 않는다.
+    fun flowJson(): String = json.encodeToString(
+        FlowFile(
+            version = 1,
+            nodes = nodes.map { if (it.status == "idle") it else it.copy(status = "idle") },
+            edges = edges.map { if (it.active) it.copy(active = false) else it },
+            seq = seq,
+        )
+    )
+
+    // 저장되지 않은 수정이 있는가 (실행 상태 변화는 제외)
+    val dirty: Boolean get() = flowJson() != savedSig
+
+    // 파일에 저장하고 저장 시그니처·시각 갱신
+    fun save() {
+        Platform.writeFlow(fileName, flowJson())
+        savedSig = flowJson()
+        saveTime = Platform.currentTimeHms()
+    }
 
     fun t(key: String) = dataflow.i18n.tr(lang, key)
 

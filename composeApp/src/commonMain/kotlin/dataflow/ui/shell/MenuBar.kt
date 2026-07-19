@@ -54,16 +54,22 @@ fun MenuBar(ws: Workspace) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Box(Modifier.size(16.dp).background(Brush.linearGradient(listOf(Palette.accent, Palette.catSource)), RoundedCornerShape(4.dp)))
-                Txt("DataFlow", 14.sp, Palette.text, weight = FontWeight.Bold)
+            // 로고 = 앱 메뉴 (클릭 시 설정 등)
+            Menu(ws, "app", listOf(
+                MenuItemDef(ws.t("menuSettings")) { ws.showSettings = true },
+            )) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Box(Modifier.size(16.dp).background(Brush.linearGradient(listOf(Palette.accent, Palette.catSource)), RoundedCornerShape(4.dp)))
+                    Txt("DataFlow", 14.sp, Palette.text, weight = FontWeight.Bold)
+                }
             }
             Spacer(Modifier.width(8.dp))
 
             Menu(ws, "file", ws.t("menuFile"), listOf(
                 MenuItemDef(ws.t("newFlow"), "Ctrl+N") { ws.newDoc() },
                 MenuItemDef(ws.t("newComponent")) { ws.newComponent() },
-                MenuItemDef(ws.t("closeTab"), "Ctrl+W") { ws.closeDoc(ws.activeIndex) },
+                MenuItemDef(ws.t("save"), "Ctrl+S") { ws.saveActive() },
+                MenuItemDef(ws.t("closeTab"), "Ctrl+W") { ws.requestClose(ws.activeIndex) },
                 MenuItemDef("—") {},
                 MenuItemDef(ws.t("exportJson")) { active?.exportJson() },
                 MenuItemDef(ws.t("importJson")) { active?.importJson() },
@@ -79,10 +85,6 @@ fun MenuBar(ws: Workspace) {
                 MenuItemDef(ws.t("toggleProps"), checked = ws.showProps) { ws.showProps = !ws.showProps },
                 MenuItemDef(ws.t("toggleMinimap"), checked = ws.showMinimap) { ws.showMinimap = !ws.showMinimap },
             ))
-            Menu(ws, "settings", ws.t("menuSettings"), listOf(
-                MenuItemDef("한국어", checked = ws.lang == "ko") { ws.lang = "ko" },
-                MenuItemDef("English", checked = ws.lang == "en") { ws.lang = "en" },
-            ))
 
             Spacer(Modifier.weight(1f))
             RunButton(ws.t("start"), enabled = active != null, bg = Palette.accent, textColor = Palette.holeBg) { active?.startRun() }
@@ -92,8 +94,17 @@ fun MenuBar(ws: Workspace) {
     }
 }
 
+// 텍스트 라벨 메뉴 (File/Edit/View)
 @Composable
 private fun Menu(ws: Workspace, id: String, label: String, items: List<MenuItemDef>) {
+    Menu(ws, id, items) {
+        Txt(label, 13.sp, Palette.menuText)
+    }
+}
+
+// 앵커 콘텐츠를 직접 지정하는 메뉴 (로고 앱 메뉴 등)
+@Composable
+private fun Menu(ws: Workspace, id: String, items: List<MenuItemDef>, anchor: @Composable () -> Unit) {
     val (hoverSrc, hovered) = rememberHover()
     var anchorH by remember { mutableStateOf(0) }
     // 다른 메뉴가 열려 있을 때 이 버튼 위로 커서가 오면 자연스럽게 전환
@@ -109,7 +120,7 @@ private fun Menu(ws: Workspace, id: String, label: String, items: List<MenuItemD
                 .plainClick { ws.menu = if (ws.menu == id) null else id }
                 .padding(horizontal = 10.dp, vertical = 5.dp)
         ) {
-            Txt(label, 13.sp, Palette.menuText)
+            anchor()
         }
         if (ws.menu == id) {
             Popup(

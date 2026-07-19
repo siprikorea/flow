@@ -22,7 +22,7 @@ fun main() = application {
         position = WindowPosition(Alignment.Center), // 화면 중앙에 새 창으로 배치
     )
     Window(
-        onCloseRequest = ::exitApplication,
+        onCloseRequest = { ws.saveAll(); exitApplication() }, // 앱 종료 시 수정 문서 저장
         title = "DataFlow Editor",
         state = windowState,
         onKeyEvent = { handleKey(ws, it) },

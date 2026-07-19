@@ -4,7 +4,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Box
@@ -27,6 +26,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -40,7 +41,9 @@ import dataflow.model.compFile
 import dataflow.model.findDef
 import dataflow.model.isComp
 import dataflow.ui.common.Txt
+import dataflow.ui.common.moveCursorIcon
 import dataflow.ui.common.rememberHover
+import dataflow.ui.common.resizeCursorIcon
 import dataflow.ui.theme.Palette
 import kotlin.math.max
 
@@ -99,15 +102,21 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
             .background(Palette.nodeBg, RoundedCornerShape(9.dp))
             .border(1.5.dp, borderColor, RoundedCornerShape(9.dp))
             .pointerInput(node.id, node.type) {
-                detectTapGestures(
-                    onDoubleTap = {
-                        if (comp) state.ws.openFile(compFile(node.type))
-                    },
-                    onTap = {
-                        state.sel = Sel("node", node.id)
-                        state.menu = null
-                    },
-                )
+                // down 즉시 선택(지연 없음) + uptime 간격으로 더블클릭(컴포넌트 편집) 감지
+                var lastDown = 0L
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    down.consume() // 캔버스가 선택을 해제하지 못하도록 소비
+                    state.sel = Sel("node", node.id)
+                    state.menu = null
+                    val now = down.uptimeMillis
+                    if (comp && now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
+                        state.ws.openFile(compFile(node.type))
+                        lastDown = 0L
+                    } else {
+                        lastDown = now
+                    }
+                }
             }
     ) {
         // 헤더 28px: 드래그 이동
@@ -116,6 +125,7 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
                 .fillMaxWidth()
                 .height(28.dp)
                 .background(Palette.nodeHeaderBg, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
+                .pointerHoverIcon(moveCursorIcon())
                 .pointerInput(node.id) {
                     awaitEachGesture {
                         val down = awaitFirstDown()
@@ -170,6 +180,7 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
                 .align(Alignment.BottomEnd)
                 .offset((-3).dp, (-3).dp)
                 .size(13.dp)
+                .pointerHoverIcon(resizeCursorIcon())
                 .drawBehind {
                     val w = 2f * density
                     drawLine(Palette.resizeHandle, Offset(size.width - w / 2, 0f), Offset(size.width - w / 2, size.height), w)
@@ -226,6 +237,7 @@ private fun PortView(state: EditorState, node: dataflow.model.Node, kind: String
             .hoverable(hoverSrc)
             .background(if (hovered) Palette.accent else Palette.holeBg, CircleShape)
             .border(2.5.dp, if (connected) Palette.accent else Palette.portBorder, CircleShape)
+            .pointerHoverIcon(PointerIcon.Crosshair)
             .pointerInput(node.id, kind, name) {
                 awaitEachGesture {
                     val down = awaitFirstDown()

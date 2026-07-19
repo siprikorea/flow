@@ -27,6 +27,12 @@ class Workspace(private val scope: CoroutineScope) {
     var dragModule by mutableStateOf<DragModule?>(null)
     var saveTime by mutableStateOf<String?>(null)
 
+    // 저장 확인 다이얼로그 대상 (닫으려는 탭 인덱스). null 이면 다이얼로그 없음.
+    var closeConfirm by mutableStateOf<Int?>(null)
+
+    // 설정 화면 표시 여부 (로고 메뉴 > 설정)
+    var showSettings by mutableStateOf(false)
+
     // 열린 탭
     val docs = mutableStateListOf<EditorState>()
     var activeIndex by mutableStateOf(0)
@@ -104,7 +110,42 @@ class Workspace(private val scope: CoroutineScope) {
         activeIndex = i.coerceIn(0, docs.lastIndex)
     }
 
-    fun closeDoc(i: Int) {
+    fun save(i: Int) {
+        docs.getOrNull(i)?.save()
+    }
+
+    fun saveActive() {
+        active?.save()
+    }
+
+    fun saveAll() {
+        docs.forEach { if (it.dirty) it.save() }
+    }
+
+    // 탭 닫기 요청: 수정 사항이 있으면 저장 여부를 먼저 묻는다.
+    fun requestClose(i: Int) {
+        if (i !in docs.indices) return
+        if (docs[i].dirty) closeConfirm = i else removeDoc(i)
+    }
+
+    fun confirmSaveAndClose() {
+        closeConfirm?.let { i ->
+            docs.getOrNull(i)?.save()
+            removeDoc(i)
+        }
+        closeConfirm = null
+    }
+
+    fun confirmDiscardAndClose() {
+        closeConfirm?.let { removeDoc(it) }
+        closeConfirm = null
+    }
+
+    fun cancelClose() {
+        closeConfirm = null
+    }
+
+    private fun removeDoc(i: Int) {
         if (i !in docs.indices) return
         docs.removeAt(i)
         if (activeIndex >= docs.size) activeIndex = (docs.size - 1).coerceAtLeast(0)

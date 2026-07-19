@@ -6,13 +6,17 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.snapshotFlow
@@ -66,25 +70,61 @@ fun App(ws: Workspace) {
             StatusBar(ws)
         }
         ws.dragModule?.let { DragGhost(it) }
+        ws.closeConfirm?.let { i ->
+            val name = ws.docs.getOrNull(i)?.fileName?.removeSuffix(".json") ?: ""
+            SaveCloseDialog(ws, name)
+        }
+        if (ws.showSettings) SettingsScreen(ws)
     }
 
-    // 자동 저장: 활성 문서 → 파일 (350ms 디바운스)
-    LaunchedEffect(Unit) {
-        snapshotFlow { ws.active?.let { it.fileName to it.flowJson() } }
-            .debounce(350)
-            .collect { pair ->
-                if (pair != null) {
-                    Platform.writeFlow(pair.first, pair.second)
-                    ws.saveTime = Platform.currentTimeHms()
-                    ws.refreshFiles()
-                }
-            }
-    }
-    // 세션(열린 탭 + UI) 저장
+    // 세션(열린 탭 + UI) 저장 — 파일 내용은 명시적 저장(Ctrl+S / 닫기 확인)으로 관리
     LaunchedEffect(Unit) {
         snapshotFlow { ws.sessionJson() }
             .debounce(350)
             .collect { Platform.saveSession(it) }
+    }
+}
+
+@Composable
+private fun SaveCloseDialog(ws: Workspace, name: String) {
+    // 스크림: 뒤 클릭 차단
+    Box(
+        Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelClose() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .background(Palette.dropdownBg, RoundedCornerShape(10.dp))
+                .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(10.dp))
+                .plainClick { } // 카드 클릭이 스크림으로 전파되지 않도록
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Txt(ws.t("unsavedTitle"), 14.sp, Palette.text)
+            Txt(ws.t("unsavedBody").replace("{name}", name), 12.5.sp, Palette.subText)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelClose() }
+                DialogButton(ws.t("dontSave"), Palette.dangerBorder, Palette.errorSoft) { ws.confirmDiscardAndClose() }
+                DialogButton(ws.t("save"), Palette.accent, Palette.holeBg, filled = true) { ws.confirmSaveAndClose() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DialogButton(
+    label: String,
+    color: androidx.compose.ui.graphics.Color,
+    textColor: androidx.compose.ui.graphics.Color,
+    filled: Boolean = false,
+    onClick: () -> Unit,
+) {
+    var m = Modifier.then(
+        if (filled) Modifier.background(color, RoundedCornerShape(6.dp))
+        else Modifier.border(1.dp, color, RoundedCornerShape(6.dp))
+    )
+    Box(m.plainClick(onClick).padding(horizontal = 14.dp, vertical = 8.dp)) {
+        Txt(label, 12.sp, textColor)
     }
 }
 
@@ -127,6 +167,51 @@ private fun DragGhost(d: DragModule) {
     }
 }
 
+// 설정 전용 화면 (로고 메뉴 > 설정)
+@Composable
+private fun SettingsScreen(ws: Workspace) {
+    Box(Modifier.fillMaxSize().background(Palette.appBg)) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().height(48.dp).background(Palette.panelBg).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Txt(ws.t("settingsTitle"), 15.sp, Palette.text, weight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier.border(1.dp, Palette.buttonBorder, RoundedCornerShape(6.dp))
+                        .plainClick { ws.showSettings = false }
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) { Txt(ws.t("done"), 12.sp, Palette.menuText) }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Txt(ws.t("language").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
+                SettingChoice("한국어", ws.lang == "ko") { ws.lang = "ko" }
+                SettingChoice("English", ws.lang == "en") { ws.lang = "en" }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SettingChoice(label: String, selected: Boolean, onSelect: () -> Unit) {
+    Row(
+        Modifier
+            .width(280.dp)
+            .background(if (selected) Palette.langActiveBg else Palette.dropdownBg, RoundedCornerShape(7.dp))
+            .border(1.dp, if (selected) Palette.accent else Palette.border, RoundedCornerShape(7.dp))
+            .plainClick(onSelect)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.width(18.dp)) {
+            if (selected) Txt("●", 11.sp, Palette.accent) else Txt("○", 11.sp, Palette.dimText)
+        }
+        Txt(label, 12.5.sp, if (selected) Palette.text else Palette.menuText)
+    }
+}
+
 fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     val active = ws.active
     if (ev.type == KeyEventType.KeyUp) {
@@ -137,7 +222,8 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     if (ev.key == Key.Escape) { active?.wire = null; ws.menu = null; return true }
     val ctrl = ev.isCtrlPressed || ev.isMetaPressed
     if (ctrl && ev.key == Key.N) { ws.newDoc(); return true }
-    if (ctrl && ev.key == Key.W) { ws.closeDoc(ws.activeIndex); return true }
+    if (ctrl && ev.key == Key.S) { ws.saveActive(); return true }
+    if (ctrl && ev.key == Key.W) { ws.requestClose(ws.activeIndex); return true }
     if (active == null) return false
     if (active.textEditing) return false // 입력 필드 포커스 중에는 단축키 무시
     return when {
