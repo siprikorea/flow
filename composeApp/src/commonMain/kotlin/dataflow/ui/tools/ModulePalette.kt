@@ -56,6 +56,13 @@ internal fun ModulePalette(ws: Workspace) {
         SectionHeader(ws.t("installedPlugins"), dot = Palette.catSource, top = 14.dp)
         REGISTRY.filter { it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size, plugin = true) }
 
+        if (ws.installedModules.isNotEmpty()) {
+            SectionHeader(ws.t("installedModules"), dot = Palette.catPlugin, top = 14.dp)
+            ws.installedModules.forEach { m ->
+                PaletteCard(ws, m.id, m.name, "pluginmod", m.inputs.size, m.outputs.size)
+            }
+        }
+
         SectionHeader(ws.t("ioSection"), dot = Palette.catIo, top = 14.dp)
         IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size) }
 
@@ -125,6 +132,7 @@ private fun PaletteCard(
             type == "cin" -> "▸"
             type == "cout" -> "◼"
             type.startsWith("comp:") -> "◆"
+            cat == "pluginmod" -> "⬢"
             else -> "●"
         }
         Txt(glyph, 12.sp, Palette.catColor(cat), weight = FontWeight.Bold)

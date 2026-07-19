@@ -39,6 +39,7 @@ object Palette {
     val catSink = Color(0xFFFF9D5C)
     val catIo = Color(0xFFE0B341)         // 컴포넌트 입출력 경계 노드
     val catComponent = Color(0xFF62C6FF)  // 컴포넌트 인스턴스 노드
+    val catPlugin = Color(0xFFEF7DBB)     // 설치된 모듈 플러그인
 
     val edge = Color(0xFF4A5262)
     val edgeSelected = Color(0xFFEAF1FF)
@@ -62,6 +63,7 @@ object Palette {
         "sink" -> catSink
         "io" -> catIo
         "component" -> catComponent
+        "pluginmod" -> catPlugin
         else -> catTransform
     }
 

@@ -13,6 +13,7 @@ expect object Platform {
     // 설치: 이미 존재하는 id 는 overwrite=false 면 conflicts 로 반환(설치 안 함)
     fun installJar(path: String, overwrite: Boolean): InstallResult
     fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult
+    fun pickJar(): String? // JAR 파일 선택 다이얼로그
 
     // 프로젝트 폴더의 플로우 파일(*.json)
     fun listFlows(): List<String>

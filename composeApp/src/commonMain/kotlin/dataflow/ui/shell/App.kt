@@ -85,6 +85,7 @@ fun App(ws: Workspace, chrome: WindowChrome? = null) {
             SaveCloseDialog(ws, name)
         }
         ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
+        ws.installConfirm?.let { OverwriteDialog(ws, it.label) }
         if (ws.showSettings) SettingsScreen(ws)
     }
 
@@ -141,6 +142,30 @@ private fun FileDeleteDialog(ws: Workspace, count: Int) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelDeleteFiles() }
                 DialogButton(ws.t("delete"), Palette.error, Palette.holeBg, filled = true) { ws.confirmDeleteFiles() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun OverwriteDialog(ws: Workspace, id: String) {
+    Box(
+        Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelInstall() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .background(Palette.dropdownBg, RoundedCornerShape(10.dp))
+                .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(10.dp))
+                .plainClick { }
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Txt(ws.t("overwriteTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
+            Txt(ws.t("overwriteBody").replace("{id}", id), 12.5.sp, Palette.subText)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelInstall() }
+                DialogButton(ws.t("overwrite"), Palette.accent, Palette.holeBg, filled = true) { ws.confirmInstall() }
             }
         }
     }

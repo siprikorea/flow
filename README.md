@@ -94,14 +94,28 @@ Components are read from `~/.dataflow-editor/flows` (by name) or a file path. Th
 
 ## Plugins
 
-A plugin is a packaged component. The `plugin-api` module defines the `Plugin` contract (`Plugin` + `PluginComponent`); a plugin JAR provides one or more components. At startup the app scans `~/.dataflow-editor/plugins/*.jar` (via `ServiceLoader`) and materializes their components into the project (write-if-absent), so they appear in the palette's Components section.
+Plugins come in two kinds, both identified by a **package-format id** and declaring input/output ids. The `plugin-api` module defines the contracts:
+
+- **Module plugin** (`ModulePlugin`) — has the actual implementation: `process(inputs) → outputs`. Distributed as code (a JAR).
+- **Component plugin** (`ComponentPlugin`) — defines only the connections between modules, with no coordinates. On install it is laid out automatically (BFS columns) into a component flow with input/output boundary nodes.
+
+### Storage (installed, read-only)
+Installed artifacts live under the app data dir, separated by kind and keyed by id:
+- `~/.dataflow-editor/modules/<id>.jar` — module plugin code (loaded via `ServiceLoader`).
+- `~/.dataflow-editor/components/<id>.json` — component definition (materialized flow).
+
+Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
+
+### Installing
+Use the **DataFlow (logo) menu → Install Plugin…** to pick a JAR, or **Install Current Component** to install the open editor component. If the id already exists, you're asked to **overwrite**. From the terminal:
 
 ```bash
-./gradlew :plugins:sample-plugin:jar                 # build the sample plugin
-cp plugins/sample-plugin/build/libs/sample-plugin.jar ~/.dataflow-editor/plugins/
+./gradlew :plugins:sample-plugin:jar
+./gradlew :composeApp:cli --args="--install /abs/path/sample-plugin.jar"   # add --force to overwrite
+./gradlew :composeApp:cli --args="com.example.triple 5"                    # out = 15 (via the mul3 module)
 ```
 
-Modules: `plugin-api` (contract), `composeApp` (editor + CLI, depends on plugin-api), `plugins/sample-plugin` (example implementing `Plugin`).
+Modules: `plugin-api` (contracts), `composeApp` (editor + CLI + install/registry), `plugins/sample-plugin` (a `ModulePlugin` `com.example.mul3` and a `ComponentPlugin` `com.example.triple`).
 
 ## Notes
 The numeric specs — grid snapping, port placement, bezier curves, simulation timings — come from the original HTML design prototype. This repository is a Compose Multiplatform reimplementation of that spec.

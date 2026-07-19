@@ -14,6 +14,9 @@ import dataflow.platform.Platform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 
+// 설치 덮어쓰기 확인 대기 (label = 충돌 id, commit = 덮어쓰기 실행)
+class InstallPending(val label: String, val commit: () -> Unit)
+
 // 워크스페이스: 전역 UI 상태 + 열린 문서(탭) + 프로젝트 파일 목록 + 컴포넌트 레지스트리
 class Workspace(private val scope: CoroutineScope) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
@@ -40,6 +43,8 @@ class Workspace(private val scope: CoroutineScope) {
     var projectMenuFor by mutableStateOf<String?>(null)
     // 삭제 확인 대상 파일들(null 이면 다이얼로그 없음)
     var fileDeleteConfirm by mutableStateOf<Set<String>?>(null)
+    // 설치 덮어쓰기 확인 (null 이면 없음)
+    var installConfirm by mutableStateOf<InstallPending?>(null)
 
     // 열린 탭
     val docs = mutableStateListOf<EditorState>()
@@ -79,6 +84,40 @@ class Workspace(private val scope: CoroutineScope) {
     }
 
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }
+
+    /* ───────── 설치 ───────── */
+
+    fun installJarFlow(path: String) {
+        val r = Platform.installJar(path, overwrite = false)
+        if (r.conflicts.isNotEmpty()) {
+            installConfirm = InstallPending(r.conflicts.joinToString(", ")) {
+                Platform.installJar(path, overwrite = true); refreshFiles()
+            }
+        } else refreshFiles()
+    }
+
+    // 현재 편집 중인 컴포넌트(cin/cout 포함)를 설치. id 는 패키지명 형식으로 생성.
+    fun installActiveComponent() {
+        val doc = active ?: return
+        if (doc.nodes.none { it.type == "cin" || it.type == "cout" }) return // 컴포넌트만
+        val id = "local." + doc.fileName.removeSuffix(".json")
+        val payload = doc.flowJson()
+        val r = Platform.installComponent(id, payload, overwrite = false)
+        if (r.conflicts.isNotEmpty()) {
+            installConfirm = InstallPending(id) {
+                Platform.installComponent(id, payload, overwrite = true); refreshFiles()
+            }
+        } else refreshFiles()
+    }
+
+    fun confirmInstall() { installConfirm?.commit?.invoke(); installConfirm = null }
+    fun cancelInstall() { installConfirm = null }
+
+    // 컴포넌트 파일 열기: 설치본(components/)은 읽기 전용 사본으로, 프로젝트 파일은 그대로
+    fun openComponentFile(file: String) {
+        if (components.find { it.file == file }?.installed == true) openInstalledComponent(file)
+        else openFile(file)
+    }
 
     // 설치된 컴포넌트를 편집용으로 열기: 읽기 전용 사본을 새 문서로 (저장 시 flows/ 로 저장)
     fun openInstalledComponent(file: String) {

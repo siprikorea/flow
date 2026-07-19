@@ -53,8 +53,10 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
     val density = state.density
     val selected = node.id in state.selNodes
     val comp = isComp(node.type)
+    val pluginMod = !comp && state.ws.moduleInfo(node.type) != null
     val cat = when {
         comp -> "component"
+        pluginMod -> "pluginmod"
         else -> findDef(node.type)?.cat ?: "transform"
     }
     val borderColor = when {
@@ -80,6 +82,7 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
         node.type == "cin" -> "▸" to Palette.catIo
         node.type == "cout" -> "◼" to Palette.catIo
         comp -> "◆" to Palette.catComponent
+        pluginMod -> "⬢" to Palette.catPlugin
         else -> "●" to Palette.catColor(cat)
     }
 
@@ -115,7 +118,7 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
                     state.menu = null
                     val now = down.uptimeMillis
                     if (comp && now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
-                        state.ws.openFile(compFile(node.type))
+                        state.ws.openComponentFile(compFile(node.type))
                         lastDown = 0L
                     } else {
                         lastDown = now

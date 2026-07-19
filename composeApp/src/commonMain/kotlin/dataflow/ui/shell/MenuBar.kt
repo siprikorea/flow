@@ -67,8 +67,11 @@ fun MenuBar(ws: Workspace, chrome: WindowChrome? = null) {
                 TrafficLights(chrome)
                 Spacer(Modifier.width(6.dp))
             }
-            // 로고 = 앱 메뉴 (클릭 시 설정 등)
+            // 로고 = 앱 메뉴 (설치/설정)
             Menu(ws, "app", listOf(
+                MenuItemDef(ws.t("installPlugin")) { dataflow.platform.Platform.pickJar()?.let { ws.installJarFlow(it) } },
+                MenuItemDef(ws.t("installComponent")) { ws.installActiveComponent() },
+                MenuItemDef("—") {},
                 MenuItemDef(ws.t("menuSettings")) { ws.showSettings = true },
             )) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
