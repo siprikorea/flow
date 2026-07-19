@@ -2,7 +2,7 @@ package com.example.sample
 
 import flow.plugin.ModulePlugin
 
-/** 모듈 플러그인: 입력을 3배로 만든다. */
+/** Module plugin: multiplies the input by 3. */
 class Mul3Module : ModulePlugin {
     override val id = "com.example.mul3"
     override val displayName = "×3"

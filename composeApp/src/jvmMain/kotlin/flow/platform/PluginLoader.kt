@@ -16,8 +16,8 @@ import java.io.File
 import java.net.URLClassLoader
 import java.util.ServiceLoader
 
-// 설치 저장소(폴더 단위): modules/<id>/*.jar, components/<id>/component.json(+의존 모듈 jar).
-// 모듈·컴포넌트는 각자 폴더의 격리 URLClassLoader(샌드박스)로 로드/실행 → 의존 모듈이 서로 간섭하지 않는다.
+// Install store (per folder): modules/<id>/*.jar, components/<id>/component.json (+ dependency module jars).
+// Modules and components load/run via their own isolated URLClassLoader (sandbox) so dependency modules don't clash.
 internal object PluginLoader {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
     private val modulesDir = File(baseDir, "modules")
@@ -33,9 +33,9 @@ internal object PluginLoader {
     private fun isolatedLoader(jars: Array<File>): URLClassLoader =
         URLClassLoader(jars.map { it.toURI().toURL() }.toTypedArray(), apiClassLoader)
 
-    /* ───────── 설치된 모듈 (폴더별 격리 로더) ───────── */
+    /* ───────── installed modules (isolated loader per folder) ───────── */
 
-    // id → (격리 클래스로더, 대표 모듈). 모듈마다 독립 로더라 의존성이 충돌하지 않는다.
+    // id -> (isolated classloader, primary module). Each module has its own loader so dependencies don't conflict.
     private var moduleCache: Map<String, Pair<URLClassLoader, ModulePlugin>>? = null
     private fun loadedModules(): Map<String, Pair<URLClassLoader, ModulePlugin>> {
         moduleCache?.let { return it }
@@ -59,7 +59,7 @@ internal object PluginLoader {
     fun process(id: String, inputs: Map<String, String?>): Map<String, String?> =
         loadedModules()[id]?.second?.let { runCatching { it.process(inputs) }.getOrNull() } ?: emptyMap()
 
-    /* ───────── 설치된 컴포넌트 (폴더별) ───────── */
+    /* ───────── installed components (per folder) ───────── */
 
     fun listComponents(): List<String> {
         ensureDirs()
@@ -72,7 +72,7 @@ internal object PluginLoader {
         return runCatching { File(componentsDir, "$id/component.json").takeIf { it.exists() }?.readText() }.getOrNull()
     }
 
-    // 컴포넌트를 자신의 폴더 샌드박스로 실행 (번들된 의존 모듈만 사용, 전역 모듈과 독립)
+    // run a component in its own folder sandbox (only bundled dependency modules; independent of global modules)
     fun runComponent(id: String, inputs: Map<String, String?>): Map<String, String?> {
         val dir = File(componentsDir, id)
         val compFile = File(dir, "component.json")
@@ -82,7 +82,7 @@ internal object PluginLoader {
         val sandbox = HashMap<String, ModulePlugin>()
         val jars = jarsIn(dir)
         if (jars.isNotEmpty()) {
-            val cl = isolatedLoader(jars) // 컴포넌트 전용 격리 로더
+            val cl = isolatedLoader(jars) // component-specific isolated loader
             runCatching { ServiceLoader.load(ModulePlugin::class.java, cl).forEach { sandbox[it.id] = it } }
         }
         val engine = FlowEngine(
@@ -93,7 +93,7 @@ internal object PluginLoader {
         return engine.run(flow, inputs.mapValues { it.value ?: "" })
     }
 
-    /* ───────── 설치 ───────── */
+    /* ───────── install ───────── */
 
     fun installJar(path: String, overwrite: Boolean): InstallResult {
         val jar = File(path).takeIf { it.isFile } ?: return InstallResult()
@@ -115,14 +115,14 @@ internal object PluginLoader {
             val d = File(componentsDir, c.id).also { it.deleteRecursively(); it.mkdirs() }
             runCatching {
                 File(d, "component.json").writeText(json.encodeToString(materialize(c)))
-                jar.copyTo(File(d, "deps.jar"), overwrite = true) // 샌드박스용 의존 모듈 코드 번들
+                jar.copyTo(File(d, "deps.jar"), overwrite = true) // bundle dependency module code for the sandbox
             }
         }
         moduleCache = null
         return InstallResult(installed = mods.map { it.id } + comps.map { it.id })
     }
 
-    // 에디터 컴포넌트 설치: 폴더 생성 + component.json, 참조하는 설치 모듈 jar 를 폴더에 번들(샌드박스)
+    // Install an editor component: create the folder + component.json, bundle referenced installed-module jars (sandbox)
     fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult {
         ensureDirs()
         val d = File(componentsDir, id)
@@ -141,7 +141,7 @@ internal object PluginLoader {
         }.getOrDefault(InstallResult())
     }
 
-    /* ───────── 컴포넌트 그래프 → 좌표 포함 플로우 (자동 배치) ───────── */
+    /* ───────── component graph -> flow with coordinates (auto layout) ───────── */
 
     private fun materialize(c: ComponentPlugin): FlowFile {
         val nodes = ArrayList<Node>()

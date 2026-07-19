@@ -77,7 +77,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         "done" -> Palette.successText
         else -> Palette.errorSoft
     }
-    // 종류 구분 아이콘(좌상단): 입력 ▸ / 출력 ◼ / 컴포넌트 ◆ / 모듈 ●
+    // kind icon (top-left): input ▸ / output ◼ / component ◆ / module ●
     val (kindGlyph, kindColor) = when {
         node.type == "cin" -> "▸" to Palette.catIo
         node.type == "cout" -> "◼" to Palette.catIo
@@ -91,7 +91,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             .offset(node.x.dp, node.y.dp)
             .size(node.w.dp, node.h.dp)
             .drawBehind {
-                // nodepulse: 퍼지는 테두리 링 (1.2s)
+                // nodepulse: expanding border ring (1.2s)
                 if (node.status == "running") {
                     val p = (timeMs % 1200) / 1200f
                     val spread = p * 9f * density
@@ -107,13 +107,13 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             .background(Palette.nodeBg, RoundedCornerShape(9.dp))
             .border(1.5.dp, borderColor, RoundedCornerShape(9.dp))
             .pointerInput(node.id, node.type) {
-                // down 즉시 선택(지연 없음) + uptime 간격으로 더블클릭(컴포넌트 편집) 감지
+                // select on down (no delay) + detect double-click (edit component) via uptime gap
                 var lastDown = 0L
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    down.consume() // 캔버스가 선택을 해제하지 못하도록 소비
+                    down.consume() // consume so the canvas can't clear the selection
                     val mods = currentEvent.keyboardModifiers
-                    if (mods.isCtrlPressed || mods.isMetaPressed) state.toggleNode(node.id) // Cmd/Win = 추가 선택
+                    if (mods.isCtrlPressed || mods.isMetaPressed) state.toggleNode(node.id) // Cmd/Win = add to selection
                     else state.selectNode(node.id)
                     state.menu = null
                     val now = down.uptimeMillis
@@ -126,7 +126,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 }
             }
     ) {
-        // 헤더 28px: 드래그 이동. 그룹(입출력/컴포넌트)별 색조로 구별
+        // header 28px: drag to move. Tinted per group (io/component) for distinction
         val io = node.type == "cin" || node.type == "cout"
         val headerTint = when {
             comp -> Palette.catComponent.copy(alpha = 0.16f)
@@ -158,7 +158,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                             state.moveNode(node.id, nx, ny)
                             ch.consume()
                         }
-                        if (moved) state.pushHistory(snap0) // mouseup 시 1회 push
+                        if (moved) state.pushHistory(snap0) // push once on mouseup
                     }
                 }
                 .padding(horizontal = 9.dp),
@@ -170,11 +170,11 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             Box(Modifier.size(8.dp).background(Palette.statusDot(node.status), CircleShape))
         }
 
-        // 노드 id (본문 중앙)
+        // node id (body center)
         Box(Modifier.matchParentSize().padding(top = 14.dp), contentAlignment = Alignment.Center) {
             Txt(node.id, 9.5.sp, Palette.faintText, mono = true)
         }
-        // 상태 라벨 (하단)
+        // status label (bottom)
         statusText?.let {
             Box(Modifier.matchParentSize().padding(bottom = 6.dp), contentAlignment = Alignment.BottomCenter) {
                 Txt(it, 10.sp, statusColor, mono = true)
@@ -184,7 +184,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         node.inputs.forEachIndexed { i, name -> PortView(state, node, "in", i, name) }
         node.outputs.forEachIndexed { i, name -> PortView(state, node, "out", i, name) }
 
-        // 리사이즈 핸들 (우하단 L자, min 120×60)
+        // resize handle (bottom-right L, min 120×60)
         Box(
             Modifier
                 .align(Alignment.BottomEnd)
@@ -257,7 +257,7 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
                 }
             }
     )
-    // 포트 id 라벨 (안쪽)
+    // port id label (inside)
     Box(
         Modifier
             .offset(0.dp, (cy - 6f).dp)

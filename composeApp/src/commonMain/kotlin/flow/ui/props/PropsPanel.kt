@@ -38,7 +38,7 @@ import flow.ui.theme.Palette
 
 @Composable
 fun PropsPanel(state: EditorState) {
-    // 텍스트 편집: 포커스 시점 스냅샷을 blur 때 1회 push
+    // text edit: snapshot on focus, push once on blur
     var focusSnap by remember { mutableStateOf<String?>(null) }
     val onFocusChange: (Boolean) -> Unit = { focused ->
         if (focused) {
@@ -199,7 +199,7 @@ private fun PortSection(state: EditorState, node: Node, kind: String, onFocusCha
     }
 }
 
-// 다중 선택: 동시에 수정 가능한 항목(공통 파라미터)만 표시
+// multi-selection: show only simultaneously-editable items (common params)
 @Composable
 private fun MultiProps(state: EditorState, onFocusChange: (Boolean) -> Unit) {
     val nodeCount = state.selNodes.size

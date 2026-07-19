@@ -1,5 +1,6 @@
 package flow
 
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -11,18 +12,23 @@ import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
+import androidx.compose.ui.window.FrameWindowScope
+import androidx.compose.ui.window.MenuBar
 import flow.core.Workspace
+import flow.platform.Platform
 import flow.ui.shell.App
 import flow.ui.shell.handleKey
 import java.awt.Taskbar
 import java.awt.Toolkit
 
 fun main() {
-    // macOS: 타이틀바를 어둡게(신호등이 다크 배경에 맞도록)
+    // App name shown in the macOS menu bar / Dock (instead of the main class name)
+    System.setProperty("apple.awt.application.name", "Flow")
+    // macOS: dark title bar so the traffic lights match the dark background
     System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
     val isMac = System.getProperty("os.name").lowercase().contains("mac")
 
-    // 앱 아이콘 — macOS Dock 에 표시
+    // app icon — shown in the macOS Dock
     val iconImage = AppIcon.image()
     runCatching {
         if (Taskbar.isTaskbarSupported()) Taskbar.getTaskbar().iconImage = iconImage
@@ -33,7 +39,7 @@ fun main() {
         val scope = rememberCoroutineScope()
         val ws = remember { Workspace(scope) }
 
-        // 초기 크기를 화면에 맞게 제한
+        // clamp the initial size to the screen
         val screen = Toolkit.getDefaultToolkit().screenSize
         val initW = minOf(1480, screen.width - 120).coerceAtLeast(800)
         val initH = minOf(920, screen.height - 120).coerceAtLeast(560)
@@ -50,8 +56,9 @@ fun main() {
             icon = iconPainter,
             onKeyEvent = { handleKey(ws, it) },
         ) {
-            // 시스템 창을 그대로 쓰되 타이틀바를 투명·풀콘텐츠로 만들어 앱 테마가 비치게 함.
-            // (닫기/최소화/전체화면 버튼·리사이즈는 네이티브 그대로 동작)
+            AppMenuBar(ws) // macOS top system menu bar (Flow / File / Edit / View)
+            // Use the native window but make the title bar transparent/full-content so the app theme shows through.
+            // (close/minimize/fullscreen buttons and resize keep working natively)
             LaunchedEffect(Unit) {
                 if (isMac) {
                     window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
@@ -61,8 +68,36 @@ fun main() {
                 window.toFront()
                 window.requestFocus()
             }
-            // 좌측에 네이티브 신호등(약 72px) 자리를 비워 메뉴가 겹치지 않게 함
+            // Reserve ~72px on the left for the native traffic lights so nothing overlaps them
             App(ws, leadingInset = if (isMac) 72.dp else 0.dp)
+        }
+    }
+}
+
+// Native (system) menu bar: Flow / File / Edit / View
+@Composable
+private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
+    MenuBar {
+        Menu(ws.t("menuFile")) {
+            Item(ws.t("newFlow")) { ws.newDoc() }
+            Item(ws.t("newComponent")) { ws.newComponent() }
+            Item(ws.t("closeTab")) { ws.requestClose(ws.activeIndex) }
+            Separator()
+            Item(ws.t("installPlugin")) { Platform.pickJar()?.let { ws.installJarFlow(it) } }
+            Item(ws.t("installComponent")) { ws.installActiveComponent() }
+            Separator()
+            Item(ws.t("menuSettings")) { ws.showSettings = true }
+        }
+        Menu(ws.t("menuEdit")) {
+            Item(ws.t("undo")) { ws.active?.undo() }
+            Item(ws.t("redo")) { ws.active?.redo() }
+            Item(ws.t("deleteSel")) { ws.active?.deleteSelection() }
+            Item(ws.t("autoLayout")) { ws.active?.autoLayout() }
+        }
+        Menu(ws.t("menuView")) {
+            CheckboxItem(ws.t("toggleLeft"), checked = ws.showLeft, onCheckedChange = { ws.showLeft = it })
+            CheckboxItem(ws.t("toggleProps"), checked = ws.showProps, onCheckedChange = { ws.showProps = it })
+            CheckboxItem(ws.t("toggleMinimap"), checked = ws.showMinimap, onCheckedChange = { ws.showMinimap = it })
         }
     }
 }

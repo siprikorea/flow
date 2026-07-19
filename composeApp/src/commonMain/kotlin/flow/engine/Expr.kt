@@ -1,10 +1,10 @@
 package flow.engine
 
-// 작은 수식 평가기: 숫자, 변수(x/value = 입력), + - * / %, 비교(> < >= <= == !=), 괄호, 단항 -.
-// map 의 산술식과 filter 의 비교식을 지원한다.
+// Small expression evaluator: numbers, variables (x/value = input), + - * / %, comparisons (> < >= <= == !=), parentheses, unary -.
+// Supports map's arithmetic and filter's comparison expressions.
 object Expr {
     fun evalToString(expr: String, input: String?): String? {
-        val r = eval(expr, input) ?: return input // 평가 불가 시 입력 그대로 통과
+        val r = eval(expr, input) ?: return input // pass the input through unchanged if it can't be evaluated
         return fmt(r)
     }
 
@@ -26,7 +26,7 @@ object Expr {
             return v
         }
 
-        // 비교 (다음 우선순위: 덧셈)
+        // comparison (next precedence: addition)
         private fun comparison(): Double {
             var left = add()
             skipWs()
@@ -88,12 +88,12 @@ object Expr {
                 if (peek() == ')') i++
                 return v
             }
-            // 식별자 (x / value / 기타 → 입력)
+            // identifier (x / value / anything -> input)
             if (peek()?.isLetter() == true) {
                 while (i < s.length && (s[i].isLetterOrDigit() || s[i] == '_')) i++
-                return x // x, value, 그 외 식별자 모두 입력값으로 취급
+                return x // x, value and any other identifier are treated as the input value
             }
-            // 숫자
+            // number
             val start = i
             while (i < s.length && (s[i].isDigit() || s[i] == '.')) i++
             return s.substring(start, i).toDouble()

@@ -113,7 +113,7 @@ private fun PaletteCard(
             .background(Palette.dropdownBg, RoundedCornerShape(7.dp))
             .border(1.dp, borderColor, RoundedCornerShape(7.dp))
             .pointerInput(type) {
-                // 드래그 → ws.dragModule 갱신 → 릴리스 시 활성 문서에 드랍
+                // drag -> update ws.dragModule -> drop onto the active document on release
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()

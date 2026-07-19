@@ -51,7 +51,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
     val density = LocalDensity.current.density
     state.density = density
 
-    // 애니메이션 시계: 실행 중일 때만 프레임 갱신
+    // animation clock: advance frames only while running
     var timeMs by remember { mutableStateOf(0L) }
     val animating = state.running || state.edges.any { it.active } || state.nodes.any { it.status == "running" }
     LaunchedEffect(animating) {
@@ -84,7 +84,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                             ch.consume()
                         }
                     } else {
-                        // 빈 캔버스 드래그 = 선택 사각형(러버밴드), 클릭 = 엣지 선택/해제
+                        // drag on empty canvas = rubber-band select, click = select/deselect an edge
                         val startWorld = state.screenToWorld(down.position)
                         var moved = false
                         drag(down.id) { ch ->
@@ -107,7 +107,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 }
             }
     ) {
-        // 격자 + 연결선 + 프리뷰 + 패킷
+        // grid + edges + preview + packets
         Canvas(Modifier.fillMaxSize()) {
             val s = GRID * density * state.zoom
             val ox = ((state.pan.x % s) + s) % s
@@ -150,7 +150,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                     drawPath(path, color, style = Stroke(if (selected) 3.5f else 2.5f, pathEffect = effect))
 
                     if (e.active) {
-                        // 패킷: 흰 원 + glow, 곡선을 따라 0→100% (0.85s 반복)
+                        // packet: white dot + glow, along the curve 0->100% (0.85s loop)
                         val t = (timeMs % 850) / 850f
                         val p = bezierPoint(a, b, t)
                         drawCircle(Palette.accentSoft.copy(alpha = 0.45f), 8f, p)
@@ -172,7 +172,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                         )
                     }
                 }
-                // 드래그 선택 사각형 (러버밴드)
+                // rubber-band selection rectangle
                 state.selRect?.let { r ->
                     drawRect(
                         Palette.accent.copy(alpha = 0.10f),
@@ -189,7 +189,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
             }
         }
 
-        // 노드 레이어
+        // node layer
         Box(
             Modifier.fillMaxSize().graphicsLayer(
                 translationX = state.pan.x,

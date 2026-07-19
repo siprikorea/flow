@@ -9,7 +9,7 @@ import java.awt.geom.Path2D
 import java.awt.geom.RoundRectangle2D
 import java.awt.image.BufferedImage
 
-// 앱 아이콘(로고): 그라디언트 라운드 사각형 + 흐름(노드-연결) 모티프. 코드로 생성.
+// App icon (logo): gradient rounded square + flow (node-connection) motif. Generated in code.
 object AppIcon {
     fun image(size: Int = 256): BufferedImage {
         val img = BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB)
@@ -18,21 +18,25 @@ object AppIcon {
         g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE)
 
         val s = size.toFloat()
-        val radius = s * 0.22f
-        g.paint = GradientPaint(0f, 0f, Color(0x5B, 0x8C, 0xFF), s, s, Color(0x22, 0xC3, 0xA6))
-        g.fill(RoundRectangle2D.Float(0f, 0f, s, s, radius, radius))
+        // leave margin per macOS icon conventions (filling the canvas looks bigger than other icons)
+        val pad = s * 0.11f
+        val inner = s - pad * 2
+        val radius = inner * 0.28f
+        g.paint = GradientPaint(pad, pad, Color(0x5B, 0x8C, 0xFF), s - pad, s - pad, Color(0x22, 0xC3, 0xA6))
+        g.fill(RoundRectangle2D.Float(pad, pad, inner, inner, radius, radius))
 
-        // 흐름 모티프: 두 노드 + S 곡선 연결
+        // flow motif: two nodes + S-curve connection (relative to the inner box)
+        fun px(f: Float) = pad + inner * f
         g.color = Color(255, 255, 255, 235)
-        g.stroke = BasicStroke(s * 0.055f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
-        val ax = s * 0.30f; val ay = s * 0.34f
-        val cx = s * 0.70f; val cy = s * 0.66f
+        g.stroke = BasicStroke(inner * 0.06f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND)
+        val ax = px(0.30f); val ay = px(0.34f)
+        val cx = px(0.70f); val cy = px(0.66f)
         val path = Path2D.Float().apply {
             moveTo(ax.toDouble(), ay.toDouble())
-            curveTo((s * 0.55).toDouble(), ay.toDouble(), (s * 0.45).toDouble(), cy.toDouble(), cx.toDouble(), cy.toDouble())
+            curveTo(px(0.55f).toDouble(), ay.toDouble(), px(0.45f).toDouble(), cy.toDouble(), cx.toDouble(), cy.toDouble())
         }
         g.draw(path)
-        val d = s * 0.13f
+        val d = inner * 0.14f
         g.fill(Ellipse2D.Float(ax - d / 2, ay - d / 2, d, d))
         g.fill(Ellipse2D.Float(cx - d / 2, cy - d / 2, d, d))
 

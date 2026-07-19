@@ -6,13 +6,13 @@ import flow.model.compFile
 import flow.model.isComp
 
 /**
- * 플로우 실행 엔진 (UI 비의존).
- * cin(입력 경계) 값을 받아 노드들을 위상 순서로 평가하고 cout(출력 경계) 값을 돌려준다.
- * 스칼라(문자열/숫자) 데이터 모델 — 표현식은 [Expr] 로 평가한다.
+ * Flow execution engine (UI-independent).
+ * Takes cin (input boundary) values, evaluates nodes in topological order, and returns cout (output boundary) values.
+ * Scalar (string/number) data model — expressions are evaluated by [Expr].
  *
- * @param loadFlow 중첩 컴포넌트(comp:<파일>)를 확장하기 위한 로더
- * @param moduleIds 설치된 모듈 플러그인 id 집합 (해당 타입 노드는 process 로 평가)
- * @param moduleProcess 설치된 모듈의 처리 함수 (id, 입력 → 출력)
+ * @param loadFlow loader used to expand nested components (comp:<file>)
+ * @param moduleIds set of installed module plugin ids (nodes of that type are evaluated via process)
+ * @param moduleProcess processing function of installed modules (id, inputs -> outputs)
  */
 class FlowEngine(
     private val loadFlow: (String) -> FlowFile?,
@@ -20,7 +20,7 @@ class FlowEngine(
     private val moduleProcess: (String, Map<String, String?>) -> Map<String, String?> = { _, _ -> emptyMap() },
 ) {
 
-    // cin 라벨 → 값. 반환: cout 라벨 → 값
+    // cin label -> value. Returns: cout label -> value
     fun run(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
         val byId = flow.nodes.associateBy { it.id }
         val outVals = HashMap<Pair<String, String>, String?>()
@@ -45,10 +45,10 @@ class FlowEngine(
         return when {
             node.type == "cin" -> mapOf((node.outputs.firstOrNull() ?: "out") to externalInputs[node.label])
             node.type == "cout" -> emptyMap()
-            node.type in moduleIds -> moduleProcess(node.type, inVals) // 설치된 모듈 플러그인
+            node.type in moduleIds -> moduleProcess(node.type, inVals) // installed module plugin
             isComp(node.type) -> {
                 val sub = loadFlow(compFile(node.type)) ?: return node.outputs.associateWith { null }
-                // 컴포넌트 입력 포트(node.inputs) = 하위 cin 라벨
+                // component input ports (node.inputs) = the sub-component's cin labels
                 val subInputs = node.inputs.associateWith { inVals[it] ?: "" }
                 val subOut = run(sub, subInputs.mapValues { it.value ?: "" })
                 node.outputs.associateWith { subOut[it] }
@@ -59,7 +59,7 @@ class FlowEngine(
                 val pass = Expr.evalToBool(node.params["expr"] ?: "value", v)
                 mapOf("pass" to if (pass) v else null, "fail" to if (pass) null else v)
             }
-            node.type == "split" -> node.outputs.associateWith { single() } // 각 출력에 복제
+            node.type == "split" -> node.outputs.associateWith { single() } // duplicate to each output
             node.type == "merge" -> {
                 val nums = inVals.values.mapNotNull { it?.toDoubleOrNull() }
                 val out = if (nums.isNotEmpty()) Expr.fmt(nums.sum()) else inVals.values.firstOrNull { it != null }
@@ -67,12 +67,12 @@ class FlowEngine(
             }
             node.type == "agg" -> mapOf((node.outputs.firstOrNull() ?: "out") to single())
             node.type == "csv" -> mapOf((node.outputs.firstOrNull() ?: "out") to (node.params["value"] ?: node.params["path"] ?: ""))
-            node.outputs.isEmpty() -> emptyMap() // sink (log/fout 등)
-            else -> mapOf((node.outputs.firstOrNull() ?: "out") to single()) // 기본: 항등
+            node.outputs.isEmpty() -> emptyMap() // sink (log/fout, etc.)
+            else -> mapOf((node.outputs.firstOrNull() ?: "out") to single()) // default: identity
         }
     }
 
-    // Kahn 위상 정렬 (사이클은 남은 노드를 임의 순서로 덧붙임)
+    // Kahn topological sort (cycles: append remaining nodes in arbitrary order)
     private fun topoOrder(flow: FlowFile): List<String> {
         val ids = flow.nodes.map { it.id }
         val indeg = ids.associateWith { 0 }.toMutableMap()

@@ -28,7 +28,7 @@ data class Node(
     val status: String = "idle", // idle | running | done | error
 )
 
-// JSON 내보내기/히스토리 스냅샷 포맷
+// JSON export / history snapshot format
 @Serializable
 data class FlowFile(
     val version: Int = 1,
@@ -37,7 +37,7 @@ data class FlowFile(
     val seq: Int = 1,
 )
 
-// 세션 포맷: 열린 탭 목록 + 전역 UI 상태 (IntelliJ식 워크스페이스 복원)
+// Session format: open tabs + global UI state (IntelliJ-style workspace restore)
 @Serializable
 data class Session(
     val openFiles: List<String> = emptyList(),

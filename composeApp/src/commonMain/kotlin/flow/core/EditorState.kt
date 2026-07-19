@@ -26,9 +26,9 @@ private const val HISTORY_MAX = 60
 private const val SPEED = 1f
 
 data class Wire(val node: String, val port: String, val pos: Offset)
-data class DragModule(val type: String, val pos: Offset) // pos: 윈도 좌표(px)
+data class DragModule(val type: String, val pos: Offset) // pos: window coordinates (px)
 
-// 문서(탭) 하나의 상태. 언어·패널·메뉴 등 전역 UI 는 Workspace 로 위임한다.
+// State of a single document (tab). Global UI (language, panels, menu) is delegated to Workspace.
 class EditorState(
     private val scope: CoroutineScope,
     val ws: Workspace,
@@ -39,19 +39,19 @@ class EditorState(
     var seq by mutableStateOf(1)
     var pan by mutableStateOf(Offset.Zero)
     var zoom by mutableStateOf(1f)
-    // 다중 선택: 노드/엣지 id 집합
+    // multi-selection: sets of node/edge ids
     var selNodes by mutableStateOf(setOf<String>())
     var selEdges by mutableStateOf(setOf<String>())
-    var selRect by mutableStateOf<Rect?>(null) // 드래그 선택 사각형 (world dp)
+    var selRect by mutableStateOf<Rect?>(null) // rubber-band selection rect (world dp)
     var wire by mutableStateOf<Wire?>(null)
     var running by mutableStateOf(false)
     var spaceDown by mutableStateOf(false)
     var canvasSize by mutableStateOf(IntSize.Zero)
-    var canvasOrigin by mutableStateOf(Offset.Zero) // 윈도 좌표
+    var canvasOrigin by mutableStateOf(Offset.Zero) // window coordinates
     var density by mutableStateOf(1f)
     var textEditing by mutableStateOf(false)
 
-    // 전역 UI 위임 — 기존 컴포넌트가 state.xxx 그대로 쓰도록 유지
+    // delegated global UI — so components keep using state.xxx unchanged
     var lang: String
         get() = ws.lang
         set(v) { ws.lang = v }
@@ -73,14 +73,14 @@ class EditorState(
     private val future = ArrayDeque<String>()
     private val simJobs = mutableSetOf<Job>()
 
-    // 마지막으로 저장된(또는 열린) 시점의 정규화 시그니처. dirty 판정 기준.
+    // normalized signature at the last save (or open); basis for the dirty check.
     var savedSig by mutableStateOf("")
         private set
 
-    // 파일로 저장된 적이 있는가. 새로 만든(미저장) 문서는 false → 항상 dirty.
+    // whether it has ever been saved to a file. New (unsaved) docs are false -> always dirty.
     var persisted by mutableStateOf(true)
 
-    // 파일 내용으로 문서 초기화
+    // initialize the document from file contents
     fun load(flow: FlowFile) {
         nodes = flow.nodes
         edges = flow.edges
@@ -95,7 +95,7 @@ class EditorState(
         savedSig = flowJson()
     }
 
-    /* ───────── 선택 ───────── */
+    /* ───────── selection ───────── */
 
     fun clearSel() { selNodes = emptySet(); selEdges = emptySet() }
     fun selectNode(id: String) { selNodes = setOf(id); selEdges = emptySet() }
@@ -103,7 +103,7 @@ class EditorState(
     fun selectEdge(id: String) { selEdges = setOf(id); selNodes = emptySet() }
     val isNodeSelected: (String) -> Boolean get() = { it in selNodes }
 
-    // 드래그 사각형과 겹치는 노드/엣지 선택
+    // select nodes/edges overlapping the rubber-band rect
     fun selectInRect(r: Rect) {
         selNodes = nodes.filter { r.overlaps(Rect(it.x, it.y, it.x + it.w, it.y + it.h)) }.map { it.id }.toSet()
         selEdges = edges.filter { e ->
@@ -117,7 +117,7 @@ class EditorState(
         }.map { it.id }.toSet()
     }
 
-    // 여러 노드에 공통 파라미터 키 (교집합)
+    // param keys common to the selected nodes (intersection)
     fun commonParamKeys(): List<String> {
         val sel = nodes.filter { it.id in selNodes }
         if (sel.isEmpty()) return emptyList()
@@ -128,7 +128,7 @@ class EditorState(
         nodes = nodes.map { if (it.id in selNodes && it.params.containsKey(key)) it.copy(params = it.params + (key to value)) else it }
     }
 
-    // 파일에 저장할 JSON — 실행 상태(status/active)는 초기화해 영속화하지 않는다.
+    // JSON to write to file — run state (status/active) is reset and not persisted.
     fun flowJson(): String = json.encodeToString(
         FlowFile(
             version = 1,
@@ -138,10 +138,10 @@ class EditorState(
         )
     )
 
-    // 저장되지 않은 수정이 있는가 (미저장 신규 문서는 항상 dirty, 실행 상태 변화는 제외)
+    // whether there are unsaved edits (new unsaved docs are always dirty; run-state changes excluded)
     val dirty: Boolean get() = !persisted || flowJson() != savedSig
 
-    // 파일에 저장하고 저장 시그니처·시각 갱신, 프로젝트 목록 반영
+    // save to file, update the saved signature/time, and refresh the project list
     fun save() {
         Platform.writeFlow(fileName, flowJson())
         persisted = true
@@ -154,7 +154,7 @@ class EditorState(
 
     fun nodeById(id: String) = nodes.find { it.id == id }
 
-    /* ───────── 히스토리 ───────── */
+    /* ───────── history ───────── */
 
     fun snapshot(): String = json.encodeToString(FlowFile(1, nodes, edges, seq))
 
@@ -184,13 +184,13 @@ class EditorState(
         applySnapshot(future.removeLast())
     }
 
-    /* ───────── 좌표 변환 ───────── */
+    /* ───────── coordinate transforms ───────── */
 
-    // world 단위는 dp. screen px = world·density·zoom + pan
+    // world unit is dp. screen px = world·density·zoom + pan
     fun screenToWorld(px: Offset): Offset =
         Offset((px.x - pan.x) / (zoom * density), (px.y - pan.y) / (zoom * density))
 
-    /* ───────── 노드 생성/삭제/편집 ───────── */
+    /* ───────── node create/delete/edit ───────── */
 
     fun addNodeAt(type: String, world: Offset) {
         val label: String
@@ -243,7 +243,7 @@ class EditorState(
         clearSel()
     }
 
-    // 선택된 노드/엣지 전체 삭제 (노드에 연결된 엣지도 함께)
+    // delete all selected nodes/edges (including edges attached to the nodes)
     fun deleteSelection() {
         if (selNodes.isEmpty() && selEdges.isEmpty()) return
         pushHistory()
@@ -254,7 +254,7 @@ class EditorState(
         clearSel()
     }
 
-    // 노드 id 변경 시 참조하는 모든 엣지 동기화
+    // when a node id changes, sync every edge that references it
     fun renameNodeId(oldId: String, newId: String): Boolean {
         if (newId.isBlank() || newId == oldId || nodes.any { it.id == newId }) return false
         nodes = nodes.map { if (it.id == oldId) it.copy(id = newId) else it }
@@ -308,19 +308,19 @@ class EditorState(
         updateNode(nodeId) { if (kind == "in") it.copy(inputs = list + name) else it.copy(outputs = list + name) }
     }
 
-    /* ───────── 연결 ───────── */
+    /* ───────── connections ───────── */
 
-    // 연결 드래그 종료: world 좌표에서 가장 가까운 입력 포트에 스냅
+    // finish a wire drag: snap to the nearest input port in world coordinates
     fun completeWire(world: Offset) {
         val w = wire ?: return
         wire = null
         for (node in nodes) {
-            if (node.id == w.node) continue // 같은 노드 금지
+            if (node.id == w.node) continue // no self-connection
             node.inputs.forEachIndexed { idx, port ->
                 val p = portPos(node, "in", idx)
                 if (hypot(p.x - world.x, p.y - world.y) <= 12f) {
                     pushHistory()
-                    edges = edges.filter { !(it.to.node == node.id && it.to.port == port) } + // 입력 포트당 1개 — 교체
+                    edges = edges.filter { !(it.to.node == node.id && it.to.port == port) } + // one edge per input port — replace
                         Edge("e_$seq", PortRef(w.node, w.port), PortRef(node.id, port))
                     seq += 1
                     return
@@ -329,7 +329,7 @@ class EditorState(
         }
     }
 
-    // 클릭 지점에서 가까운 엣지 검색 (곡선 32점 샘플링)
+    // find the edge near the click point (sampling the curve at 32 points)
     fun edgeAt(world: Offset): String? {
         for (e in edges) {
             val from = nodeById(e.from.node) ?: continue
@@ -344,7 +344,7 @@ class EditorState(
         return null
     }
 
-    /* ───────── 팬/줌 ───────── */
+    /* ───────── pan/zoom ───────── */
 
     fun zoomAt(pointerPx: Offset, scrollY: Float) {
         val z1 = (zoom * exp(-scrollY * 0.12f)).coerceIn(0.3f, 2.5f)
@@ -361,7 +361,7 @@ class EditorState(
         )
     }
 
-    /* ───────── 실행 시뮬레이션 ───────── */
+    /* ───────── run simulation ───────── */
 
     private fun setStatus(id: String, status: String) = updateNode(id) { it.copy(status = status) }
 
@@ -377,7 +377,7 @@ class EditorState(
         simJobs.add(job)
         job.invokeOnCompletion {
             simJobs.remove(job)
-            // 대기 타이머 0이 되면 자동으로 running 종료
+            // stop running automatically once no timers remain
             if (running && simJobs.isEmpty()) running = false
         }
     }
@@ -386,7 +386,7 @@ class EditorState(
         val node = nodeById(id) ?: return
         if (node.status == "running" || node.status == "done") return
         val incoming = edges.filter { it.to.node == id }
-        // 입력 포트가 있는데 들어오는 연결이 하나도 없으면 error
+        // error if it has input ports but no incoming connection
         if (!skipInputCheck && node.inputs.isNotEmpty() && incoming.isEmpty()) {
             setStatus(id, "error")
             return
@@ -415,7 +415,7 @@ class EditorState(
         if (nodes.isEmpty()) return
         resetRun()
         running = true
-        // 들어오는 엣지가 없는 소스 노드부터; 없으면 첫 노드
+        // start from source nodes (no incoming edges); otherwise the first node
         val sources = nodes.filter { n -> edges.none { it.to.node == n.id } }
         val starts = sources.ifEmpty { listOf(nodes.first()) }
         later(0) { starts.forEach { runNode(it.id) } }
@@ -425,7 +425,7 @@ class EditorState(
         val nodeId = id ?: selNodes.firstOrNull() ?: return
         resetRun()
         running = true
-        later(0) { runNode(nodeId, skipInputCheck = true) } // 입력 미연결 검사 면제
+        later(0) { runNode(nodeId, skipInputCheck = true) } // skip the unconnected-input check
     }
 
     fun stopRun() {
@@ -436,7 +436,7 @@ class EditorState(
         edges = edges.map { if (it.active) it.copy(active = false) else it }
     }
 
-    /* ───────── 자동 배치 (BFS 깊이별 컬럼) ───────── */
+    /* ───────── auto layout (BFS depth columns) ───────── */
 
     fun autoLayout() {
         if (nodes.isEmpty()) return
@@ -464,7 +464,7 @@ class EditorState(
         }
     }
 
-    /* ───────── 사이드바 드래그 드랍 ───────── */
+    /* ───────── sidebar drag & drop ───────── */
 
     fun dropModule() {
         val d = dragModule ?: return

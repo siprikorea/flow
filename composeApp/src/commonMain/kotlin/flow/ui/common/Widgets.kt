@@ -55,7 +55,7 @@ fun Txt(
     )
 }
 
-// 리플 없는 clickable
+// clickable without ripple
 fun Modifier.plainClick(onClick: () -> Unit): Modifier = this.then(
     Modifier.clickable(
         interactionSource = MutableInteractionSource(),
@@ -71,7 +71,7 @@ fun rememberHover(): Pair<MutableInteractionSource, Boolean> {
     return src to hovered
 }
 
-// 공통 입력 필드: bg #12151c, border 1px #2c3140, radius 6px, padding 7px 9px
+// Common input field: bg #12151c, border 1px #2c3140, radius 6px, padding 7px 9px
 @Composable
 fun DtxField(
     value: String,

@@ -4,20 +4,20 @@ import flow.model.InstallResult
 import flow.model.ModuleInfo
 
 expect object Platform {
-    // ── 설치된 모듈/컴포넌트 (각 폴더 격리 클래스로더 = 샌드박스) ──
+    // ── installed modules/components (each folder isolated by a classloader = sandbox) ──
     fun installedModuleInfos(): List<ModuleInfo>
     fun moduleProcess(id: String, inputs: Map<String, String?>): Map<String, String?>
-    fun listInstalledComponents(): List<String>          // components/<id>/ 의 id.json
+    fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?
-    // 컴포넌트를 자신의 폴더 샌드박스(번들된 의존 모듈)로 실행
+    // run a component in its own folder sandbox (bundled dependency modules)
     fun runComponent(id: String, inputs: Map<String, String?>): Map<String, String?>
 
-    // 설치: 이미 존재하는 id 는 overwrite=false 면 conflicts 로 반환(설치 안 함)
+    // install: an already-existing id is returned in conflicts when overwrite=false (not installed)
     fun installJar(path: String, overwrite: Boolean): InstallResult
     fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult
-    fun pickJar(): String? // JAR 파일 선택 다이얼로그
+    fun pickJar(): String? // JAR file picker dialog
 
-    // 프로젝트 폴더의 플로우 파일(*.json)
+    // flow files in the project folder (*.json)
     fun listFlows(): List<String>
     fun readFlow(name: String): String?
     fun writeFlow(name: String, json: String)
@@ -25,7 +25,7 @@ expect object Platform {
     fun renameFlow(oldName: String, newName: String): Boolean
     fun flowsDirLabel(): String
 
-    // 세션(열린 탭 + UI 상태) 복원
+    // session (open tabs + UI state) restore
     fun loadSession(): String?
     fun saveSession(json: String)
 

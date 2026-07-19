@@ -27,7 +27,7 @@ internal fun Minimap(state: EditorState, modifier: Modifier = Modifier) {
     val mmH = 124f
     val density = state.density
 
-    // world(dp) 기준 뷰포트와 노드 경계
+    // viewport and node bounds in world (dp)
     val zd = state.zoom * density
     val view = listOf(
         -state.pan.x / zd,
@@ -45,7 +45,7 @@ internal fun Minimap(state: EditorState, modifier: Modifier = Modifier) {
     val ox = (mmW - (maxX - minX) * scale) / 2 - minX * scale
     val oy = (mmH - (maxY - minY) * scale) / 2 - minY * scale
 
-    // 제스처 도중 pan 변화로 scale/ox/oy 가 흔들리지 않도록 최신값을 스냅샷으로 참조
+    // snapshot the latest mapping so scale/ox/oy don't shift as pan changes mid-gesture
     val scaleS = rememberUpdatedState(scale)
     val oxS = rememberUpdatedState(ox)
     val oyS = rememberUpdatedState(oy)
@@ -58,15 +58,15 @@ internal fun Minimap(state: EditorState, modifier: Modifier = Modifier) {
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    down.consume() // 부모 캔버스의 클릭(선택 해제)과 충돌 방지
+                    down.consume() // avoid conflicting with the parent canvas click (deselect)
                     val s = scaleS.value
                     val ex = oxS.value
                     val ey = oyS.value
                     fun jump(p: Offset) {
                         state.minimapJump(Offset((p.x / density - ex) / s, (p.y / density - ey) / s))
                     }
-                    jump(down.position)          // 클릭 즉시 이동
-                    drag(down.id) { ch ->        // 눌러서 드래그하면 계속 이동
+                    jump(down.position)          // jump immediately on click
+                    drag(down.id) { ch ->        // keep moving while dragging
                         jump(ch.position)
                         ch.consume()
                     }

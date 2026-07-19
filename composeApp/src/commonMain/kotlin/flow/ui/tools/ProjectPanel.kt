@@ -40,7 +40,7 @@ import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 
-// 좌측 툴윈도우: Project / Modules 탭 전환
+// Left tool window: switch between Project / Modules tabs
 @Composable
 fun LeftToolWindow(ws: Workspace) {
     Row {
@@ -88,7 +88,7 @@ private fun ToolTab(text: String, active: Boolean, onClick: () -> Unit) {
 @Composable
 private fun ProjectPanel(ws: Workspace) {
     Column(Modifier.fillMaxWidth()) {
-        // 헤더: 새 플로우(+) / 선택 삭제
+        // Header: new flow (+) / delete selection
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -136,7 +136,7 @@ private fun FileRow(ws: Workspace, name: String) {
                 .fillMaxWidth()
                 .hoverable(hoverSrc)
                 .background(bg, RoundedCornerShape(5.dp))
-                // 클릭=선택, Cmd/Win+클릭=토글, 더블클릭=열기, 우클릭=컨텍스트 메뉴
+                // click = select, Cmd/Win+click = toggle, double-click = open, right-click = context menu
                 .pointerInput(name) {
                     var lastDown = 0L
                     awaitEachGesture {

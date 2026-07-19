@@ -14,15 +14,15 @@ import flow.platform.Platform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 
-// 설치 덮어쓰기 확인 대기 (label = 충돌 id, commit = 덮어쓰기 실행)
+// pending install-overwrite confirmation (label = conflicting id, commit = perform overwrite)
 class InstallPending(val label: String, val commit: () -> Unit)
 
-// 워크스페이스: 전역 UI 상태 + 열린 문서(탭) + 프로젝트 파일 목록 + 컴포넌트 레지스트리
+// Workspace: global UI state + open documents (tabs) + project file list + component registry
 class Workspace(private val scope: CoroutineScope) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 
-    // 전역 UI (문서 간 공유)
-    var lang by mutableStateOf("en") // 기본 언어: 영어
+    // global UI (shared across documents)
+    var lang by mutableStateOf("en") // default language: English
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules
     var showProps by mutableStateOf(true)
@@ -31,29 +31,29 @@ class Workspace(private val scope: CoroutineScope) {
     var dragModule by mutableStateOf<DragModule?>(null)
     var saveTime by mutableStateOf<String?>(null)
 
-    // 저장 확인 다이얼로그 대상 (닫으려는 탭 인덱스). null 이면 다이얼로그 없음.
+    // close-confirm target (tab index being closed). null = no dialog.
     var closeConfirm by mutableStateOf<Int?>(null)
 
-    // 설정 화면 표시 여부 (로고 메뉴 > 설정)
+    // whether the settings screen is shown (logo menu > Settings)
     var showSettings by mutableStateOf(false)
 
-    // 프로젝트 패널 파일 다중 선택(하이라이트). 열기는 더블클릭 / 우클릭 메뉴.
+    // project panel multi-selection (highlight). Open via double-click / right-click menu.
     var projectSelected by mutableStateOf(setOf<String>())
-    // 우클릭 컨텍스트 메뉴를 띄운 파일(null 이면 없음)
+    // file whose right-click context menu is open (null = none)
     var projectMenuFor by mutableStateOf<String?>(null)
-    // 삭제 확인 대상 파일들(null 이면 다이얼로그 없음)
+    // files pending delete-confirmation (null = no dialog)
     var fileDeleteConfirm by mutableStateOf<Set<String>?>(null)
-    // 이름 변경 대상 파일(null 이면 다이얼로그 없음)
+    // file pending rename (null = no dialog)
     var renameTarget by mutableStateOf<String?>(null)
-    // 설치 덮어쓰기 확인 (null 이면 없음)
+    // install-overwrite confirmation (null = none)
     var installConfirm by mutableStateOf<InstallPending?>(null)
 
-    // 열린 탭
+    // open tabs
     val docs = mutableStateListOf<EditorState>()
     var activeIndex by mutableStateOf(0)
     val active: EditorState? get() = docs.getOrNull(activeIndex)
 
-    // 프로젝트 파일 + 컴포넌트 + 설치된 모듈
+    // project files + components + installed modules
     var files by mutableStateOf<List<String>>(emptyList())
     var components by mutableStateOf<List<CompDef>>(emptyList())
     var installedModules by mutableStateOf<List<ModuleInfo>>(emptyList())
@@ -66,12 +66,12 @@ class Workspace(private val scope: CoroutineScope) {
         loadSession()
     }
 
-    /* ───────── 프로젝트 파일 + 설치본 ───────── */
+    /* ───────── project files + installed ───────── */
 
     fun refreshFiles() {
         files = Platform.listFlows()
         installedModules = Platform.installedModuleInfos()
-        // 프로젝트 컴포넌트(flows/) + 설치된 컴포넌트(components/, 읽기 전용)
+        // project components (flows/) + installed components (components/, read-only)
         val local = files.mapNotNull { name ->
             val raw = Platform.readFlow(name) ?: return@mapNotNull null
             val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return@mapNotNull null
@@ -87,7 +87,7 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }
 
-    /* ───────── 설치 ───────── */
+    /* ───────── install ───────── */
 
     fun installJarFlow(path: String) {
         val r = Platform.installJar(path, overwrite = false)
@@ -98,10 +98,10 @@ class Workspace(private val scope: CoroutineScope) {
         } else refreshFiles()
     }
 
-    // 현재 편집 중인 컴포넌트(cin/cout 포함)를 설치. id 는 패키지명 형식으로 생성.
+    // Install the currently-edited component (with cin/cout). The id is generated in package-name format.
     fun installActiveComponent() {
         val doc = active ?: return
-        if (doc.nodes.none { it.type == "cin" || it.type == "cout" }) return // 컴포넌트만
+        if (doc.nodes.none { it.type == "cin" || it.type == "cout" }) return // components only
         val id = "local." + doc.fileName.removeSuffix(".json")
         val payload = doc.flowJson()
         val r = Platform.installComponent(id, payload, overwrite = false)
@@ -115,13 +115,13 @@ class Workspace(private val scope: CoroutineScope) {
     fun confirmInstall() { installConfirm?.commit?.invoke(); installConfirm = null }
     fun cancelInstall() { installConfirm = null }
 
-    // 컴포넌트 파일 열기: 설치본(components/)은 읽기 전용 사본으로, 프로젝트 파일은 그대로
+    // Open a component file: installed ones (components/) as a read-only copy, project files as-is
     fun openComponentFile(file: String) {
         if (components.find { it.file == file }?.installed == true) openInstalledComponent(file)
         else openFile(file)
     }
 
-    // 설치된 컴포넌트를 편집용으로 열기: 읽기 전용 사본을 새 문서로 (저장 시 flows/ 로 저장)
+    // Open an installed component for editing: as a new read-only copy (saved into flows/)
     fun openInstalledComponent(file: String) {
         val raw = Platform.readInstalledComponent(file) ?: return
         val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return
@@ -135,7 +135,7 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun isComponentFile(file: String): Boolean = components.any { it.file == file }
 
-    /* ───────── 프로젝트 파일 선택/열기/삭제 (다중) ───────── */
+    /* ───────── project file select/open/delete (multi) ───────── */
 
     fun selectFile(name: String) { projectSelected = setOf(name) }
     fun toggleFileSelect(name: String) {
@@ -144,7 +144,7 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun openFiles(names: Collection<String>) = names.forEach { openFile(it) }
 
-    // 삭제 확인 요청 → 다이얼로그 표시
+    // request delete-confirmation -> show the dialog
     fun requestDeleteFiles(names: Set<String>) {
         if (names.isNotEmpty()) fileDeleteConfirm = names
     }
@@ -159,14 +159,14 @@ class Workspace(private val scope: CoroutineScope) {
     private fun deleteFiles(names: Set<String>) {
         names.forEach { name ->
             val i = docs.indexOfFirst { it.fileName == name }
-            if (i >= 0) removeDoc(i) // 열려 있으면 탭도 닫음
+            if (i >= 0) removeDoc(i) // also close the tab if open
             Platform.deleteFlow(name)
         }
         projectSelected = projectSelected - names
         refreshFiles()
     }
 
-    /* ───────── 이름 변경 ───────── */
+    /* ───────── rename ───────── */
 
     fun requestRename(name: String) { renameTarget = name }
     fun cancelRename() { renameTarget = null }
@@ -179,13 +179,13 @@ class Workspace(private val scope: CoroutineScope) {
         val new = if (trimmed.endsWith(".json")) trimmed else "$trimmed.json"
         if (new == old) return
         if (Platform.renameFlow(old, new)) {
-            docs.find { it.fileName == old }?.fileName = new // 열린 탭 파일명 동기화
+            docs.find { it.fileName == old }?.fileName = new // sync the open tab's file name
             if (old in projectSelected) projectSelected = projectSelected - old + new
             refreshFiles()
         }
     }
 
-    /* ───────── 탭 열기/닫기 ───────── */
+    /* ───────── open/close tabs ───────── */
 
     fun openFile(name: String) {
         val i = docs.indexOfFirst { it.fileName == name }
@@ -197,7 +197,7 @@ class Workspace(private val scope: CoroutineScope) {
         activeIndex = docs.lastIndex
     }
 
-    // 새 플로우: 저장 전까지는 파일(프로젝트 목록)에 쓰지 않는다.
+    // New flow: not written to a file (project list) until saved.
     fun newDoc() {
         val name = nextName("flow")
         val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
@@ -205,7 +205,7 @@ class Workspace(private val scope: CoroutineScope) {
         activeIndex = docs.lastIndex
     }
 
-    // 새 컴포넌트: 입력/출력 경계 노드를 미리 배치. 저장 전까지 파일에 쓰지 않는다.
+    // New component: pre-places input/output boundary nodes. Not written to a file until saved.
     fun newComponent() {
         val name = nextName("comp")
         val cin = Node(
@@ -238,7 +238,7 @@ class Workspace(private val scope: CoroutineScope) {
         docs.forEach { if (it.dirty) it.save() }
     }
 
-    // 탭 닫기 요청: 수정 사항이 있으면 저장 여부를 먼저 묻는다.
+    // Close-tab request: if there are unsaved changes, ask whether to save first.
     fun requestClose(i: Int) {
         if (i !in docs.indices) return
         if (docs[i].dirty) closeConfirm = i else removeDoc(i)
@@ -274,7 +274,7 @@ class Workspace(private val scope: CoroutineScope) {
         return "$base-$n.json"
     }
 
-    /* ───────── 세션 ───────── */
+    /* ───────── session ───────── */
 
     fun sessionJson(): String = json.encodeToString(
         Session(docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap)

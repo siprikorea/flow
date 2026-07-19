@@ -76,7 +76,7 @@ private fun Tab(name: String, active: Boolean, isComp: Boolean, dirty: Boolean, 
                 weight = if (active) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
             )
-            // 수정됨: 평소 점(•), hover 시 닫기(×)
+            // dirty: a dot (•) normally, close (×) on hover
             if (dirty && !hovered) {
                 Txt("●", 10.sp, Palette.accentSoft, modifier = Modifier.padding(horizontal = 3.dp))
             } else {

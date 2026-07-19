@@ -86,7 +86,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp) {
         if (ws.showSettings) SettingsScreen(ws)
     }
 
-    // 세션(열린 탭 + UI) 저장 — 파일 내용은 명시적 저장(Ctrl+S / 닫기 확인)으로 관리
+    // Save the session (open tabs + UI); file contents are saved explicitly (Ctrl+S / close-confirm)
     LaunchedEffect(Unit) {
         snapshotFlow { ws.sessionJson() }
             .debounce(350)
@@ -96,7 +96,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp) {
 
 @Composable
 private fun SaveCloseDialog(ws: Workspace, name: String) {
-    // 스크림: 뒤 클릭 차단
+    // scrim: block clicks behind
     Box(
         Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelClose() },
         contentAlignment = Alignment.Center,
@@ -105,7 +105,7 @@ private fun SaveCloseDialog(ws: Workspace, name: String) {
             Modifier
                 .background(Palette.dropdownBg, RoundedCornerShape(10.dp))
                 .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(10.dp))
-                .plainClick { } // 카드 클릭이 스크림으로 전파되지 않도록
+                .plainClick { } // keep card clicks from propagating to the scrim
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -250,7 +250,7 @@ private fun DragGhost(d: DragModule) {
     }
 }
 
-// 설정 전용 화면 (로고 메뉴 > 설정)
+// Dedicated settings screen (logo menu > Settings)
 @Composable
 private fun SettingsScreen(ws: Workspace) {
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
@@ -308,7 +308,7 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     if (ctrl && ev.key == Key.S) { ws.saveActive(); return true }
     if (ctrl && ev.key == Key.W) { ws.requestClose(ws.activeIndex); return true }
     if (active == null) return false
-    if (active.textEditing) return false // 입력 필드 포커스 중에는 단축키 무시
+    if (active.textEditing) return false // ignore shortcuts while a text field is focused
     return when {
         ev.key == Key.Spacebar -> { active.spaceDown = true; true }
         ev.key == Key.Delete || ev.key == Key.Backspace -> { active.deleteSelection(); true }
