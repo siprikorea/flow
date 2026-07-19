@@ -29,3 +29,13 @@ compose.desktop {
         mainClass = "dataflow.MainKt"
     }
 }
+
+// 터미널 실행: ./gradlew :composeApp:cli --args="triple 5"
+tasks.register<JavaExec>("cli") {
+    group = "application"
+    description = "Run the DataFlow CLI (component executor)"
+    dependsOn("jvmMainClasses")
+    val compilation = kotlin.jvm().compilations.getByName("main")
+    classpath = files(compilation.output.allOutputs, compilation.runtimeDependencyFiles)
+    mainClass.set("dataflow.cli.CliKt")
+}

@@ -80,5 +80,28 @@ Colors, spacing, and typography reproduce the original design spec pixel for pix
 - Grid unit 20, node/card radius 7–9, button radius 5–6
 - Fonts: system sans-serif (UI) + monospace (ids and code values)
 
+## Terminal CLI
+
+Besides the UI, a component can be executed from the terminal: pick a component (a flow with input/output boundary nodes) and feed it input; it evaluates the graph and prints the output. Backed by a UI-independent execution engine (`dataflow.engine`).
+
+```bash
+./gradlew :composeApp:cli --args="--list"            # list available components
+./gradlew :composeApp:cli --args="triple 5"          # single input → out = 15
+./gradlew :composeApp:cli --args="double --in in=10" # per-port input → out = 20
+```
+
+Components are read from `~/.dataflow-editor/flows` (by name) or a file path. The engine evaluates nodes in topological order; `map`/`filter` expressions are handled by a small evaluator (arithmetic, comparisons, variable `x`/`value`), and nested `comp:` nodes are expanded recursively.
+
+## Plugins
+
+A plugin is a packaged component. The `plugin-api` module defines the `Plugin` contract (`Plugin` + `PluginComponent`); a plugin JAR provides one or more components. At startup the app scans `~/.dataflow-editor/plugins/*.jar` (via `ServiceLoader`) and materializes their components into the project (write-if-absent), so they appear in the palette's Components section.
+
+```bash
+./gradlew :plugins:sample-plugin:jar                 # build the sample plugin
+cp plugins/sample-plugin/build/libs/sample-plugin.jar ~/.dataflow-editor/plugins/
+```
+
+Modules: `plugin-api` (contract), `composeApp` (editor + CLI, depends on plugin-api), `plugins/sample-plugin` (example implementing `Plugin`).
+
 ## Notes
 The numeric specs — grid snapping, port placement, bezier curves, simulation timings — come from the original HTML design prototype. This repository is a Compose Multiplatform reimplementation of that spec.
