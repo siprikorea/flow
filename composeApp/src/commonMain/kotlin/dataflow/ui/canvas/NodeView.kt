@@ -27,6 +27,8 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -36,7 +38,6 @@ import dataflow.core.EditorState
 import dataflow.core.portPos
 import dataflow.core.portY
 import dataflow.core.snapF
-import dataflow.model.Sel
 import dataflow.model.compFile
 import dataflow.model.findDef
 import dataflow.model.isComp
@@ -50,7 +51,7 @@ import kotlin.math.max
 @Composable
 internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Long) {
     val density = state.density
-    val selected = state.sel?.kind == "node" && state.sel?.id == node.id
+    val selected = node.id in state.selNodes
     val comp = isComp(node.type)
     val cat = when {
         comp -> "component"
@@ -107,7 +108,9 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume() // 캔버스가 선택을 해제하지 못하도록 소비
-                    state.sel = Sel("node", node.id)
+                    val mods = currentEvent.keyboardModifiers
+                    if (mods.isCtrlPressed || mods.isMetaPressed) state.toggleNode(node.id) // Cmd/Win = 추가 선택
+                    else state.selectNode(node.id)
                     state.menu = null
                     val now = down.uptimeMillis
                     if (comp && now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
@@ -119,18 +122,25 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
                 }
             }
     ) {
-        // 헤더 28px: 드래그 이동
+        // 헤더 28px: 드래그 이동. 그룹(입출력/컴포넌트)별 색조로 구별
+        val io = node.type == "cin" || node.type == "cout"
+        val headerTint = when {
+            comp -> Palette.catComponent.copy(alpha = 0.16f)
+            io -> Palette.catIo.copy(alpha = 0.16f)
+            else -> Color.Transparent
+        }
         Row(
             Modifier
                 .fillMaxWidth()
                 .height(28.dp)
                 .background(Palette.nodeHeaderBg, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
+                .background(headerTint, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
                 .pointerHoverIcon(moveCursorIcon())
                 .pointerInput(node.id) {
                     awaitEachGesture {
                         val down = awaitFirstDown()
                         down.consume()
-                        state.sel = Sel("node", node.id)
+                        if (node.id !in state.selNodes) state.selectNode(node.id)
                         state.menu = null
                         val snap0 = state.snapshot()
                         val start = state.nodeById(node.id) ?: return@awaitEachGesture

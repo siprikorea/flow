@@ -41,7 +41,7 @@ import dataflow.core.GRID
 import dataflow.core.bezierCtrl
 import dataflow.core.bezierPoint
 import dataflow.core.portPos
-import dataflow.model.Sel
+import androidx.compose.ui.geometry.Rect
 import dataflow.ui.common.Txt
 import dataflow.ui.theme.Palette
 
@@ -76,6 +76,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
+                    state.menu = null
                     if (state.spaceDown) {
                         down.consume()
                         drag(down.id) { ch ->
@@ -83,12 +84,24 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                             ch.consume()
                         }
                     } else {
-                        val up = waitForUpOrCancellation()
-                        if (up != null) {
-                            val world = state.screenToWorld(up.position)
-                            val hit = state.edgeAt(world)
-                            state.menu = null
-                            state.sel = hit?.let { Sel("edge", it) }
+                        // 빈 캔버스 드래그 = 선택 사각형(러버밴드), 클릭 = 엣지 선택/해제
+                        val startWorld = state.screenToWorld(down.position)
+                        var moved = false
+                        drag(down.id) { ch ->
+                            moved = true
+                            val cur = state.screenToWorld(ch.position)
+                            state.selRect = Rect(
+                                minOf(startWorld.x, cur.x), minOf(startWorld.y, cur.y),
+                                maxOf(startWorld.x, cur.x), maxOf(startWorld.y, cur.y),
+                            )
+                            ch.consume()
+                        }
+                        if (moved) {
+                            state.selRect?.let { state.selectInRect(it) }
+                            state.selRect = null
+                        } else {
+                            val hit = state.edgeAt(startWorld)
+                            if (hit != null) state.selectEdge(hit) else state.clearSel()
                         }
                     }
                 }
@@ -125,7 +138,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                         moveTo(a.x, a.y)
                         cubicTo(a.x + c, a.y, b.x - c, b.y, b.x, b.y)
                     }
-                    val selected = state.sel?.kind == "edge" && state.sel?.id == e.id
+                    val selected = e.id in state.selEdges
                     val color = when {
                         e.active -> Palette.accent
                         selected -> Palette.edgeSelected
@@ -158,6 +171,20 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                             style = Stroke(2.5f, pathEffect = PathEffect.dashPathEffect(floatArrayOf(7f, 6f))),
                         )
                     }
+                }
+                // 드래그 선택 사각형 (러버밴드)
+                state.selRect?.let { r ->
+                    drawRect(
+                        Palette.accent.copy(alpha = 0.10f),
+                        topLeft = Offset(r.left, r.top),
+                        size = androidx.compose.ui.geometry.Size(r.width, r.height),
+                    )
+                    drawRect(
+                        Palette.accent,
+                        topLeft = Offset(r.left, r.top),
+                        size = androidx.compose.ui.geometry.Size(r.width, r.height),
+                        style = Stroke(1f),
+                    )
                 }
             }
         }

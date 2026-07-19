@@ -4,12 +4,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntSize
 import dataflow.model.Edge
 import dataflow.model.FlowFile
 import dataflow.model.Node
 import dataflow.model.PortRef
-import dataflow.model.Sel
 import dataflow.model.compFile
 import dataflow.model.findDef
 import dataflow.model.isComp
@@ -39,7 +39,10 @@ class EditorState(
     var seq by mutableStateOf(1)
     var pan by mutableStateOf(Offset.Zero)
     var zoom by mutableStateOf(1f)
-    var sel by mutableStateOf<Sel?>(null)
+    // 다중 선택: 노드/엣지 id 집합
+    var selNodes by mutableStateOf(setOf<String>())
+    var selEdges by mutableStateOf(setOf<String>())
+    var selRect by mutableStateOf<Rect?>(null) // 드래그 선택 사각형 (world dp)
     var wire by mutableStateOf<Wire?>(null)
     var running by mutableStateOf(false)
     var spaceDown by mutableStateOf(false)
@@ -81,12 +84,45 @@ class EditorState(
         seq = flow.seq
         pan = Offset.Zero
         zoom = 1f
-        sel = null
+        clearSel()
         wire = null
         running = false
         past.clear()
         future.clear()
         savedSig = flowJson()
+    }
+
+    /* ───────── 선택 ───────── */
+
+    fun clearSel() { selNodes = emptySet(); selEdges = emptySet() }
+    fun selectNode(id: String) { selNodes = setOf(id); selEdges = emptySet() }
+    fun toggleNode(id: String) { selNodes = if (id in selNodes) selNodes - id else selNodes + id }
+    fun selectEdge(id: String) { selEdges = setOf(id); selNodes = emptySet() }
+    val isNodeSelected: (String) -> Boolean get() = { it in selNodes }
+
+    // 드래그 사각형과 겹치는 노드/엣지 선택
+    fun selectInRect(r: Rect) {
+        selNodes = nodes.filter { r.overlaps(Rect(it.x, it.y, it.x + it.w, it.y + it.h)) }.map { it.id }.toSet()
+        selEdges = edges.filter { e ->
+            val from = nodeById(e.from.node); val to = nodeById(e.to.node)
+            if (from == null || to == null) false
+            else {
+                val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0))
+                val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0))
+                (0..24).any { r.contains(bezierPoint(a, b, it / 24f)) }
+            }
+        }.map { it.id }.toSet()
+    }
+
+    // 여러 노드에 공통 파라미터 키 (교집합)
+    fun commonParamKeys(): List<String> {
+        val sel = nodes.filter { it.id in selNodes }
+        if (sel.isEmpty()) return emptyList()
+        return sel.map { it.params.keys }.reduce { acc, keys -> acc intersect keys }.toList().sorted()
+    }
+
+    fun setParamForSelected(key: String, value: String) {
+        nodes = nodes.map { if (it.id in selNodes && it.params.containsKey(key)) it.copy(params = it.params + (key to value)) else it }
     }
 
     // 파일에 저장할 JSON — 실행 상태(status/active)는 초기화해 영속화하지 않는다.
@@ -128,7 +164,7 @@ class EditorState(
         nodes = f.nodes
         edges = f.edges
         seq = f.seq
-        sel = null
+        clearSel()
     }
 
     fun undo() {
@@ -174,7 +210,7 @@ class EditorState(
             w = w, h = h, inputs = ins, outputs = outs, params = params,
         )
         seq += 1
-        sel = Sel("node", id)
+        selectNode(id)
     }
 
     fun updateNode(id: String, transform: (Node) -> Node) {
@@ -189,18 +225,24 @@ class EditorState(
         pushHistory()
         nodes = nodes.filter { it.id != id }
         edges = edges.filter { it.from.node != id && it.to.node != id }
-        sel = null
+        clearSel()
     }
 
     fun deleteEdge(id: String) {
         pushHistory()
         edges = edges.filter { it.id != id }
-        sel = null
+        clearSel()
     }
 
+    // 선택된 노드/엣지 전체 삭제 (노드에 연결된 엣지도 함께)
     fun deleteSelection() {
-        val s = sel ?: return
-        if (s.kind == "node") deleteNode(s.id) else deleteEdge(s.id)
+        if (selNodes.isEmpty() && selEdges.isEmpty()) return
+        pushHistory()
+        val ns = selNodes
+        val es = selEdges
+        nodes = nodes.filter { it.id !in ns }
+        edges = edges.filter { it.id !in es && it.from.node !in ns && it.to.node !in ns }
+        clearSel()
     }
 
     // 노드 id 변경 시 참조하는 모든 엣지 동기화
@@ -213,7 +255,7 @@ class EditorState(
                 to = if (it.to.node == oldId) it.to.copy(node = newId) else it.to,
             )
         }
-        sel = Sel("node", newId)
+        selectNode(newId)
         return true
     }
 
@@ -371,7 +413,7 @@ class EditorState(
     }
 
     fun runFromSelection(id: String? = null) {
-        val nodeId = id ?: sel?.takeIf { it.kind == "node" }?.id ?: return
+        val nodeId = id ?: selNodes.firstOrNull() ?: return
         resetRun()
         running = true
         later(0) { runNode(nodeId, skipInputCheck = true) } // 입력 미연결 검사 면제
@@ -425,7 +467,7 @@ class EditorState(
             nodes = f.nodes
             edges = f.edges
             seq = f.seq
-            sel = null
+            clearSel()
         }
     }
 

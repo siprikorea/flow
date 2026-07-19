@@ -62,11 +62,15 @@ fun PropsPanel(state: EditorState) {
                 .padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            val node = state.sel?.takeIf { it.kind == "node" }?.let { state.nodeById(it.id) }
-            val edge = state.sel?.takeIf { it.kind == "edge" }?.let { s -> state.edges.find { it.id == s.id } }
+            val singleNode = if (state.selNodes.size == 1 && state.selEdges.isEmpty())
+                state.nodeById(state.selNodes.first()) else null
+            val singleEdge = if (state.selEdges.size == 1 && state.selNodes.isEmpty())
+                state.edges.find { it.id == state.selEdges.first() } else null
+            val total = state.selNodes.size + state.selEdges.size
             when {
-                node != null -> NodeProps(state, node, onFocusChange)
-                edge != null -> EdgeProps(state, edge)
+                singleNode != null -> NodeProps(state, singleNode, onFocusChange)
+                singleEdge != null -> EdgeProps(state, singleEdge)
+                total > 1 -> MultiProps(state, onFocusChange)
                 else -> Txt(
                     state.t("propsEmpty"), 12.sp, Palette.faintText,
                     modifier = Modifier.padding(top = 6.dp),
@@ -192,6 +196,41 @@ private fun PortSection(state: EditorState, node: Node, kind: String, onFocusCha
             state.t("addPort"), 11.5.sp, Palette.accent,
             modifier = Modifier.plainClick { state.addPort(node.id, kind) }.padding(vertical = 2.dp),
         )
+    }
+}
+
+// 다중 선택: 동시에 수정 가능한 항목(공통 파라미터)만 표시
+@Composable
+private fun MultiProps(state: EditorState, onFocusChange: (Boolean) -> Unit) {
+    val nodeCount = state.selNodes.size
+    Txt(
+        state.t("multiSelected").replace("{n}", (state.selNodes.size + state.selEdges.size).toString()),
+        13.5.sp, Palette.text, weight = FontWeight.SemiBold,
+    )
+
+    val keys = state.commonParamKeys()
+    if (nodeCount > 0 && keys.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+            SectionLabel(state.t("commonParams"))
+            keys.forEach { key ->
+                val values = state.nodes.filter { it.id in state.selNodes }.mapNotNull { it.params[key] }
+                val common = if (values.distinct().size == 1) values.first() else ""
+                var text by remember(key, common) { mutableStateOf(common) }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Txt(key, 11.sp, Palette.subText, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
+                    DtxField(
+                        text,
+                        { v -> text = v; state.setParamForSelected(key, v) },
+                        modifier = Modifier.weight(1f),
+                        onFocusChange = onFocusChange,
+                    )
+                }
+            }
+        }
+    }
+
+    PanelButton(state.t("deleteSelected"), Palette.dangerBorder, Palette.errorSoft) {
+        state.deleteSelection()
     }
 }
 

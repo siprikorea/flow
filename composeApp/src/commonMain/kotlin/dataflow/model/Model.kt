@@ -48,5 +48,3 @@ data class Session(
     val showProps: Boolean = true,
     val showMinimap: Boolean = true,
 )
-
-data class Sel(val kind: String, val id: String) // kind: node | edge
