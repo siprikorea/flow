@@ -95,6 +95,12 @@ private fun ProjectPanel(ws: Workspace) {
         ) {
             Txt(ws.t("tabProject").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
             Spacer(Modifier.weight(1f))
+            if (ws.projectSelected.size == 1) {
+                Txt(
+                    "✎", 14.sp, Palette.subText,
+                    modifier = Modifier.plainClick { ws.requestRename(ws.projectSelected.first()) }.padding(horizontal = 6.dp),
+                )
+            }
             if (ws.projectSelected.isNotEmpty()) {
                 Txt(
                     "🗑", 13.sp, Palette.errorSoft,

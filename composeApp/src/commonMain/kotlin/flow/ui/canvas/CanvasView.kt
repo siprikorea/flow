@@ -29,6 +29,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerEventType
+import androidx.compose.ui.input.pointer.isCtrlPressed
+import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -70,7 +72,14 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
             }
             .onPointerEvent(PointerEventType.Scroll) { ev ->
                 val ch = ev.changes.first()
-                state.zoomAt(ch.position, ch.scrollDelta.y)
+                val mods = ev.keyboardModifiers
+                if (mods.isCtrlPressed || mods.isMetaPressed) {
+                    // Cmd/Ctrl + scroll = zoom about the cursor
+                    state.zoomAt(ch.position, ch.scrollDelta.y)
+                } else {
+                    // plain scroll (two-finger swipe) = pan the canvas
+                    state.pan -= ch.scrollDelta * 40f
+                }
                 ch.consume()
             }
             .pointerInput(Unit) {
