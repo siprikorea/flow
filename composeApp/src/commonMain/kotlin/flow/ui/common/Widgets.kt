@@ -5,15 +5,19 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
@@ -53,6 +57,17 @@ fun Txt(
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
     )
+}
+
+// Small lettered square marking a node kind: I=input, O=output, M=module, C=component.
+@Composable
+fun KindBadge(letter: String, color: Color, boxSize: Dp = 15.dp) {
+    Box(
+        Modifier.size(boxSize).background(color, RoundedCornerShape(3.dp)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Txt(letter, (boxSize.value * 0.62f).sp, Palette.appBg, weight = FontWeight.Bold)
+    }
 }
 
 // clickable without ripple

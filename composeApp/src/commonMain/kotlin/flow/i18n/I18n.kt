@@ -69,7 +69,7 @@ private val KO = mapOf(
     "stDone" to "완료",
     "stNoInput" to "입력 연결 없음",
     "tabProject" to "프로젝트",
-    "tabModules" to "모듈",
+    "tabModules" to "팔레트",
     "noOpenFile" to "열린 파일이 없습니다. 프로젝트에서 파일을 선택하거나 새 플로우를 만드세요.",
     "newFileTip" to "새 플로우",
 )
@@ -143,7 +143,7 @@ private val EN = mapOf(
     "stDone" to "done",
     "stNoInput" to "no input connection",
     "tabProject" to "Project",
-    "tabModules" to "Modules",
+    "tabModules" to "Palette",
     "noOpenFile" to "No file open. Pick a file from the project or create a new flow.",
     "newFileTip" to "New flow",
 )

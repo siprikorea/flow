@@ -41,6 +41,7 @@ import flow.core.snapF
 import flow.model.compFile
 import flow.model.findDef
 import flow.model.isComp
+import flow.ui.common.KindBadge
 import flow.ui.common.Txt
 import flow.ui.common.moveCursorIcon
 import flow.ui.common.rememberHover
@@ -77,13 +78,13 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         "done" -> Palette.successText
         else -> Palette.errorSoft
     }
-    // kind icon (top-left): input ▸ / output ◼ / component ◆ / module ●
-    val (kindGlyph, kindColor) = when {
-        node.type == "cin" -> "▸" to Palette.catIo
-        node.type == "cout" -> "◼" to Palette.catIo
-        comp -> "◆" to Palette.catComponent
-        pluginMod -> "⬢" to Palette.catPlugin
-        else -> "●" to Palette.catColor(cat)
+    // kind badge (top-left): I=input / O=output / M=module / C=component, distinct colors
+    val (kindLetter, kindColor) = when {
+        node.type == "cin" -> "I" to Palette.catSource
+        node.type == "cout" -> "O" to Palette.catSink
+        comp -> "C" to Palette.catComponent
+        pluginMod -> "M" to Palette.catPlugin
+        else -> "M" to Palette.catTransform
     }
 
     Box(
@@ -164,7 +165,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 .padding(horizontal = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Txt(kindGlyph, 12.sp, kindColor, weight = FontWeight.Bold)
+            KindBadge(kindLetter, kindColor)
             Spacer(Modifier.width(6.dp))
             Txt(node.label, 12.sp, Palette.text, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
             Box(Modifier.size(8.dp).background(Palette.statusDot(node.status), CircleShape))

@@ -35,9 +35,10 @@ import flow.core.DragModule
 import flow.core.Workspace
 import flow.model.CompDef
 import flow.model.IO_DEFS
-import flow.model.ModuleDef
 import flow.model.REGISTRY
+import flow.ui.common.KindBadge
 import flow.ui.common.Txt
+import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 
@@ -47,44 +48,48 @@ internal fun ModulePalette(ws: Workspace) {
         Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 10.dp, vertical = 10.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp),
+            .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        SectionHeader(ws.t("moduleList"))
-        REGISTRY.filter { !it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size) }
-
-        SectionHeader(ws.t("installedPlugins"), dot = Palette.catSource, top = 14.dp)
-        REGISTRY.filter { it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size, plugin = true) }
-
+        Section(ws.t("moduleList")) {
+            REGISTRY.filter { !it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size) }
+        }
+        Section(ws.t("installedPlugins"), dot = Palette.catSource) {
+            REGISTRY.filter { it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size, plugin = true) }
+        }
         if (ws.installedModules.isNotEmpty()) {
-            SectionHeader(ws.t("installedModules"), dot = Palette.catPlugin, top = 14.dp)
-            ws.installedModules.forEach { m ->
-                PaletteCard(ws, m.id, m.name, "pluginmod", m.inputs.size, m.outputs.size)
+            Section(ws.t("installedModules"), dot = Palette.catPlugin) {
+                ws.installedModules.forEach { m -> PaletteCard(ws, m.id, m.name, "pluginmod", m.inputs.size, m.outputs.size) }
             }
         }
-
-        SectionHeader(ws.t("ioSection"), dot = Palette.catIo, top = 14.dp)
-        IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size) }
-
-        SectionHeader(ws.t("componentsSection"), dot = Palette.catComponent, top = 14.dp)
-        if (ws.components.isEmpty()) {
-            Txt(ws.t("dragHint"), 11.sp, Palette.dimText, modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp))
+        Section(ws.t("ioSection"), dot = Palette.catIo) {
+            IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size) }
         }
-        ws.components.forEach { c: CompDef ->
-            PaletteCard(ws, "comp:${c.file}", c.name, "component", c.ins.size, c.outs.size)
+        Section(ws.t("componentsSection"), dot = Palette.catComponent) {
+            if (ws.components.isEmpty()) {
+                Txt(ws.t("dragHint"), 11.sp, Palette.dimText, modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp))
+            }
+            ws.components.forEach { c: CompDef -> PaletteCard(ws, "comp:${c.file}", c.name, "component", c.ins.size, c.outs.size) }
         }
     }
 }
 
+// Collapsible category section (click the header to expand/collapse).
 @Composable
-private fun SectionHeader(text: String, dot: Color? = null, top: androidx.compose.ui.unit.Dp = 4.dp) {
-    Row(
-        Modifier.padding(start = 2.dp, top = top, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        if (dot != null) Box(Modifier.size(6.dp).background(dot, RoundedCornerShape(3.dp)))
-        Txt(text.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+private fun Section(title: String, dot: Color? = null, content: @Composable () -> Unit) {
+    var expanded by remember(title) { mutableStateOf(true) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().plainClick { expanded = !expanded }.padding(start = 2.dp, top = 10.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            Txt(if (expanded) "▾" else "▸", 9.sp, Palette.dimText)
+            if (dot != null) Box(Modifier.size(6.dp).background(dot, RoundedCornerShape(3.dp)))
+            Txt(title.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+        }
+        if (expanded) {
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) { content() }
+        }
     }
 }
 
@@ -104,6 +109,14 @@ private fun PaletteCard(
         hovered -> Color(0xFF3D4557)
         plugin -> Palette.runFromBorder
         else -> Palette.border
+    }
+    // I=input / O=output / M=module / C=component, distinct colors
+    val (letter, badgeColor) = when {
+        type == "cin" -> "I" to Palette.catSource
+        type == "cout" -> "O" to Palette.catSink
+        type.startsWith("comp:") -> "C" to Palette.catComponent
+        cat == "pluginmod" -> "M" to Palette.catPlugin
+        else -> "M" to Palette.catTransform
     }
     Row(
         Modifier
@@ -126,16 +139,9 @@ private fun PaletteCard(
             }
             .padding(horizontal = 10.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        val glyph = when {
-            type == "cin" -> "▸"
-            type == "cout" -> "◼"
-            type.startsWith("comp:") -> "◆"
-            cat == "pluginmod" -> "⬢"
-            else -> "●"
-        }
-        Txt(glyph, 12.sp, Palette.catColor(cat), weight = FontWeight.Bold)
+        KindBadge(letter, badgeColor, boxSize = 14.dp)
         Txt(label, 12.5.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
         if (plugin) {
             Box(
