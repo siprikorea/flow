@@ -37,7 +37,7 @@ object Palette {
     val catSource = Color(0xFF22C3A6)
     val catTransform = Color(0xFFB07BFF)
     val catSink = Color(0xFFFF9D5C)
-    val catIo = Color(0xFFE0B341)         // component input/output boundary node
+    val catIo = Color(0xFFF2C94C)         // input/output (yellow)
     val catComponent = Color(0xFF62C6FF)  // component instance node
     val catPlugin = Color(0xFFEF7DBB)     // installed module plugin
 

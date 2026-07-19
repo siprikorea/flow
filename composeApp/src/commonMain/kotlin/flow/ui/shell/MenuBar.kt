@@ -16,13 +16,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
+import flow.ui.common.AppLogo
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.Palette
@@ -39,10 +39,7 @@ fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Box(
-                Modifier.size(16.dp)
-                    .background(Brush.linearGradient(listOf(Palette.accent, Palette.catSource)), RoundedCornerShape(4.dp))
-            )
+            AppLogo(18.dp)
             Txt("Flow", 14.sp, Palette.text, weight = FontWeight.Bold)
 
             Spacer(Modifier.weight(1f))

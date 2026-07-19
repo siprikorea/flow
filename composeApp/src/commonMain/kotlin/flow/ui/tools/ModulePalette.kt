@@ -50,25 +50,26 @@ internal fun ModulePalette(ws: Workspace) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        Section(ws.t("moduleList")) {
-            REGISTRY.filter { !it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size) }
+        // each category has its own color; the cards under it share that color
+        Section(ws.t("moduleList"), Palette.catTransform) {
+            REGISTRY.filter { !it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catTransform, it.ins.size, it.outs.size) }
         }
-        Section(ws.t("installedPlugins"), dot = Palette.catSource) {
-            REGISTRY.filter { it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size, plugin = true) }
+        Section(ws.t("installedPlugins"), Palette.catSource) {
+            REGISTRY.filter { it.plugin }.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catSource, it.ins.size, it.outs.size, plugin = true) }
         }
         if (ws.installedModules.isNotEmpty()) {
-            Section(ws.t("installedModules"), dot = Palette.catPlugin) {
-                ws.installedModules.forEach { m -> PaletteCard(ws, m.id, m.name, "pluginmod", m.inputs.size, m.outputs.size) }
+            Section(ws.t("installedModules"), Palette.catPlugin) {
+                ws.installedModules.forEach { m -> PaletteCard(ws, m.id, m.name, Palette.catPlugin, m.inputs.size, m.outputs.size) }
             }
         }
-        Section(ws.t("ioSection"), dot = Palette.catIo) {
-            IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.cat, it.ins.size, it.outs.size) }
+        Section(ws.t("ioSection"), Palette.catIo) {
+            IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catIo, it.ins.size, it.outs.size) }
         }
-        Section(ws.t("componentsSection"), dot = Palette.catComponent) {
+        Section(ws.t("componentsSection"), Palette.catComponent) {
             if (ws.components.isEmpty()) {
                 Txt(ws.t("dragHint"), 11.sp, Palette.dimText, modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp))
             }
-            ws.components.forEach { c: CompDef -> PaletteCard(ws, "comp:${c.file}", c.name, "component", c.ins.size, c.outs.size) }
+            ws.components.forEach { c: CompDef -> PaletteCard(ws, "comp:${c.file}", c.name, Palette.catComponent, c.ins.size, c.outs.size) }
         }
     }
 }
@@ -98,7 +99,7 @@ private fun PaletteCard(
     ws: Workspace,
     type: String,
     label: String,
-    cat: String,
+    badgeColor: Color, // category color (same for all items in the category)
     ins: Int,
     outs: Int,
     plugin: Boolean = false,
@@ -110,13 +111,12 @@ private fun PaletteCard(
         plugin -> Palette.runFromBorder
         else -> Palette.border
     }
-    // I=input / O=output / M=module / C=component, distinct colors
-    val (letter, badgeColor) = when {
-        type == "cin" -> "I" to Palette.catSource
-        type == "cout" -> "O" to Palette.catSink
-        type.startsWith("comp:") -> "C" to Palette.catComponent
-        cat == "pluginmod" -> "M" to Palette.catPlugin
-        else -> "M" to Palette.catTransform
+    // badge letter by kind (I/O/M/C); color comes from the category
+    val letter = when {
+        type == "cin" -> "I"
+        type == "cout" -> "O"
+        type.startsWith("comp:") -> "C"
+        else -> "M"
     }
     Row(
         Modifier

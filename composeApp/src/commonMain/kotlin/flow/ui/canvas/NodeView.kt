@@ -78,13 +78,20 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         "done" -> Palette.successText
         else -> Palette.errorSoft
     }
-    // kind badge (top-left): I=input / O=output / M=module / C=component, distinct colors
-    val (kindLetter, kindColor) = when {
-        node.type == "cin" -> "I" to Palette.catSource
-        node.type == "cout" -> "O" to Palette.catSink
-        comp -> "C" to Palette.catComponent
-        pluginMod -> "M" to Palette.catPlugin
-        else -> "M" to Palette.catTransform
+    // kind badge (top-left): I=input / O=output / M=module / C=component
+    val kindLetter = when {
+        node.type == "cin" -> "I"
+        node.type == "cout" -> "O"
+        comp -> "C"
+        else -> "M"
+    }
+    // input/output = yellow; category color otherwise
+    val kindColor = when {
+        node.type == "cin" || node.type == "cout" -> Palette.catIo // yellow
+        comp -> Palette.catComponent
+        pluginMod -> Palette.catPlugin
+        findDef(node.type)?.plugin == true -> Palette.catSource
+        else -> Palette.catTransform
     }
 
     Box(
