@@ -2,7 +2,6 @@ package dataflow.ui.shell
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,9 +25,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -48,25 +47,15 @@ private class MenuItemDef(
 )
 
 @Composable
-fun MenuBar(ws: Workspace, chrome: WindowChrome? = null) {
+fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp) {
     val active = ws.active
     Column {
         Row(
             Modifier.fillMaxWidth().height(40.dp).background(Palette.panelBg)
-                // 커스텀 타이틀바: 빈 영역 드래그로 창 이동
-                .then(
-                    if (chrome != null) Modifier.pointerInput(Unit) {
-                        detectDragGestures { _, delta -> chrome.onDragBy(delta) }
-                    } else Modifier
-                )
-                .padding(horizontal = 10.dp),
+                .padding(start = 10.dp + leadingInset, end = 10.dp), // 좌측: 네이티브 신호등 자리 확보
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
-            if (chrome != null) {
-                TrafficLights(chrome)
-                Spacer(Modifier.width(6.dp))
-            }
             // 로고 = 앱 메뉴 (설치/설정)
             Menu(ws, "app", listOf(
                 MenuItemDef(ws.t("installPlugin")) { dataflow.platform.Platform.pickJar()?.let { ws.installJarFlow(it) } },
@@ -186,25 +175,6 @@ private fun DropdownItem(item: MenuItemDef, onClick: () -> Unit) {
         Spacer(Modifier.weight(1f).widthIn(min = 18.dp))
         item.shortcut?.let { Txt(it, 11.sp, Palette.dimText, mono = true) }
     }
-}
-
-// macOS 스타일 신호등 창 컨트롤 (테마 색)
-@Composable
-private fun TrafficLights(chrome: WindowChrome) {
-    Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-        Dot(Palette.error) { chrome.onClose() }
-        Dot(Palette.catIo) { chrome.onMinimize() }
-        Dot(Palette.success) { chrome.onToggleMaximize() }
-    }
-}
-
-@Composable
-private fun Dot(color: Color, onClick: () -> Unit) {
-    Box(
-        Modifier.size(12.dp)
-            .background(color, androidx.compose.foundation.shape.CircleShape)
-            .plainClick(onClick)
-    )
 }
 
 @Composable

@@ -29,8 +29,8 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -49,21 +49,12 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlin.math.roundToInt
 
-// 커스텀 타이틀바용 윈도우 제어 (jvm 에서 구현해 주입). null 이면 OS 타이틀바 사용.
-class WindowChrome(
-    val isMaximized: Boolean,
-    val onMinimize: () -> Unit,
-    val onToggleMaximize: () -> Unit,
-    val onClose: () -> Unit,
-    val onDragBy: (Offset) -> Unit,
-)
-
 @OptIn(FlowPreview::class)
 @Composable
-fun App(ws: Workspace, chrome: WindowChrome? = null) {
+fun App(ws: Workspace, leadingInset: Dp = 0.dp) {
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
-            MenuBar(ws, chrome)
+            MenuBar(ws, leadingInset)
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 if (ws.showLeft) LeftToolWindow(ws)
                 Column(Modifier.weight(1f).fillMaxHeight()) {
