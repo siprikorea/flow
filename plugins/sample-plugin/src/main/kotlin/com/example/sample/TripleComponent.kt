@@ -1,8 +1,8 @@
 package com.example.sample
 
-import dataflow.plugin.ComponentPlugin
-import dataflow.plugin.PluginConn
-import dataflow.plugin.PluginNode
+import flow.plugin.ComponentPlugin
+import flow.plugin.PluginConn
+import flow.plugin.PluginNode
 
 /**
  * 컴포넌트 플러그인: mul3 모듈 하나로 입력을 3배 하는 컴포넌트.

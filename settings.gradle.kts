@@ -13,7 +13,7 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "dataflow-editor"
+rootProject.name = "flow"
 include(":composeApp")
 include(":plugin-api")
 include(":plugins:sample-plugin")

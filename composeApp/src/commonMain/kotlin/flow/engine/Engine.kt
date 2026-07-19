@@ -1,0 +1,94 @@
+package flow.engine
+
+import flow.model.FlowFile
+import flow.model.Node
+import flow.model.compFile
+import flow.model.isComp
+
+/**
+ * 플로우 실행 엔진 (UI 비의존).
+ * cin(입력 경계) 값을 받아 노드들을 위상 순서로 평가하고 cout(출력 경계) 값을 돌려준다.
+ * 스칼라(문자열/숫자) 데이터 모델 — 표현식은 [Expr] 로 평가한다.
+ *
+ * @param loadFlow 중첩 컴포넌트(comp:<파일>)를 확장하기 위한 로더
+ * @param moduleIds 설치된 모듈 플러그인 id 집합 (해당 타입 노드는 process 로 평가)
+ * @param moduleProcess 설치된 모듈의 처리 함수 (id, 입력 → 출력)
+ */
+class FlowEngine(
+    private val loadFlow: (String) -> FlowFile?,
+    private val moduleIds: Set<String> = emptySet(),
+    private val moduleProcess: (String, Map<String, String?>) -> Map<String, String?> = { _, _ -> emptyMap() },
+) {
+
+    // cin 라벨 → 값. 반환: cout 라벨 → 값
+    fun run(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
+        val byId = flow.nodes.associateBy { it.id }
+        val outVals = HashMap<Pair<String, String>, String?>()
+
+        for (nid in topoOrder(flow)) {
+            val node = byId[nid] ?: continue
+            val inVals: Map<String, String?> = node.inputs.associateWith { port ->
+                val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port }
+                if (e == null) null else outVals[e.from.node to e.from.port]
+            }
+            evalNode(node, inVals, inputs).forEach { (p, v) -> outVals[nid to p] = v }
+        }
+
+        return flow.nodes.filter { it.type == "cout" }.associate { c ->
+            val e = flow.edges.firstOrNull { it.to.node == c.id && it.to.port == (c.inputs.firstOrNull() ?: "in") }
+            c.label to (if (e != null) outVals[e.from.node to e.from.port] else null)
+        }
+    }
+
+    private fun evalNode(node: Node, inVals: Map<String, String?>, externalInputs: Map<String, String?>): Map<String, String?> {
+        fun single() = inVals.values.firstOrNull()
+        return when {
+            node.type == "cin" -> mapOf((node.outputs.firstOrNull() ?: "out") to externalInputs[node.label])
+            node.type == "cout" -> emptyMap()
+            node.type in moduleIds -> moduleProcess(node.type, inVals) // 설치된 모듈 플러그인
+            isComp(node.type) -> {
+                val sub = loadFlow(compFile(node.type)) ?: return node.outputs.associateWith { null }
+                // 컴포넌트 입력 포트(node.inputs) = 하위 cin 라벨
+                val subInputs = node.inputs.associateWith { inVals[it] ?: "" }
+                val subOut = run(sub, subInputs.mapValues { it.value ?: "" })
+                node.outputs.associateWith { subOut[it] }
+            }
+            node.type == "map" -> mapOf("out" to Expr.evalToString(node.params["expr"] ?: "x", single()))
+            node.type == "filter" -> {
+                val v = single()
+                val pass = Expr.evalToBool(node.params["expr"] ?: "value", v)
+                mapOf("pass" to if (pass) v else null, "fail" to if (pass) null else v)
+            }
+            node.type == "split" -> node.outputs.associateWith { single() } // 각 출력에 복제
+            node.type == "merge" -> {
+                val nums = inVals.values.mapNotNull { it?.toDoubleOrNull() }
+                val out = if (nums.isNotEmpty()) Expr.fmt(nums.sum()) else inVals.values.firstOrNull { it != null }
+                mapOf((node.outputs.firstOrNull() ?: "out") to out)
+            }
+            node.type == "agg" -> mapOf((node.outputs.firstOrNull() ?: "out") to single())
+            node.type == "csv" -> mapOf((node.outputs.firstOrNull() ?: "out") to (node.params["value"] ?: node.params["path"] ?: ""))
+            node.outputs.isEmpty() -> emptyMap() // sink (log/fout 등)
+            else -> mapOf((node.outputs.firstOrNull() ?: "out") to single()) // 기본: 항등
+        }
+    }
+
+    // Kahn 위상 정렬 (사이클은 남은 노드를 임의 순서로 덧붙임)
+    private fun topoOrder(flow: FlowFile): List<String> {
+        val ids = flow.nodes.map { it.id }
+        val indeg = ids.associateWith { 0 }.toMutableMap()
+        flow.edges.forEach { e -> if (e.to.node in indeg && e.from.node in indeg) indeg[e.to.node] = (indeg[e.to.node] ?: 0) + 1 }
+        val queue = ArrayDeque(ids.filter { indeg[it] == 0 })
+        val order = ArrayList<String>()
+        while (queue.isNotEmpty()) {
+            val n = queue.removeFirst()
+            order.add(n)
+            flow.edges.filter { it.from.node == n }.forEach { e ->
+                val d = (indeg[e.to.node] ?: return@forEach) - 1
+                indeg[e.to.node] = d
+                if (d == 0) queue.add(e.to.node)
+            }
+        }
+        ids.filter { it !in order }.forEach { order.add(it) }
+        return order
+    }
+}

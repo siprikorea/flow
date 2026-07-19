@@ -1,6 +1,6 @@
 package com.example.sample
 
-import dataflow.plugin.ModulePlugin
+import flow.plugin.ModulePlugin
 
 /** 모듈 플러그인: 입력을 3배로 만든다. */
 class Mul3Module : ModulePlugin {

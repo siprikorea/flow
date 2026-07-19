@@ -26,7 +26,7 @@ kotlin {
 
 compose.desktop {
     application {
-        mainClass = "dataflow.MainKt"
+        mainClass = "flow.MainKt"
     }
 }
 
@@ -37,5 +37,5 @@ tasks.register<JavaExec>("cli") {
     dependsOn("jvmMainClasses")
     val compilation = kotlin.jvm().compilations.getByName("main")
     classpath = files(compilation.output.allOutputs, compilation.runtimeDependencyFiles)
-    mainClass.set("dataflow.cli.CliKt")
+    mainClass.set("flow.cli.CliKt")
 }
