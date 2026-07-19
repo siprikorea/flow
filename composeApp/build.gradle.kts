@@ -27,8 +27,12 @@ kotlin {
 compose.desktop {
     application {
         mainClass = "flow.MainKt"
-        // macOS 시스템 메뉴/Dock 에 표시될 앱 이름
-        jvmArgs += listOf("-Dapple.awt.application.name=Flow", "-Xdock:name=Flow")
+        // App name + Dock icon shown at launch (so the default Java icon never flashes)
+        jvmArgs += listOf(
+            "-Dapple.awt.application.name=Flow",
+            "-Xdock:name=Flow",
+            "-Xdock:icon=${project.projectDir}/appicon.png",
+        )
     }
 }
 
