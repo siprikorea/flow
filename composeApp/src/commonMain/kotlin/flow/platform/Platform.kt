@@ -22,6 +22,7 @@ expect object Platform {
     fun readFlow(name: String): String?
     fun writeFlow(name: String, json: String)
     fun deleteFlow(name: String)
+    fun renameFlow(oldName: String, newName: String): Boolean
     fun flowsDirLabel(): String
 
     // 세션(열린 탭 + UI 상태) 복원

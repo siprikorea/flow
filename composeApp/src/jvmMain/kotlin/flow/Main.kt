@@ -4,6 +4,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
@@ -12,12 +14,20 @@ import androidx.compose.ui.window.rememberWindowState
 import flow.core.Workspace
 import flow.ui.shell.App
 import flow.ui.shell.handleKey
+import java.awt.Taskbar
 import java.awt.Toolkit
 
 fun main() {
     // macOS: 타이틀바를 어둡게(신호등이 다크 배경에 맞도록)
     System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
     val isMac = System.getProperty("os.name").lowercase().contains("mac")
+
+    // 앱 아이콘 — macOS Dock 에 표시
+    val iconImage = AppIcon.image()
+    runCatching {
+        if (Taskbar.isTaskbarSupported()) Taskbar.getTaskbar().iconImage = iconImage
+    }
+    val iconPainter = BitmapPainter(iconImage.toComposeImageBitmap())
 
     application {
         val scope = rememberCoroutineScope()
@@ -37,6 +47,7 @@ fun main() {
             onCloseRequest = { ws.saveAll(); exitApplication() },
             title = "Flow",
             state = windowState,
+            icon = iconPainter,
             onKeyEvent = { handleKey(ws, it) },
         ) {
             // 시스템 창을 그대로 쓰되 타이틀바를 투명·풀콘텐츠로 만들어 앱 테마가 비치게 함.

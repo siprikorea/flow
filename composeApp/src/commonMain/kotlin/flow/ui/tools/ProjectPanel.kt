@@ -195,6 +195,13 @@ private fun FileContextMenu(ws: Workspace) {
                 ws.openFiles(ws.projectSelected)
                 ws.projectMenuFor = null
             }
+            if (ws.projectSelected.size == 1) {
+                ContextItem(ws.t("rename"), Palette.text) {
+                    val target = ws.projectSelected.first()
+                    ws.projectMenuFor = null
+                    ws.requestRename(target)
+                }
+            }
             ContextItem(ws.t("delete"), Palette.errorSoft) {
                 val target = ws.projectSelected
                 ws.projectMenuFor = null

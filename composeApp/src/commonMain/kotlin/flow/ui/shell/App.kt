@@ -19,6 +19,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -40,6 +44,7 @@ import flow.model.findDef
 import flow.model.isComp
 import flow.platform.Platform
 import flow.ui.canvas.CanvasView
+import flow.ui.common.DtxField
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.props.PropsPanel
@@ -77,6 +82,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp) {
         }
         ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
         ws.installConfirm?.let { OverwriteDialog(ws, it.label) }
+        ws.renameTarget?.let { RenameDialog(ws, it) }
         if (ws.showSettings) SettingsScreen(ws)
     }
 
@@ -133,6 +139,32 @@ private fun FileDeleteDialog(ws: Workspace, count: Int) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelDeleteFiles() }
                 DialogButton(ws.t("delete"), Palette.error, Palette.holeBg, filled = true) { ws.confirmDeleteFiles() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun RenameDialog(ws: Workspace, current: String) {
+    var text by remember(current) { mutableStateOf(current.removeSuffix(".json")) }
+    Box(
+        Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelRename() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .width(320.dp)
+                .background(Palette.dropdownBg, RoundedCornerShape(10.dp))
+                .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(10.dp))
+                .plainClick { }
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Txt(ws.t("renameTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
+            DtxField(text, { text = it })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+                DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelRename() }
+                DialogButton(ws.t("rename"), Palette.accent, Palette.holeBg, filled = true) { ws.doRename(text) }
             }
         }
     }

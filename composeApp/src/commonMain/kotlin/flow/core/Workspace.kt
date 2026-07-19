@@ -43,6 +43,8 @@ class Workspace(private val scope: CoroutineScope) {
     var projectMenuFor by mutableStateOf<String?>(null)
     // 삭제 확인 대상 파일들(null 이면 다이얼로그 없음)
     var fileDeleteConfirm by mutableStateOf<Set<String>?>(null)
+    // 이름 변경 대상 파일(null 이면 다이얼로그 없음)
+    var renameTarget by mutableStateOf<String?>(null)
     // 설치 덮어쓰기 확인 (null 이면 없음)
     var installConfirm by mutableStateOf<InstallPending?>(null)
 
@@ -162,6 +164,25 @@ class Workspace(private val scope: CoroutineScope) {
         }
         projectSelected = projectSelected - names
         refreshFiles()
+    }
+
+    /* ───────── 이름 변경 ───────── */
+
+    fun requestRename(name: String) { renameTarget = name }
+    fun cancelRename() { renameTarget = null }
+
+    fun doRename(newBase: String) {
+        val old = renameTarget ?: return
+        renameTarget = null
+        val trimmed = newBase.trim()
+        if (trimmed.isEmpty()) return
+        val new = if (trimmed.endsWith(".json")) trimmed else "$trimmed.json"
+        if (new == old) return
+        if (Platform.renameFlow(old, new)) {
+            docs.find { it.fileName == old }?.fileName = new // 열린 탭 파일명 동기화
+            if (old in projectSelected) projectSelected = projectSelected - old + new
+            refreshFiles()
+        }
     }
 
     /* ───────── 탭 열기/닫기 ───────── */
