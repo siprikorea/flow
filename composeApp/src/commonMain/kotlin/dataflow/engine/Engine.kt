@@ -11,8 +11,14 @@ import dataflow.model.isComp
  * 스칼라(문자열/숫자) 데이터 모델 — 표현식은 [Expr] 로 평가한다.
  *
  * @param loadFlow 중첩 컴포넌트(comp:<파일>)를 확장하기 위한 로더
+ * @param moduleIds 설치된 모듈 플러그인 id 집합 (해당 타입 노드는 process 로 평가)
+ * @param moduleProcess 설치된 모듈의 처리 함수 (id, 입력 → 출력)
  */
-class FlowEngine(private val loadFlow: (String) -> FlowFile?) {
+class FlowEngine(
+    private val loadFlow: (String) -> FlowFile?,
+    private val moduleIds: Set<String> = emptySet(),
+    private val moduleProcess: (String, Map<String, String?>) -> Map<String, String?> = { _, _ -> emptyMap() },
+) {
 
     // cin 라벨 → 값. 반환: cout 라벨 → 값
     fun run(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
@@ -39,6 +45,7 @@ class FlowEngine(private val loadFlow: (String) -> FlowFile?) {
         return when {
             node.type == "cin" -> mapOf((node.outputs.firstOrNull() ?: "out") to externalInputs[node.label])
             node.type == "cout" -> emptyMap()
+            node.type in moduleIds -> moduleProcess(node.type, inVals) // 설치된 모듈 플러그인
             isComp(node.type) -> {
                 val sub = loadFlow(compFile(node.type)) ?: return node.outputs.associateWith { null }
                 // 컴포넌트 입력 포트(node.inputs) = 하위 cin 라벨

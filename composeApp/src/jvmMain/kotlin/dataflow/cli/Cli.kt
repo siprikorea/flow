@@ -10,14 +10,24 @@ import kotlin.system.exitProcess
 
 private val json = Json { ignoreUnknownKeys = true }
 
-// 이름(프로젝트 폴더) 또는 파일 경로로 플로우 로드
+// 이름(프로젝트/설치 컴포넌트) 또는 파일 경로로 플로우 로드
 private fun loadFlow(ref: String): FlowFile? {
     val name = if (ref.endsWith(".json")) ref else "$ref.json"
     val raw = File(ref).takeIf { it.isFile }?.readText()
         ?: File(name).takeIf { it.isFile }?.readText()
         ?: Platform.readFlow(name)
+        ?: Platform.readInstalledComponent(name)
         ?: return null
     return runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull()
+}
+
+private fun engine(): FlowEngine {
+    val moduleIds = Platform.installedModuleInfos().map { it.id }.toSet()
+    return FlowEngine(
+        loadFlow = ::loadFlow,
+        moduleIds = moduleIds,
+        moduleProcess = { id, inputs -> Platform.moduleProcess(id, inputs) },
+    )
 }
 
 private fun usage(): Nothing {
@@ -28,11 +38,8 @@ private fun usage(): Nothing {
         사용법:
           cli <component> <value>                 단일 입력(포트가 하나일 때)
           cli <component> --in <port>=<value> ... 포트별 입력
-          cli --list                              컴포넌트 목록
-
-        예:
-          cli triple 5
-          cli double --in in=10
+          cli --list                              컴포넌트 목록(프로젝트+설치)
+          cli --install <plugin.jar> [--force]    플러그인 JAR 설치
         """.trimIndent(),
     )
     exitProcess(2)
@@ -41,12 +48,29 @@ private fun usage(): Nothing {
 fun main(args: Array<String>) {
     if (args.isEmpty()) usage()
 
-    if (args[0] == "--list") {
-        Platform.listFlows().forEach { f ->
-            val comp = loadFlow(f)?.asComponent(f)
-            if (comp != null) println("${comp.name}  (${comp.ins.joinToString(",")} → ${comp.outs.joinToString(",")})")
+    when (args[0]) {
+        "--install" -> {
+            val jar = args.getOrNull(1) ?: usage()
+            val force = args.contains("--force")
+            val r = Platform.installJar(jar, overwrite = force)
+            if (r.conflicts.isNotEmpty()) {
+                System.err.println("이미 설치됨: ${r.conflicts.joinToString(", ")} — 덮어쓰려면 --force")
+                exitProcess(1)
+            }
+            println("설치됨: ${r.installed.joinToString(", ").ifBlank { "(플러그인 없음)" }}")
+            return
         }
-        return
+        "--list" -> {
+            (Platform.listFlows().mapNotNull { loadFlow(it)?.asComponent(it) } +
+                Platform.listInstalledComponents().mapNotNull { loadFlow(it)?.asComponent(it) })
+                .distinctBy { it.name }
+                .forEach { println("${it.name}  (${it.ins.joinToString(",")} → ${it.outs.joinToString(",")})") }
+            if (Platform.installedModuleInfos().isNotEmpty()) {
+                println("-- 설치된 모듈 --")
+                Platform.installedModuleInfos().forEach { println("${it.id}  (${it.inputs.joinToString(",")} → ${it.outputs.joinToString(",")})") }
+            }
+            return
+        }
     }
 
     val ref = args[0]
@@ -59,7 +83,6 @@ fun main(args: Array<String>) {
         exitProcess(1)
     }
 
-    // 입력 파싱
     val inputs = HashMap<String, String>()
     var idx = 1
     val positional = ArrayList<String>()
@@ -78,11 +101,8 @@ fun main(args: Array<String>) {
     if (inputs.isEmpty() && positional.size == 1 && comp.ins.size == 1) {
         inputs[comp.ins.first()] = positional.first()
     }
-    // 미지정 입력은 빈 값
     comp.ins.forEach { inputs.putIfAbsent(it, "") }
 
-    val result = FlowEngine(::loadFlow).run(flow, inputs)
-    comp.outs.forEach { out ->
-        println("$out = ${result[out] ?: ""}")
-    }
+    val result = engine().run(flow, inputs)
+    comp.outs.forEach { out -> println("$out = ${result[out] ?: ""}") }
 }

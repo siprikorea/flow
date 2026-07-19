@@ -198,9 +198,13 @@ class EditorState(
         val outs: List<String>
         val params: Map<String, String>
         val idBase: String
+        val moduleInfo = ws.moduleInfo(type)
         if (isComp(type)) {
             val c = ws.findComp(compFile(type)) ?: return
             label = c.name; ins = c.ins; outs = c.outs; params = emptyMap(); idBase = "comp"
+        } else if (moduleInfo != null) {
+            label = moduleInfo.name; ins = moduleInfo.inputs; outs = moduleInfo.outputs; params = emptyMap()
+            idBase = type.substringAfterLast('.').ifBlank { "mod" }
         } else {
             val def = findDef(type) ?: return
             label = def.name[lang] ?: def.name["ko"] ?: type

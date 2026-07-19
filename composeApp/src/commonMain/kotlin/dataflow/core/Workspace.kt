@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import dataflow.model.CompDef
 import dataflow.model.FlowFile
+import dataflow.model.ModuleInfo
 import dataflow.model.Node
 import dataflow.model.Session
 import dataflow.model.asComponent
@@ -45,28 +46,48 @@ class Workspace(private val scope: CoroutineScope) {
     var activeIndex by mutableStateOf(0)
     val active: EditorState? get() = docs.getOrNull(activeIndex)
 
-    // 프로젝트 파일 + 컴포넌트
+    // 프로젝트 파일 + 컴포넌트 + 설치된 모듈
     var files by mutableStateOf<List<String>>(emptyList())
     var components by mutableStateOf<List<CompDef>>(emptyList())
+    var installedModules by mutableStateOf<List<ModuleInfo>>(emptyList())
     val dirLabel: String = Platform.flowsDirLabel()
 
     fun t(key: String) = dataflow.i18n.tr(lang, key)
 
     init {
-        Platform.loadPlugins() // 플러그인이 제공하는 컴포넌트를 프로젝트 폴더에 반영
         refreshFiles()
         loadSession()
     }
 
-    /* ───────── 프로젝트 파일 ───────── */
+    /* ───────── 프로젝트 파일 + 설치본 ───────── */
 
     fun refreshFiles() {
         files = Platform.listFlows()
-        components = files.mapNotNull { name ->
+        installedModules = Platform.installedModuleInfos()
+        // 프로젝트 컴포넌트(flows/) + 설치된 컴포넌트(components/, 읽기 전용)
+        val local = files.mapNotNull { name ->
             val raw = Platform.readFlow(name) ?: return@mapNotNull null
             val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return@mapNotNull null
             flow.asComponent(name)
         }
+        val installed = Platform.listInstalledComponents().mapNotNull { name ->
+            val raw = Platform.readInstalledComponent(name) ?: return@mapNotNull null
+            val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return@mapNotNull null
+            flow.asComponent(name)?.copy(installed = true)
+        }
+        components = local + installed
+    }
+
+    fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }
+
+    // 설치된 컴포넌트를 편집용으로 열기: 읽기 전용 사본을 새 문서로 (저장 시 flows/ 로 저장)
+    fun openInstalledComponent(file: String) {
+        val raw = Platform.readInstalledComponent(file) ?: return
+        val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return
+        val name = nextName(file.removeSuffix(".json").substringAfterLast('.').ifBlank { "component" })
+        val doc = EditorState(scope, this, name).also { it.load(flow); it.persisted = false }
+        docs.add(doc)
+        activeIndex = docs.lastIndex
     }
 
     fun findComp(file: String): CompDef? = components.find { it.file == file }

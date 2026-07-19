@@ -43,6 +43,21 @@ data class CompDef(
     val name: String,
     val ins: List<String>,
     val outs: List<String>,
+    val installed: Boolean = false, // components/ 폴더의 설치본(읽기 전용)
+)
+
+// 설치된 모듈 플러그인 정보 (팔레트/노드 생성/엔진용)
+data class ModuleInfo(
+    val id: String,
+    val name: String,
+    val inputs: List<String>,
+    val outputs: List<String>,
+)
+
+// 설치 결과: 설치된 id 와 충돌(이미 존재) id
+data class InstallResult(
+    val installed: List<String> = emptyList(),
+    val conflicts: List<String> = emptyList(),
 )
 
 // 플로우가 컴포넌트인지 = 경계 노드를 하나라도 가지는가
