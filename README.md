@@ -99,10 +99,12 @@ Plugins come in two kinds, both identified by a **package-format id** and declar
 - **Module plugin** (`ModulePlugin`) — has the actual implementation: `process(inputs) → outputs`. Distributed as code (a JAR).
 - **Component plugin** (`ComponentPlugin`) — defines only the connections between modules, with no coordinates. On install it is laid out automatically (BFS columns) into a component flow with input/output boundary nodes.
 
-### Storage (installed, read-only)
-Installed artifacts live under the app data dir, separated by kind and keyed by id:
-- `~/.dataflow-editor/modules/<id>.jar` — module plugin code (loaded via `ServiceLoader`).
-- `~/.dataflow-editor/components/<id>.json` — component definition (materialized flow).
+### Storage & sandbox (installed, read-only)
+Installed artifacts live under the app data dir, separated by kind, keyed by id, each in **its own folder** with its dependency JARs bundled alongside:
+- `~/.dataflow-editor/modules/<id>/*.jar` — module plugin + its dependency modules.
+- `~/.dataflow-editor/components/<id>/component.json` (+ bundled dependency module JARs).
+
+Each module and each component runs in a **sandbox**: an isolated classloader over just its own folder's JARs. So one plugin's dependencies never clash with another's, and a component executes using the modules bundled in its folder — fully independent of what's installed globally.
 
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 

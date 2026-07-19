@@ -74,6 +74,12 @@ fun main(args: Array<String>) {
     }
 
     val ref = args[0]
+    // 설치된 컴포넌트는 자신의 폴더 샌드박스로 실행, 프로젝트/파일 플로우는 전역 모듈로 실행
+    val installedName = if (ref.endsWith(".json")) ref else "$ref.json"
+    val isInstalled = File(ref).takeIf { it.isFile } == null &&
+        Platform.readFlow(installedName) == null &&
+        Platform.readInstalledComponent(installedName) != null
+
     val flow = loadFlow(ref) ?: run {
         System.err.println("컴포넌트를 찾을 수 없습니다: $ref")
         exitProcess(1)
@@ -103,6 +109,7 @@ fun main(args: Array<String>) {
     }
     comp.ins.forEach { inputs.putIfAbsent(it, "") }
 
-    val result = engine().run(flow, inputs)
+    val result = if (isInstalled) Platform.runComponent(ref.removeSuffix(".json"), inputs) // 샌드박스
+    else engine().run(flow, inputs) // 전역 모듈
     comp.outs.forEach { out -> println("$out = ${result[out] ?: ""}") }
 }
