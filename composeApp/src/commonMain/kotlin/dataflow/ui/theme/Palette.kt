@@ -1,4 +1,4 @@
-package dataflow
+package dataflow.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
@@ -10,6 +10,7 @@ object Palette {
     val nodeBg = Color(0xFF1D212B)
     val nodeHeaderBg = Color(0xFF232836)
     val dropdownBg = Color(0xFF20242F)
+    val tabBarBg = Color(0xFF171A21)
 
     val panelBorder = Color(0xFF2A2E3A)
     val border = Color(0xFF2C3140)
@@ -36,6 +37,8 @@ object Palette {
     val catSource = Color(0xFF22C3A6)
     val catTransform = Color(0xFFB07BFF)
     val catSink = Color(0xFFFF9D5C)
+    val catIo = Color(0xFFE0B341)         // 컴포넌트 입출력 경계 노드
+    val catComponent = Color(0xFF62C6FF)  // 컴포넌트 인스턴스 노드
 
     val edge = Color(0xFF4A5262)
     val edgeSelected = Color(0xFFEAF1FF)
@@ -52,10 +55,13 @@ object Palette {
     val pluginBadgeBorder = Color(0xFF1F5A4C)
     val dangerBorder = Color(0xFF4A2F34)
     val runFromBorder = Color(0xFF33405A)
+    val tabActiveBg = Color(0xFF1D212B)
 
     fun catColor(cat: String) = when (cat) {
         "source" -> catSource
         "sink" -> catSink
+        "io" -> catIo
+        "component" -> catComponent
         else -> catTransform
     }
 

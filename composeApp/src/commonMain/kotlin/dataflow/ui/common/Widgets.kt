@@ -1,9 +1,8 @@
-package dataflow
+package dataflow.ui.common
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -26,6 +25,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dataflow.ui.theme.Palette
 
 @Composable
 fun Txt(
@@ -55,7 +55,7 @@ fun Txt(
     )
 }
 
-// 클릭 시 리플 없는 clickable
+// 리플 없는 clickable
 fun Modifier.plainClick(onClick: () -> Unit): Modifier = this.then(
     Modifier.clickable(
         interactionSource = MutableInteractionSource(),
@@ -71,7 +71,7 @@ fun rememberHover(): Pair<MutableInteractionSource, Boolean> {
     return src to hovered
 }
 
-// 공통 input: bg #12151c, border 1px #2c3140, radius 6px, padding 7px 9px
+// 공통 입력 필드: bg #12151c, border 1px #2c3140, radius 6px, padding 7px 9px
 @Composable
 fun DtxField(
     value: String,

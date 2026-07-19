@@ -1,11 +1,19 @@
-package dataflow
+package dataflow.core
 
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.unit.IntSize
+import dataflow.model.Edge
+import dataflow.model.FlowFile
+import dataflow.model.Node
+import dataflow.model.PortRef
+import dataflow.model.Sel
+import dataflow.model.compFile
+import dataflow.model.findDef
+import dataflow.model.isComp
+import dataflow.platform.Platform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -20,48 +28,66 @@ private const val SPEED = 1f
 data class Wire(val node: String, val port: String, val pos: Offset)
 data class DragModule(val type: String, val pos: Offset) // pos: 윈도 좌표(px)
 
-class EditorState(private val scope: CoroutineScope) {
+// 문서(탭) 하나의 상태. 언어·패널·메뉴 등 전역 UI 는 Workspace 로 위임한다.
+class EditorState(
+    private val scope: CoroutineScope,
+    val ws: Workspace,
+    var fileName: String,
+) {
     var nodes by mutableStateOf(listOf<Node>())
     var edges by mutableStateOf(listOf<Edge>())
     var seq by mutableStateOf(1)
     var pan by mutableStateOf(Offset.Zero)
     var zoom by mutableStateOf(1f)
-    var lang by mutableStateOf("ko")
     var sel by mutableStateOf<Sel?>(null)
     var wire by mutableStateOf<Wire?>(null)
-    var menu by mutableStateOf<String?>(null)
     var running by mutableStateOf(false)
     var spaceDown by mutableStateOf(false)
-    var showSidebar by mutableStateOf(true)
-    var showProps by mutableStateOf(true)
-    var showMinimap by mutableStateOf(true)
-    var saveTime by mutableStateOf<String?>(null)
     var canvasSize by mutableStateOf(IntSize.Zero)
     var canvasOrigin by mutableStateOf(Offset.Zero) // 윈도 좌표
     var density by mutableStateOf(1f)
     var textEditing by mutableStateOf(false)
-    var dragModule by mutableStateOf<DragModule?>(null)
 
-    private val json = Json { ignoreUnknownKeys = true }
+    // 전역 UI 위임 — 기존 컴포넌트가 state.xxx 그대로 쓰도록 유지
+    var lang: String
+        get() = ws.lang
+        set(v) { ws.lang = v }
+    var menu: String?
+        get() = ws.menu
+        set(v) { ws.menu = v }
+    var dragModule: DragModule?
+        get() = ws.dragModule
+        set(v) { ws.dragModule = v }
+    var showMinimap: Boolean
+        get() = ws.showMinimap
+        set(v) { ws.showMinimap = v }
+    var saveTime: String?
+        get() = ws.saveTime
+        set(v) { ws.saveTime = v }
+
+    private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val past = ArrayDeque<String>()
     private val future = ArrayDeque<String>()
     private val simJobs = mutableSetOf<Job>()
 
-    init {
-        Platform.loadState()?.let { raw ->
-            runCatching {
-                val s = json.decodeFromString<SavedState>(raw)
-                nodes = s.nodes
-                edges = s.edges
-                seq = s.seq
-                pan = Offset(s.panX, s.panY)
-                zoom = s.zoom
-                lang = s.lang
-            }
-        }
+    // 파일 내용으로 문서 초기화
+    fun load(flow: FlowFile) {
+        nodes = flow.nodes
+        edges = flow.edges
+        seq = flow.seq
+        pan = Offset.Zero
+        zoom = 1f
+        sel = null
+        wire = null
+        running = false
+        past.clear()
+        future.clear()
     }
 
-    fun t(key: String) = tr(lang, key)
+    // 파일에 저장할 JSON
+    fun flowJson(): String = json.encodeToString(FlowFile(1, nodes, edges, seq))
+
+    fun t(key: String) = dataflow.i18n.tr(lang, key)
 
     fun nodeById(id: String) = nodes.find { it.id == id }
 
@@ -95,17 +121,6 @@ class EditorState(private val scope: CoroutineScope) {
         applySnapshot(future.removeLast())
     }
 
-    /* ───────── 영속화 ───────── */
-
-    fun persistJson(): String = json.encodeToString(
-        SavedState(nodes, edges, seq, pan.x, pan.y, zoom, lang)
-    )
-
-    fun persistNow(payload: String) {
-        Platform.saveState(payload)
-        saveTime = Platform.currentTimeHms()
-    }
-
     /* ───────── 좌표 변환 ───────── */
 
     // world 단위는 dp. screen px = world·density·zoom + pan
@@ -115,16 +130,26 @@ class EditorState(private val scope: CoroutineScope) {
     /* ───────── 노드 생성/삭제/편집 ───────── */
 
     fun addNodeAt(type: String, world: Offset) {
-        val def = findDef(type) ?: return
+        val label: String
+        val ins: List<String>
+        val outs: List<String>
+        val params: Map<String, String>
+        val idBase: String
+        if (isComp(type)) {
+            val c = ws.findComp(compFile(type)) ?: return
+            label = c.name; ins = c.ins; outs = c.outs; params = emptyMap(); idBase = "comp"
+        } else {
+            val def = findDef(type) ?: return
+            label = def.name[lang] ?: def.name["ko"] ?: type
+            ins = def.ins; outs = def.outs; params = def.params; idBase = type
+        }
         pushHistory()
-        val (w, h) = defaultSize(def)
-        val id = "${type}_$seq"
+        val (w, h) = sizeForPorts(ins.size, outs.size)
+        val id = "${idBase}_$seq"
         nodes = nodes + Node(
-            id = id, type = type,
-            label = def.name[lang] ?: def.name["ko"] ?: type,
+            id = id, type = type, label = label,
             x = snapF(world.x - w / 2), y = snapF(world.y - 20f),
-            w = w, h = h,
-            inputs = def.ins, outputs = def.outs, params = def.params,
+            w = w, h = h, inputs = ins, outputs = outs, params = params,
         )
         seq += 1
         sel = Sel("node", id)
@@ -367,15 +392,6 @@ class EditorState(private val scope: CoroutineScope) {
     }
 
     /* ───────── 파일 ───────── */
-
-    fun newFlow() {
-        pushHistory()
-        stopRun()
-        nodes = emptyList()
-        edges = emptyList()
-        seq = 1
-        sel = null
-    }
 
     fun exportJson() = Platform.exportJson(snapshot())
 

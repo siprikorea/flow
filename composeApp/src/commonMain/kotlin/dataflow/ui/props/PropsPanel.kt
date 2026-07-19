@@ -1,4 +1,4 @@
-package dataflow
+package dataflow.ui.props
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -25,6 +25,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import dataflow.core.EditorState
+import dataflow.model.Edge
+import dataflow.model.Node
+import dataflow.model.compFile
+import dataflow.model.findDef
+import dataflow.model.isComp
+import dataflow.ui.common.DtxField
+import dataflow.ui.common.Txt
+import dataflow.ui.common.plainClick
+import dataflow.ui.theme.Palette
 
 @Composable
 fun PropsPanel(state: EditorState) {
@@ -87,15 +97,28 @@ private fun PanelButton(text: String, borderColor: Color, textColor: Color, onCl
 
 @Composable
 private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -> Unit) {
+    val comp = isComp(node.type)
     val def = findDef(node.type)
+    val cat = when {
+        comp -> "component"
+        def != null -> def.cat
+        else -> "transform"
+    }
+    val title = when {
+        comp -> node.label
+        def != null -> def.name[state.lang] ?: node.type
+        else -> node.type
+    }
 
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(
-            Modifier.size(10.dp).background(
-                Palette.catColor(def?.cat ?: "transform"), RoundedCornerShape(3.dp),
-            )
-        )
-        Txt(def?.name?.get(state.lang) ?: node.type, 13.5.sp, Palette.text, weight = FontWeight.SemiBold)
+        Box(Modifier.size(10.dp).background(Palette.catColor(cat), RoundedCornerShape(3.dp)))
+        Txt(title, 13.5.sp, Palette.text, weight = FontWeight.SemiBold)
+    }
+
+    if (comp) {
+        PanelButton(state.t("openComponent"), Palette.runFromBorder, Palette.accentHover) {
+            state.ws.openFile(compFile(node.type))
+        }
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -105,7 +128,6 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SectionLabel(state.t("labelId"))
-        // ID는 blur/Enter 시 커밋 (엣지 동기화 포함)
         var idValue by remember(node.id) { mutableStateOf(node.id) }
         DtxField(
             idValue, { idValue = it }, mono = true, textColor = Palette.idText,
@@ -138,8 +160,10 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
     PortSection(state, node, "in", onFocusChange)
     PortSection(state, node, "out", onFocusChange)
 
-    PanelButton(state.t("runFromHere"), Palette.runFromBorder, Palette.accentHover) {
-        state.runFromSelection(node.id)
+    if (!comp) {
+        PanelButton(state.t("runFromHere"), Palette.runFromBorder, Palette.accentHover) {
+            state.runFromSelection(node.id)
+        }
     }
     PanelButton(state.t("deleteModule"), Palette.dangerBorder, Palette.errorSoft) {
         state.deleteNode(node.id)

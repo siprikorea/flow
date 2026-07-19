@@ -1,4 +1,4 @@
-package dataflow
+package dataflow.model
 
 import kotlinx.serialization.Serializable
 
@@ -37,16 +37,16 @@ data class FlowFile(
     val seq: Int = 1,
 )
 
-// 자동 저장 포맷
+// 세션 포맷: 열린 탭 목록 + 전역 UI 상태 (IntelliJ식 워크스페이스 복원)
 @Serializable
-data class SavedState(
-    val nodes: List<Node> = emptyList(),
-    val edges: List<Edge> = emptyList(),
-    val seq: Int = 1,
-    val panX: Float = 0f,
-    val panY: Float = 0f,
-    val zoom: Float = 1f,
+data class Session(
+    val openFiles: List<String> = emptyList(),
+    val activeIndex: Int = 0,
     val lang: String = "ko",
+    val showLeft: Boolean = true,
+    val leftTab: String = "project",
+    val showProps: Boolean = true,
+    val showMinimap: Boolean = true,
 )
 
 data class Sel(val kind: String, val id: String) // kind: node | edge

@@ -1,6 +1,7 @@
-package dataflow
+package dataflow.core
 
 import androidx.compose.ui.geometry.Offset
+import dataflow.model.Node
 import kotlin.math.abs
 import kotlin.math.ceil
 import kotlin.math.max
@@ -20,7 +21,7 @@ fun portPos(node: Node, kind: String, idx: Int): Offset {
     return Offset(x, portY(node, list.size, idx))
 }
 
-// cubic bezier: P1 = a+(c,0), P2 = b-(c,0), c = max(46, |bx-ax|/2)
+// cubic bezier 제어점 오프셋: c = max(46, |bx-ax|/2)
 fun bezierCtrl(a: Offset, b: Offset): Float = max(46f, abs(b.x - a.x) / 2f)
 
 fun bezierPoint(a: Offset, b: Offset, t: Float): Offset {
@@ -35,7 +36,7 @@ fun bezierPoint(a: Offset, b: Offset, t: Float): Offset {
 }
 
 // 노드 기본 크기: w 180, h = ceil((44 + maxPorts·26 + 16)/grid)·grid
-fun defaultSize(def: ModuleDef): Pair<Float, Float> {
-    val maxPorts = maxOf(def.ins.size, def.outs.size, 1)
+fun sizeForPorts(inCount: Int, outCount: Int): Pair<Float, Float> {
+    val maxPorts = maxOf(inCount, outCount, 1)
     return 180f to ceil((44f + maxPorts * 26f + 16f) / GRID) * GRID
 }
