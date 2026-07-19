@@ -121,7 +121,13 @@ private fun PaletteCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Box(Modifier.size(10.dp).background(Palette.catColor(cat), RoundedCornerShape(3.dp)))
+        val glyph = when {
+            type == "cin" -> "▸"
+            type == "cout" -> "◼"
+            type.startsWith("comp:") -> "◆"
+            else -> "●"
+        }
+        Txt(glyph, 12.sp, Palette.catColor(cat), weight = FontWeight.Bold)
         Txt(label, 12.5.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
         if (plugin) {
             Box(

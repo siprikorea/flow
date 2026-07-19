@@ -75,11 +75,12 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
         "done" -> Palette.successText
         else -> Palette.errorSoft
     }
-    val badge = when {
-        node.type == "cin" -> "IN"
-        node.type == "cout" -> "OUT"
-        comp -> "COMP"
-        else -> null
+    // 종류 구분 아이콘(좌상단): 입력 ▸ / 출력 ◼ / 컴포넌트 ◆ / 모듈 ●
+    val (kindGlyph, kindColor) = when {
+        node.type == "cin" -> "▸" to Palette.catIo
+        node.type == "cout" -> "◼" to Palette.catIo
+        comp -> "◆" to Palette.catComponent
+        else -> "●" to Palette.catColor(cat)
     }
 
     Box(
@@ -160,13 +161,9 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
                 .padding(horizontal = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.size(9.dp).background(Palette.catColor(cat), RoundedCornerShape(3.dp)))
+            Txt(kindGlyph, 12.sp, kindColor, weight = FontWeight.Bold)
             Spacer(Modifier.width(6.dp))
             Txt(node.label, 12.sp, Palette.text, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
-            if (badge != null) {
-                NodeBadge(badge, Palette.catColor(cat))
-                Spacer(Modifier.width(6.dp))
-            }
             Box(Modifier.size(8.dp).background(Palette.statusDot(node.status), CircleShape))
         }
 
@@ -216,17 +213,6 @@ internal fun NodeView(state: EditorState, node: dataflow.model.Node, timeMs: Lon
                     }
                 }
         )
-    }
-}
-
-@Composable
-private fun NodeBadge(text: String, color: Color) {
-    Box(
-        Modifier
-            .border(1.dp, color.copy(alpha = 0.6f), RoundedCornerShape(3.dp))
-            .padding(horizontal = 4.dp, vertical = 1.dp)
-    ) {
-        Txt(text, 8.5.sp, color, weight = FontWeight.Bold)
     }
 }
 

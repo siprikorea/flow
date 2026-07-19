@@ -87,8 +87,13 @@ fun MenuBar(ws: Workspace) {
             ))
 
             Spacer(Modifier.weight(1f))
-            RunButton(ws.t("start"), enabled = active != null, bg = Palette.accent, textColor = Palette.holeBg) { active?.startRun() }
-            RunButton(ws.t("stop"), enabled = active?.running == true, textColor = Palette.errorSoft) { active?.stopRun() }
+            // 실행/중지 토글 버튼 (하나로 합침)
+            val running = active?.running == true
+            if (running) {
+                RunButton(ws.t("stop"), enabled = true, borderColor = Palette.dangerBorder, textColor = Palette.errorSoft) { active?.stopRun() }
+            } else {
+                RunButton(ws.t("start"), enabled = active != null, bg = Palette.accent, textColor = Palette.holeBg) { active?.startRun() }
+            }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
     }
@@ -177,9 +182,11 @@ private fun RunButton(
     enabled: Boolean,
     textColor: Color,
     bg: Color? = null,
+    borderColor: Color? = null,
     onClick: () -> Unit,
 ) {
     var m = Modifier.background(bg ?: Color.Transparent, RoundedCornerShape(6.dp))
+    if (borderColor != null) m = m.border(1.dp, borderColor, RoundedCornerShape(6.dp))
     Box(m.plainClick { if (enabled) onClick() }.padding(horizontal = 12.dp, vertical = 5.dp)) {
         Txt(
             label, 12.5.sp,
