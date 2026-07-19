@@ -33,6 +33,13 @@ class Workspace(private val scope: CoroutineScope) {
     // 설정 화면 표시 여부 (로고 메뉴 > 설정)
     var showSettings by mutableStateOf(false)
 
+    // 프로젝트 패널 파일 다중 선택(하이라이트). 열기는 더블클릭 / 우클릭 메뉴.
+    var projectSelected by mutableStateOf(setOf<String>())
+    // 우클릭 컨텍스트 메뉴를 띄운 파일(null 이면 없음)
+    var projectMenuFor by mutableStateOf<String?>(null)
+    // 삭제 확인 대상 파일들(null 이면 다이얼로그 없음)
+    var fileDeleteConfirm by mutableStateOf<Set<String>?>(null)
+
     // 열린 탭
     val docs = mutableStateListOf<EditorState>()
     var activeIndex by mutableStateOf(0)
@@ -66,6 +73,37 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun isComponentFile(file: String): Boolean = components.any { it.file == file }
 
+    /* ───────── 프로젝트 파일 선택/열기/삭제 (다중) ───────── */
+
+    fun selectFile(name: String) { projectSelected = setOf(name) }
+    fun toggleFileSelect(name: String) {
+        projectSelected = if (name in projectSelected) projectSelected - name else projectSelected + name
+    }
+
+    fun openFiles(names: Collection<String>) = names.forEach { openFile(it) }
+
+    // 삭제 확인 요청 → 다이얼로그 표시
+    fun requestDeleteFiles(names: Set<String>) {
+        if (names.isNotEmpty()) fileDeleteConfirm = names
+    }
+
+    fun confirmDeleteFiles() {
+        fileDeleteConfirm?.let { deleteFiles(it) }
+        fileDeleteConfirm = null
+    }
+
+    fun cancelDeleteFiles() { fileDeleteConfirm = null }
+
+    private fun deleteFiles(names: Set<String>) {
+        names.forEach { name ->
+            val i = docs.indexOfFirst { it.fileName == name }
+            if (i >= 0) removeDoc(i) // 열려 있으면 탭도 닫음
+            Platform.deleteFlow(name)
+        }
+        projectSelected = projectSelected - names
+        refreshFiles()
+    }
+
     /* ───────── 탭 열기/닫기 ───────── */
 
     fun openFile(name: String) {
@@ -78,16 +116,15 @@ class Workspace(private val scope: CoroutineScope) {
         activeIndex = docs.lastIndex
     }
 
+    // 새 플로우: 저장 전까지는 파일(프로젝트 목록)에 쓰지 않는다.
     fun newDoc() {
         val name = nextName("flow")
-        val doc = EditorState(scope, this, name).also { it.load(FlowFile()) }
-        Platform.writeFlow(name, doc.flowJson())
+        val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
         docs.add(doc)
         activeIndex = docs.lastIndex
-        refreshFiles()
     }
 
-    // 새 컴포넌트: 입력/출력 경계 노드를 미리 배치한 문서
+    // 새 컴포넌트: 입력/출력 경계 노드를 미리 배치. 저장 전까지 파일에 쓰지 않는다.
     fun newComponent() {
         val name = nextName("comp")
         val cin = Node(
@@ -98,11 +135,9 @@ class Workspace(private val scope: CoroutineScope) {
             id = "cout_2", type = "cout", label = "out",
             x = 420f, y = 120f, w = 160f, h = 80f, inputs = listOf("in"), outputs = emptyList(),
         )
-        val doc = EditorState(scope, this, name).also { it.load(FlowFile(1, listOf(cin, cout), emptyList(), 3)) }
-        Platform.writeFlow(name, doc.flowJson())
+        val doc = EditorState(scope, this, name).also { it.load(FlowFile(1, listOf(cin, cout), emptyList(), 3)); it.persisted = false }
         docs.add(doc)
         activeIndex = docs.lastIndex
-        refreshFiles()
     }
 
     fun select(i: Int) {

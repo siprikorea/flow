@@ -68,11 +68,7 @@ fun MenuBar(ws: Workspace) {
             Menu(ws, "file", ws.t("menuFile"), listOf(
                 MenuItemDef(ws.t("newFlow"), "Ctrl+N") { ws.newDoc() },
                 MenuItemDef(ws.t("newComponent")) { ws.newComponent() },
-                MenuItemDef(ws.t("save"), "Ctrl+S") { ws.saveActive() },
                 MenuItemDef(ws.t("closeTab"), "Ctrl+W") { ws.requestClose(ws.activeIndex) },
-                MenuItemDef("—") {},
-                MenuItemDef(ws.t("exportJson")) { active?.exportJson() },
-                MenuItemDef(ws.t("importJson")) { active?.importJson() },
             ))
             Menu(ws, "edit", ws.t("menuEdit"), listOf(
                 MenuItemDef(ws.t("undo"), "Ctrl+Z") { active?.undo() },

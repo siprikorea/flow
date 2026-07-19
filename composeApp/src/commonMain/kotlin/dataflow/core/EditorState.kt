@@ -77,6 +77,9 @@ class EditorState(
     var savedSig by mutableStateOf("")
         private set
 
+    // 파일로 저장된 적이 있는가. 새로 만든(미저장) 문서는 false → 항상 dirty.
+    var persisted by mutableStateOf(true)
+
     // 파일 내용으로 문서 초기화
     fun load(flow: FlowFile) {
         nodes = flow.nodes
@@ -135,14 +138,16 @@ class EditorState(
         )
     )
 
-    // 저장되지 않은 수정이 있는가 (실행 상태 변화는 제외)
-    val dirty: Boolean get() = flowJson() != savedSig
+    // 저장되지 않은 수정이 있는가 (미저장 신규 문서는 항상 dirty, 실행 상태 변화는 제외)
+    val dirty: Boolean get() = !persisted || flowJson() != savedSig
 
-    // 파일에 저장하고 저장 시그니처·시각 갱신
+    // 파일에 저장하고 저장 시그니처·시각 갱신, 프로젝트 목록 반영
     fun save() {
         Platform.writeFlow(fileName, flowJson())
+        persisted = true
         savedSig = flowJson()
         saveTime = Platform.currentTimeHms()
+        ws.refreshFiles()
     }
 
     fun t(key: String) = dataflow.i18n.tr(lang, key)
@@ -452,22 +457,6 @@ class EditorState(
             val y = cursorY.getOrElse(d) { 60f }
             cursorY[d] = y + n.h + 50f
             n.copy(x = snapF(60f + d * 280f), y = snapF(y))
-        }
-    }
-
-    /* ───────── 파일 ───────── */
-
-    fun exportJson() = Platform.exportJson(snapshot())
-
-    fun importJson() = Platform.importJson { raw ->
-        runCatching {
-            val f = json.decodeFromString<FlowFile>(raw)
-            pushHistory()
-            stopRun()
-            nodes = f.nodes
-            edges = f.edges
-            seq = f.seq
-            clearSel()
         }
     }
 

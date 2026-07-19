@@ -15,9 +15,5 @@ expect object Platform {
     fun loadSession(): String?
     fun saveSession(json: String)
 
-    // 파일 다이얼로그 기반 내보내기/불러오기
-    fun exportJson(json: String)
-    fun importJson(onLoaded: (String) -> Unit)
-
     fun currentTimeHms(): String
 }

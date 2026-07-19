@@ -74,6 +74,7 @@ fun App(ws: Workspace) {
             val name = ws.docs.getOrNull(i)?.fileName?.removeSuffix(".json") ?: ""
             SaveCloseDialog(ws, name)
         }
+        ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
         if (ws.showSettings) SettingsScreen(ws)
     }
 
@@ -106,6 +107,30 @@ private fun SaveCloseDialog(ws: Workspace, name: String) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelClose() }
                 DialogButton(ws.t("dontSave"), Palette.dangerBorder, Palette.errorSoft) { ws.confirmDiscardAndClose() }
                 DialogButton(ws.t("save"), Palette.accent, Palette.holeBg, filled = true) { ws.confirmSaveAndClose() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FileDeleteDialog(ws: Workspace, count: Int) {
+    Box(
+        Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelDeleteFiles() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .background(Palette.dropdownBg, RoundedCornerShape(10.dp))
+                .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(10.dp))
+                .plainClick { }
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Txt(ws.t("deleteFilesTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
+            Txt(ws.t("deleteFilesBody").replace("{n}", count.toString()), 12.5.sp, Palette.subText)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelDeleteFiles() }
+                DialogButton(ws.t("delete"), Palette.error, Palette.holeBg, filled = true) { ws.confirmDeleteFiles() }
             }
         }
     }
