@@ -2,6 +2,7 @@ package flow.ui.shell
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -30,11 +32,17 @@ import flow.ui.theme.Palette
 // In-app top strip (themed title bar area): brand + run controls.
 // The File/Edit/View menus live in the native system menu bar (see AppMenuBar).
 @Composable
-fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp) {
+fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)? = null) {
     val active = ws.active
     Column {
         Row(
             Modifier.fillMaxWidth().height(40.dp).background(Palette.panelBg)
+                // double-click on the title strip toggles fullscreen (like a native title bar)
+                .then(
+                    if (onTitleDoubleClick != null) Modifier.pointerInput(Unit) {
+                        detectTapGestures(onDoubleTap = { onTitleDoubleClick() })
+                    } else Modifier
+                )
                 .padding(start = 10.dp + leadingInset, end = 10.dp), // left: room for native traffic lights
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),

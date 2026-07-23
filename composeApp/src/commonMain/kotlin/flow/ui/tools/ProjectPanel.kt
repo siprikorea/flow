@@ -159,7 +159,7 @@ private fun ProjectPanel(ws: Workspace) {
             }
             Txt(
                 "+", 15.sp, Palette.subText,
-                modifier = Modifier.plainClick { ws.newDoc() }.padding(horizontal = 6.dp),
+                modifier = Modifier.plainClick { ws.newComponent() }.padding(horizontal = 6.dp),
             )
         }
         Column(

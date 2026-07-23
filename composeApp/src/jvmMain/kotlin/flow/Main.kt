@@ -15,7 +15,7 @@ import androidx.compose.ui.window.rememberWindowState
 import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.MenuBar
 import flow.core.Workspace
-import flow.platform.Platform
+import androidx.compose.ui.window.WindowPlacement
 import flow.ui.shell.App
 import flow.ui.shell.handleKey
 import java.awt.Taskbar
@@ -69,7 +69,15 @@ fun main() {
                 window.requestFocus()
             }
             // Reserve ~72px on the left for the native traffic lights so nothing overlaps them
-            App(ws, leadingInset = if (isMac) 72.dp else 0.dp)
+            App(
+                ws,
+                leadingInset = if (isMac) 72.dp else 0.dp,
+                onTitleDoubleClick = {
+                    windowState.placement =
+                        if (windowState.placement == WindowPlacement.Fullscreen) WindowPlacement.Floating
+                        else WindowPlacement.Fullscreen
+                },
+            )
         }
     }
 }
@@ -79,12 +87,11 @@ fun main() {
 private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
     MenuBar {
         Menu(ws.t("menuFile")) {
-            Item(ws.t("newFlow")) { ws.newDoc() }
             Item(ws.t("newComponent")) { ws.newComponent() }
+            Item(ws.t("newFlow")) { ws.newDoc() }
             Item(ws.t("closeTab")) { ws.requestClose(ws.activeIndex) }
             Separator()
-            Item(ws.t("installPlugin")) { Platform.pickJar()?.let { ws.installJarFlow(it) } }
-            Item(ws.t("installComponent")) { ws.installActiveComponent() }
+            Item(ws.t("manageTitle")) { ws.showManage = true }
             Separator()
             Item(ws.t("menuSettings")) { ws.showSettings = true }
         }

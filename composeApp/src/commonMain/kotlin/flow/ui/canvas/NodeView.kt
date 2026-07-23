@@ -1,5 +1,6 @@
 package flow.ui.canvas
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -25,6 +26,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
 import androidx.compose.ui.input.pointer.isCtrlPressed
@@ -85,12 +87,11 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         comp -> "C"
         else -> "M"
     }
-    // input/output = yellow; category color otherwise
+    // input/output = yellow; modules purple (installed ones pink = their non-built-in mark)
     val kindColor = when {
         node.type == "cin" || node.type == "cout" -> Palette.catIo // yellow
         comp -> Palette.catComponent
         pluginMod -> Palette.catPlugin
-        findDef(node.type)?.plugin == true -> Palette.catSource
         else -> Palette.catTransform
     }
 
@@ -175,7 +176,21 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             KindBadge(kindLetter, kindColor)
             Spacer(Modifier.width(6.dp))
             Txt(node.label, 12.sp, Palette.text, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
-            Box(Modifier.size(8.dp).background(Palette.statusDot(node.status), CircleShape))
+            if (node.status == "running") {
+                // spinner: components/modules may take a while — show a rotating arc while running
+                val angle = ((timeMs % 900L) / 900f) * 360f
+                Canvas(Modifier.size(11.dp)) {
+                    drawArc(
+                        color = Palette.accent,
+                        startAngle = angle,
+                        sweepAngle = 260f,
+                        useCenter = false,
+                        style = Stroke(width = 2f * density, cap = StrokeCap.Round),
+                    )
+                }
+            } else {
+                Box(Modifier.size(8.dp).background(Palette.statusDot(node.status), CircleShape))
+            }
         }
 
         // node id (body center)

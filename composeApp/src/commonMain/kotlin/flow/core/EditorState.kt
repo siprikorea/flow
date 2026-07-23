@@ -392,7 +392,11 @@ class EditorState(
             return
         }
         setStatus(id, "running")
-        later((900 / SPEED).toLong()) {
+        // the timeout module runs for its configured delay; others use the default
+        val runMs = if (node.type == "timeout") {
+            node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
+        } else (900 / SPEED).toLong()
+        later(runMs) {
             setStatus(id, "done")
             edges.filter { it.from.node == id }.forEach { e ->
                 setEdgeActive(e.id, true)

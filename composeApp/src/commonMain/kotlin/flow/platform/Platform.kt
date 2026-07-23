@@ -15,6 +15,8 @@ expect object Platform {
     // install: an already-existing id is returned in conflicts when overwrite=false (not installed)
     fun installJar(path: String, overwrite: Boolean): InstallResult
     fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult
+    fun uninstallModule(id: String)
+    fun uninstallComponent(id: String)
     fun pickJar(): String? // JAR file picker dialog
 
     // flow files in the project folder (*.json)

@@ -56,10 +56,10 @@ import kotlin.math.roundToInt
 
 @OptIn(FlowPreview::class)
 @Composable
-fun App(ws: Workspace, leadingInset: Dp = 0.dp) {
+fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)? = null) {
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
-            MenuBar(ws, leadingInset)
+            MenuBar(ws, leadingInset, onTitleDoubleClick)
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 LeftToolWindow(ws) // activity bar always visible; panel folds via ws.showLeft
                 Column(Modifier.weight(1f).fillMaxHeight()) {
@@ -83,6 +83,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp) {
         ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
         ws.installConfirm?.let { OverwriteDialog(ws, it.label) }
         ws.renameTarget?.let { RenameDialog(ws, it) }
+        if (ws.showManage) ManageScreen(ws)
         if (ws.showSettings) SettingsScreen(ws)
     }
 
@@ -219,7 +220,7 @@ private fun EmptyEditor(ws: Workspace) {
             Box(
                 Modifier
                     .border(1.dp, Palette.runFromBorder, RoundedCornerShape(6.dp))
-                    .plainClick { ws.newDoc() }
+                    .plainClick { ws.newComponent() }
                     .padding(horizontal = 16.dp, vertical = 8.dp)
             ) { Txt(ws.t("newFlow"), 12.sp, Palette.accentHover) }
         }
@@ -247,6 +248,82 @@ private fun DragGhost(d: DragModule) {
             Box(Modifier.size(10.dp).background(Palette.catColor(cat), RoundedCornerShape(3.dp)))
             Txt(label, 12.sp, Palette.text)
         }
+    }
+}
+
+// Dedicated screen to install and manage modules/components
+@Composable
+private fun ManageScreen(ws: Workspace) {
+    Box(Modifier.fillMaxSize().background(Palette.appBg)) {
+        Column(Modifier.fillMaxSize()) {
+            Row(
+                Modifier.fillMaxWidth().height(48.dp).background(Palette.panelBg).padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Txt(ws.t("manageTitle"), 15.sp, Palette.text, weight = FontWeight.Bold)
+                Spacer(Modifier.weight(1f))
+                Box(
+                    Modifier.border(1.dp, Palette.buttonBorder, RoundedCornerShape(6.dp))
+                        .plainClick { ws.showManage = false }
+                        .padding(horizontal = 14.dp, vertical = 6.dp)
+                ) { Txt(ws.t("done"), 12.sp, Palette.menuText) }
+            }
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
+            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
+                // install actions
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    DialogButton(ws.t("installPlugin"), Palette.accent, Palette.holeBg, filled = true) {
+                        Platform.pickJar()?.let { ws.installJarFlow(it) }
+                    }
+                    DialogButton(ws.t("installComponent"), Palette.runFromBorder, Palette.accentHover) {
+                        ws.installActiveComponent()
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Txt(ws.t("installedModules").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+                    if (ws.installedModules.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
+                    ws.installedModules.forEach { m ->
+                        ManageRow(ws, title = m.name, id = m.id, io = "${m.inputs.size}→${m.outputs.size}") {
+                            ws.uninstallModule(m.id)
+                        }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Txt(ws.t("installedComponents").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+                    val installed = ws.components.filter { it.installed }
+                    if (installed.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
+                    installed.forEach { c ->
+                        ManageRow(ws, title = c.name, id = c.file.removeSuffix(".json"), io = "${c.ins.size}→${c.outs.size}") {
+                            ws.uninstallComponent(c.file.removeSuffix(".json"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUninstall: () -> Unit) {
+    Row(
+        Modifier
+            .width(520.dp)
+            .background(Palette.dropdownBg, RoundedCornerShape(7.dp))
+            .border(1.dp, Palette.border, RoundedCornerShape(7.dp))
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
+        Txt(id, 11.sp, Palette.dimText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+        Txt(io, 10.5.sp, Palette.dimText, mono = true)
+        Box(
+            Modifier.border(1.dp, Palette.dangerBorder, RoundedCornerShape(5.dp))
+                .plainClick(onUninstall)
+                .padding(horizontal = 8.dp, vertical = 3.dp)
+        ) { Txt(ws.t("uninstall"), 11.sp, Palette.errorSoft) }
     }
 }
 
@@ -304,7 +381,7 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     if (ev.type != KeyEventType.KeyDown) return false
     if (ev.key == Key.Escape) { active?.wire = null; ws.menu = null; return true }
     val ctrl = ev.isCtrlPressed || ev.isMetaPressed
-    if (ctrl && ev.key == Key.N) { ws.newDoc(); return true }
+    if (ctrl && ev.key == Key.N) { ws.newComponent(); return true }
     if (ctrl && ev.key == Key.S) { ws.saveActive(); return true }
     if (ctrl && ev.key == Key.W) { ws.requestClose(ws.activeIndex); return true }
     if (active == null) return false

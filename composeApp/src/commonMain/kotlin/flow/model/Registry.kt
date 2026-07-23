@@ -7,7 +7,6 @@ data class ModuleDef(
     val ins: List<String>,
     val outs: List<String>,
     val params: Map<String, String>,
-    val plugin: Boolean = false,
 )
 
 // Module definitions = the built-in registry.
@@ -20,8 +19,9 @@ val REGISTRY = listOf(
     ModuleDef("agg", mapOf("ko" to "집계", "en" to "Aggregate"), "transform", listOf("in"), listOf("out"), mapOf("fn" to "sum", "key" to "value")),
     ModuleDef("log", mapOf("ko" to "로그 출력", "en" to "Log"), "sink", listOf("in"), emptyList(), mapOf("level" to "info")),
     ModuleDef("fout", mapOf("ko" to "파일 출력", "en" to "File Output"), "sink", listOf("in"), emptyList(), mapOf("path" to "out.json")),
-    ModuleDef("jflat", mapOf("ko" to "JSON 평탄화", "en" to "JSON Flatten"), "transform", listOf("in"), listOf("out"), mapOf("depth" to "2"), plugin = true),
-    ModuleDef("regex", mapOf("ko" to "정규식 추출", "en" to "Regex Extract"), "transform", listOf("in"), listOf("out"), mapOf("pattern" to "\\d+"), plugin = true),
+    ModuleDef("jflat", mapOf("ko" to "JSON 평탄화", "en" to "JSON Flatten"), "transform", listOf("in"), listOf("out"), mapOf("depth" to "2")),
+    ModuleDef("regex", mapOf("ko" to "정규식 추출", "en" to "Regex Extract"), "transform", listOf("in"), listOf("out"), mapOf("pattern" to "\\d+")),
+    ModuleDef("timeout", mapOf("ko" to "지연", "en" to "Timeout"), "transform", listOf("in"), listOf("out"), mapOf("ms" to "1000")),
 )
 
 // Component boundary nodes: cin = component input port, cout = output port. The label is the port name.

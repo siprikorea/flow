@@ -6,6 +6,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -44,7 +45,7 @@ fun EditorTabs(ws: Workspace) {
                 )
             }
             Box(
-                Modifier.plainClick { ws.newDoc() }.padding(horizontal = 12.dp, vertical = 6.dp),
+                Modifier.plainClick { ws.newComponent() }.padding(horizontal = 12.dp, vertical = 6.dp),
             ) { Txt("+", 15.sp, Palette.subText) }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
@@ -54,7 +55,9 @@ fun EditorTabs(ws: Workspace) {
 @Composable
 private fun Tab(name: String, active: Boolean, isComp: Boolean, dirty: Boolean, onSelect: () -> Unit, onClose: () -> Unit) {
     val (hoverSrc, hovered) = rememberHover()
-    Column {
+    // IntrinsicSize.Max gives fillMaxWidth a real width inside the horizontal scroller,
+    // so the active-tab top indicator (VS Code style) actually renders
+    Column(Modifier.width(IntrinsicSize.Max)) {
         Box(Modifier.height(2.dp).fillMaxWidth().background(if (active) Palette.accent else Color.Transparent))
         Row(
             Modifier

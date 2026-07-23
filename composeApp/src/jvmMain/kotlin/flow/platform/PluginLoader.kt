@@ -93,6 +93,23 @@ internal object PluginLoader {
         return engine.run(flow, inputs.mapValues { it.value ?: "" })
     }
 
+    /* ───────── uninstall ───────── */
+
+    // ids are package-format names; refuse anything that could escape the store dirs
+    private fun safeId(id: String): Boolean =
+        id.isNotBlank() && !id.contains('/') && !id.contains('\\') && id != "." && id != ".."
+
+    fun uninstallModule(id: String) {
+        if (!safeId(id)) return
+        runCatching { File(modulesDir, id).deleteRecursively() }
+        moduleCache = null
+    }
+
+    fun uninstallComponent(id: String) {
+        if (!safeId(id)) return
+        runCatching { File(componentsDir, id).deleteRecursively() }
+    }
+
     /* ───────── install ───────── */
 
     fun installJar(path: String, overwrite: Boolean): InstallResult {

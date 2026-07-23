@@ -48,6 +48,9 @@ class Workspace(private val scope: CoroutineScope) {
     // whether the settings screen is shown (logo menu > Settings)
     var showSettings by mutableStateOf(false)
 
+    // whether the module/component manage screen is shown
+    var showManage by mutableStateOf(false)
+
     // project panel multi-selection (highlight). Open via double-click / right-click menu.
     var projectSelected by mutableStateOf(setOf<String>())
     // file whose right-click context menu is open (null = none)
@@ -125,6 +128,16 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun confirmInstall() { installConfirm?.commit?.invoke(); installConfirm = null }
     fun cancelInstall() { installConfirm = null }
+
+    fun uninstallModule(id: String) {
+        Platform.uninstallModule(id)
+        refreshFiles()
+    }
+
+    fun uninstallComponent(id: String) {
+        Platform.uninstallComponent(id)
+        refreshFiles()
+    }
 
     // Open a component file: installed ones (components/) as a read-only copy, project files as-is
     fun openComponentFile(file: String) {
