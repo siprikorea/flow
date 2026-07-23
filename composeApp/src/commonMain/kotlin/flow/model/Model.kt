@@ -47,4 +47,6 @@ data class Session(
     val leftTab: String = "project",
     val showProps: Boolean = true,
     val showMinimap: Boolean = true,
+    val leftWidth: Float = 240f,
+    val propsWidth: Float = 268f,
 )

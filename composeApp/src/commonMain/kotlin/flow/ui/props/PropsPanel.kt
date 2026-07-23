@@ -32,6 +32,7 @@ import flow.model.compFile
 import flow.model.findDef
 import flow.model.isComp
 import flow.ui.common.DtxField
+import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.Palette
@@ -52,10 +53,13 @@ fun PropsPanel(state: EditorState) {
     }
 
     Row {
-        Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
+        ResizeDivider(Palette.panelBorder) {
+            // divider is on the panel's left edge, so dragging right shrinks it
+            state.ws.propsWidth = (state.ws.propsWidth - it).coerceIn(200f, 560f)
+        }
         Column(
             Modifier
-                .width(267.dp)
+                .width(state.ws.propsWidth.dp)
                 .fillMaxHeight()
                 .background(Palette.panelBg)
                 .verticalScroll(rememberScrollState())

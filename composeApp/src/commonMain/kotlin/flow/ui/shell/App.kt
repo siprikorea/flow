@@ -266,7 +266,9 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Txt(ws.t("saveErrorTitle"), 14.sp, Palette.errorSoft, weight = FontWeight.SemiBold)
+            val title = if (ws.saveWarn) ws.t("saveWarnTitle") else ws.t("saveErrorTitle")
+            val titleColor = if (ws.saveWarn) Palette.warnSoft else Palette.errorSoft
+            Txt(title, 14.sp, titleColor, weight = FontWeight.SemiBold)
             Txt(message, 12.5.sp, Palette.subText)
             Row(modifier = Modifier.align(Alignment.End)) {
                 DialogButton(ws.t("ok"), Palette.accent, Palette.holeBg, filled = true) { ws.saveError = null }

@@ -223,6 +223,10 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
             state.nodes.forEach { node ->
                 key(node.id) { NodeView(state, node, timeMs) }
             }
+            // ports drawn last so their opaque circles sit above every rectangle
+            state.nodes.forEach { node ->
+                key("ports-${node.id}") { NodePortsView(state, node) }
+            }
         }
 
         if (state.nodes.isEmpty()) {

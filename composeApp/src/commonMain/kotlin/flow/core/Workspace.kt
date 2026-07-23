@@ -37,6 +37,9 @@ class Workspace(private val scope: CoroutineScope) {
     }
     var showProps by mutableStateOf(true)
     var showMinimap by mutableStateOf(true)
+    // resizable panel widths (dp), persisted in the session
+    var leftWidth by mutableStateOf(240f)
+    var propsWidth by mutableStateOf(268f)
     var menu by mutableStateOf<String?>(null)
     var dragModule by mutableStateOf<DragModule?>(null)
     var saveTime by mutableStateOf<String?>(null)
@@ -53,8 +56,10 @@ class Workspace(private val scope: CoroutineScope) {
     // internal clipboard for module copy/paste between documents
     var clipboard by mutableStateOf<FlowFile?>(null)
 
-    // component validation error to display (null = none)
+    // component validation message to display (null = none)
     var saveError by mutableStateOf<String?>(null)
+    // true when saveError is a non-blocking warning (the save still succeeded)
+    var saveWarn by mutableStateOf(false)
 
     // project panel multi-selection (highlight). Open via double-click / right-click menu.
     var projectSelected by mutableStateOf(setOf<String>())
@@ -295,7 +300,7 @@ class Workspace(private val scope: CoroutineScope) {
     /* ───────── session ───────── */
 
     fun sessionJson(): String = json.encodeToString(
-        Session(docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap)
+        Session(docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap, leftWidth, propsWidth)
     )
 
     private fun loadSession() {
@@ -306,6 +311,8 @@ class Workspace(private val scope: CoroutineScope) {
             leftTab = s.leftTab
             showProps = s.showProps
             showMinimap = s.showMinimap
+            leftWidth = s.leftWidth.coerceIn(160f, 500f)
+            propsWidth = s.propsWidth.coerceIn(200f, 560f)
             s.openFiles.filter { Platform.readFlow(it) != null }.forEach { openFile(it) }
             activeIndex = s.activeIndex.coerceIn(0, (docs.size - 1).coerceAtLeast(0))
         }

@@ -163,13 +163,13 @@ class EditorState(
 
     // save to file; missing in/out boundary blocks the save, unconnected ports only warn
     fun save(): Boolean {
-        validateComponent()?.let { ws.saveError = it; return false }
+        validateComponent()?.let { ws.saveWarn = false; ws.saveError = it; return false }
         Platform.writeFlow(fileName, flowJson())
         persisted = true
         savedSig = flowJson()
         saveTime = Platform.currentTimeHms()
         ws.refreshFiles()
-        connectionWarning()?.let { ws.saveError = it } // warn but keep the save
+        connectionWarning()?.let { ws.saveWarn = true; ws.saveError = it } // warn but keep the save
         return true
     }
 
@@ -428,12 +428,12 @@ class EditorState(
         }
     }
 
-    private fun runNode(id: String, skipInputCheck: Boolean = false) {
+    private fun runNode(id: String) {
         val node = nodeById(id) ?: return
         if (node.status == "running" || node.status == "done") return
         val incoming = edges.filter { it.to.node == id }
         // error if it has input ports but no incoming connection
-        if (!skipInputCheck && node.inputs.isNotEmpty() && incoming.isEmpty()) {
+        if (node.inputs.isNotEmpty() && incoming.isEmpty()) {
             setStatus(id, "error")
             return
         }
@@ -475,7 +475,9 @@ class EditorState(
         val nodeId = id ?: selNodes.firstOrNull() ?: return
         resetRun()
         running = true
-        later(0) { runNode(nodeId, skipInputCheck = true) } // skip the unconnected-input check
+        // a node with input ports but no incoming connection fails here too (marked red),
+        // just like a full run — it can't run without its input
+        later(0) { runNode(nodeId) }
     }
 
     fun stopRun() {

@@ -34,6 +34,8 @@ object Palette {
     val doneBorder = Color(0xFF2B7A5C)
     val error = Color(0xFFFF5C5C)
     val errorSoft = Color(0xFFFF8A8A)
+    val warn = Color(0xFFE0A93B)
+    val warnSoft = Color(0xFFF0C85A)
     val catSource = Color(0xFF22C3A6)
     val catTransform = Color(0xFFB07BFF)
     val catSink = Color(0xFFFF9D5C)

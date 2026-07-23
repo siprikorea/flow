@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
 import flow.core.Workspace
+import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
@@ -62,7 +63,7 @@ fun LeftToolWindow(ws: Workspace) {
         if (ws.showLeft) {
             Column(
                 Modifier
-                    .width(240.dp)
+                    .width(ws.leftWidth.dp)
                     .fillMaxHeight()
                     .background(Palette.panelBg),
             ) {
@@ -76,7 +77,9 @@ fun LeftToolWindow(ws: Workspace) {
                     else -> ProjectPanel(ws)
                 }
             }
-            Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
+            ResizeDivider(Palette.panelBorder) {
+                ws.leftWidth = (ws.leftWidth + it).coerceIn(160f, 500f)
+            }
         }
     }
 }

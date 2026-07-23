@@ -62,11 +62,16 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         pluginMod -> "pluginmod"
         else -> findDef(node.type)?.cat ?: "transform"
     }
+    // a node is "unconnected" if any of its real ports has no edge (cin has only
+    // outputs, cout only inputs, so each is judged on the ports it actually has)
+    val unconnected = node.inputs.any { p -> state.edges.none { it.to.node == node.id && it.to.port == p } } ||
+        node.outputs.any { p -> state.edges.none { it.from.node == node.id && it.from.port == p } }
     val borderColor = when {
         node.status == "running" -> Palette.accent
         node.status == "done" -> Palette.doneBorder
         node.status == "error" -> Palette.error
         selected -> Palette.accentHover
+        unconnected -> Palette.error
         else -> Palette.nodeBorder
     }
     val statusText = when (node.status) {
@@ -201,8 +206,8 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             }
         }
 
-        node.inputs.forEachIndexed { i, name -> PortView(state, node, "in", i, name) }
-        node.outputs.forEachIndexed { i, name -> PortView(state, node, "out", i, name) }
+        // ports are drawn in a separate overlay pass (NodePortsView) so their
+        // opaque circles always sit above every node rectangle, never behind one
 
         // resize handle (bottom-right L, min 120×60)
         Box(
@@ -236,6 +241,20 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                     }
                 }
         )
+    }
+}
+
+// Overlay pass: renders every node's ports on top of all node rectangles so the
+// opaque port circles are never occluded by (or show) a neighbouring rectangle.
+@Composable
+internal fun NodePortsView(state: EditorState, node: flow.model.Node) {
+    Box(
+        Modifier
+            .offset(node.x.dp, node.y.dp)
+            .size(node.w.dp, node.h.dp)
+    ) {
+        node.inputs.forEachIndexed { i, name -> PortView(state, node, "in", i, name) }
+        node.outputs.forEachIndexed { i, name -> PortView(state, node, "out", i, name) }
     }
 }
 
