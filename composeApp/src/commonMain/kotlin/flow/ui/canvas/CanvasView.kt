@@ -61,6 +61,8 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
             withFrameNanos { timeMs = it / 1_000_000 }
         }
     }
+    // when each active edge started, so its packet travels the curve exactly once
+    val packetStart = remember { mutableMapOf<String, Long>() }
 
     Box(
         modifier
@@ -159,11 +161,15 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                     drawPath(path, color, style = Stroke(if (selected) 3.5f else 2.5f, pathEffect = effect))
 
                     if (e.active) {
-                        // packet: white dot + glow, along the curve 0->100% (0.85s loop)
-                        val t = (timeMs % 850) / 850f
+                        // packet: white dot + glow, travels the curve exactly once (0.85s), synced to
+                        // edge activation so it arrives right when the next node starts
+                        val start = packetStart.getOrPut(e.id) { timeMs }
+                        val t = ((timeMs - start) / 850f).coerceIn(0f, 1f)
                         val p = bezierPoint(a, b, t)
                         drawCircle(Palette.accentSoft.copy(alpha = 0.45f), 8f, p)
                         drawCircle(Palette.edgeSelected, 4.5f, p)
+                    } else {
+                        packetStart.remove(e.id)
                     }
                 }
                 state.wire?.let { w ->
