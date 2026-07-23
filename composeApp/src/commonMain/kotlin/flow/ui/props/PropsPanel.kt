@@ -156,10 +156,9 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
     PortSection(state, node, "in", onFocusChange)
     PortSection(state, node, "out", onFocusChange)
 
-    if (!comp) {
-        PanelButton(state.t("runFromHere"), Palette.runFromBorder, Palette.accentHover) {
-            state.runFromSelection(node.id)
-        }
+    // available for both modules and components (any node can be a run start)
+    PanelButton(state.t("runFromHere"), Palette.runFromBorder, Palette.accentHover) {
+        state.runFromSelection(node.id)
     }
     PanelButton(state.t("deleteModule"), Palette.dangerBorder, Palette.errorSoft) {
         state.deleteNode(node.id)
