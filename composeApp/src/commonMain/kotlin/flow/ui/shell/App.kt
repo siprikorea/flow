@@ -413,11 +413,16 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     if (active == null) return false
     if (active.textEditing) return false // ignore shortcuts while a text field is focused
     return when {
-        // space toggles run/stop (like the toolbar button); guard against key auto-repeat
+        // space toggles run/stop; with a node selected it runs from there
+        // (like the "Start from here" button). Guard against key auto-repeat.
         ev.key == Key.Spacebar -> {
             if (!active.spaceDown) {
                 active.spaceDown = true
-                if (active.running) active.stopRun() else active.startRun()
+                when {
+                    active.running -> active.stopRun()
+                    active.selNodes.isNotEmpty() -> active.runFromSelection()
+                    else -> active.startRun()
+                }
             }
             true
         }
