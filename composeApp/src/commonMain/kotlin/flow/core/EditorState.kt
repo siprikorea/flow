@@ -142,18 +142,26 @@ class EditorState(
     // whether there are unsaved edits (new unsaved docs are always dirty; run-state changes excluded)
     val dirty: Boolean get() = !persisted || flowJson() != savedSig
 
-    // A component must have at least one input and one output boundary node, all connected.
+    // Blocking error: a component needs at least one input and one output boundary node.
     fun validateComponent(): String? {
         val cins = nodes.filter { it.type == "cin" }
         val couts = nodes.filter { it.type == "cout" }
         if (cins.isEmpty() || couts.isEmpty()) return t("valNeedIo")
-        val disconnected = cins.any { c -> edges.none { it.from.node == c.id } } ||
-            couts.any { c -> edges.none { it.to.node == c.id } }
-        if (disconnected) return t("valNotConnected")
         return null
     }
 
-    // save to file after validation; on failure shows an error and returns false
+    // Non-blocking warning: any node port (boundary or module/component) left unconnected.
+    fun connectionWarning(): String? {
+        val hasUnconnectedInput = nodes.any { n ->
+            n.inputs.any { port -> edges.none { it.to.node == n.id && it.to.port == port } }
+        }
+        val hasUnconnectedOutput = nodes.any { n ->
+            n.outputs.any { port -> edges.none { it.from.node == n.id && it.from.port == port } }
+        }
+        return if (hasUnconnectedInput || hasUnconnectedOutput) t("valNotConnected") else null
+    }
+
+    // save to file; missing in/out boundary blocks the save, unconnected ports only warn
     fun save(): Boolean {
         validateComponent()?.let { ws.saveError = it; return false }
         Platform.writeFlow(fileName, flowJson())
@@ -161,6 +169,7 @@ class EditorState(
         savedSig = flowJson()
         saveTime = Platform.currentTimeHms()
         ws.refreshFiles()
+        connectionWarning()?.let { ws.saveError = it } // warn but keep the save
         return true
     }
 

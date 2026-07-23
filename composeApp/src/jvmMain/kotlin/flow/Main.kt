@@ -103,6 +103,7 @@ private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
     MenuBar {
         Menu(ws.t("menuFile")) {
             Item(ws.t("newComponent")) { ws.newComponent() }
+            Item(ws.t("save")) { ws.saveActive() }
             Item(ws.t("closeTab")) { ws.requestClose(ws.activeIndex) }
             Separator()
             Item(ws.t("manageTitle")) { ws.showManage = true }
