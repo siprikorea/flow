@@ -153,6 +153,13 @@ class Workspace(private val scope: CoroutineScope) {
     fun openComponentFile(file: String) {
         if (components.find { it.file == file }?.installed == true) openInstalledComponent(file)
         else openFile(file)
+        warnUnconnected()
+    }
+
+    // Show a warning dialog if the active doc still has unconnected modules
+    // (used on user-initiated open/save; not during silent session restore).
+    private fun warnUnconnected() {
+        active?.connectionWarning()?.let { saveWarn = true; saveError = it }
     }
 
     // Open an installed component for editing: as a new read-only copy (saved into flows/)
@@ -160,7 +167,7 @@ class Workspace(private val scope: CoroutineScope) {
         val raw = Platform.readInstalledComponent(file) ?: return
         val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return
         val name = nextName(file.removeSuffix(".json").substringAfterLast('.').ifBlank { "component" })
-        val doc = EditorState(scope, this, name).also { it.load(flow); it.persisted = false }
+        val doc = EditorState(scope, this, name).also { it.load(flow); it.persisted = false; it.showValidation = true }
         docs.add(doc)
         activeIndex = docs.lastIndex
     }
@@ -176,7 +183,10 @@ class Workspace(private val scope: CoroutineScope) {
         projectSelected = if (name in projectSelected) projectSelected - name else projectSelected + name
     }
 
-    fun openFiles(names: Collection<String>) = names.forEach { openFile(it) }
+    fun openFiles(names: Collection<String>) {
+        names.forEach { openFile(it) }
+        warnUnconnected()
+    }
 
     // request delete-confirmation -> show the dialog
     fun requestDeleteFiles(names: Set<String>) {
@@ -226,7 +236,7 @@ class Workspace(private val scope: CoroutineScope) {
         if (i >= 0) { activeIndex = i; return }
         val raw = Platform.readFlow(name)
         val flow = raw?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() } ?: FlowFile()
-        val doc = EditorState(scope, this, name).also { it.load(flow) }
+        val doc = EditorState(scope, this, name).also { it.load(flow); it.showValidation = true }
         docs.add(doc)
         activeIndex = docs.lastIndex
     }

@@ -1,12 +1,16 @@
 package flow.ui.canvas
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.TooltipArea
+import androidx.compose.foundation.TooltipPlacement
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +23,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
@@ -33,7 +41,12 @@ import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.EditorState
@@ -62,16 +75,14 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         pluginMod -> "pluginmod"
         else -> findDef(node.type)?.cat ?: "transform"
     }
-    // a node is "unconnected" if any of its real ports has no edge (cin has only
-    // outputs, cout only inputs, so each is judged on the ports it actually has)
-    val unconnected = node.inputs.any { p -> state.edges.none { it.to.node == node.id && it.to.port == p } } ||
-        node.outputs.any { p -> state.edges.none { it.from.node == node.id && it.from.port == p } }
+    // validation error (unconnected ports) — only flagged after an open/save validation
+    val validationError = if (state.showValidation) state.nodeConnectionError(node) else null
     val borderColor = when {
         node.status == "running" -> Palette.accent
         node.status == "done" -> Palette.doneBorder
         node.status == "error" -> Palette.error
         selected -> Palette.accentHover
-        unconnected -> Palette.error
+        validationError != null -> Palette.error
         else -> Palette.nodeBorder
     }
     val statusText = when (node.status) {
@@ -85,6 +96,9 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         "done" -> Palette.successText
         else -> Palette.errorSoft
     }
+    // bottom label: run status takes priority; otherwise show the validation error
+    val bottomMsg = statusText ?: validationError
+    val bottomColor = if (statusText != null) statusColor else Palette.errorSoft
     // kind badge (top-left): I=input / O=output / M=module / C=component
     val kindLetter = when {
         node.type == "cin" -> "I"
@@ -199,10 +213,10 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             }
         }
 
-        // status label (bottom)
-        statusText?.let {
+        // status/validation label (bottom): ellipsized to fit, full text on hover
+        bottomMsg?.let {
             Box(Modifier.matchParentSize().padding(bottom = 6.dp), contentAlignment = Alignment.BottomCenter) {
-                Txt(it, 10.sp, statusColor, mono = true)
+                NodeStatusLabel(it, bottomColor)
             }
         }
 
@@ -241,6 +255,47 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                     }
                 }
         )
+    }
+}
+
+// Bottom node label (run status / validation error). Ellipsized to one line so a
+// long message never overflows the node box; when it's actually truncated, hovering
+// shows the full text in a tooltip that disappears the moment the cursor leaves.
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun NodeStatusLabel(msg: String, color: Color) {
+    var truncated by remember(msg) { mutableStateOf(false) }
+    val label: @Composable () -> Unit = {
+        BasicText(
+            text = msg,
+            style = TextStyle(
+                color = color,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                textAlign = TextAlign.Center,
+            ),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            onTextLayout = { truncated = it.hasVisualOverflow },
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        )
+    }
+    if (truncated) {
+        TooltipArea(
+            tooltip = {
+                Box(
+                    Modifier
+                        .background(Palette.dropdownBg, RoundedCornerShape(6.dp))
+                        .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(6.dp))
+                        .padding(horizontal = 9.dp, vertical = 6.dp),
+                ) { Txt(msg, 11.sp, Palette.text) }
+            },
+            delayMillis = 350,
+            tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 16.dp)),
+            content = label,
+        )
+    } else {
+        label()
     }
 }
 

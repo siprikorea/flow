@@ -51,6 +51,9 @@ class EditorState(
     var cursorWorld by mutableStateOf(Offset(200f, 200f)) // last pointer position on the canvas (world dp), paste target
     var density by mutableStateOf(1f)
     var textEditing by mutableStateOf(false)
+    // once a component has been opened or saved, unconnected modules are flagged
+    // on the canvas (red border + message). New blank docs stay quiet until saved.
+    var showValidation by mutableStateOf(false)
 
     // delegated global UI — so components keep using state.xxx unchanged
     var lang: String
@@ -150,6 +153,19 @@ class EditorState(
         return null
     }
 
+    // Per-node connection error message (null = fully connected). Used on the
+    // canvas to flag unconnected modules after an open/save validation.
+    fun nodeConnectionError(node: Node): String? {
+        val missIn = node.inputs.any { port -> edges.none { it.to.node == node.id && it.to.port == port } }
+        val missOut = node.outputs.any { port -> edges.none { it.from.node == node.id && it.from.port == port } }
+        return when {
+            missIn && missOut -> t("valNodeInOut")
+            missIn -> t("valNodeIn")
+            missOut -> t("valNodeOut")
+            else -> null
+        }
+    }
+
     // Non-blocking warning: any node port (boundary or module/component) left unconnected.
     fun connectionWarning(): String? {
         val hasUnconnectedInput = nodes.any { n ->
@@ -163,6 +179,7 @@ class EditorState(
 
     // save to file; missing in/out boundary blocks the save, unconnected ports only warn
     fun save(): Boolean {
+        showValidation = true // validate on save: flag unconnected modules on the canvas
         validateComponent()?.let { ws.saveWarn = false; ws.saveError = it; return false }
         Platform.writeFlow(fileName, flowJson())
         persisted = true
