@@ -413,7 +413,14 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     if (active == null) return false
     if (active.textEditing) return false // ignore shortcuts while a text field is focused
     return when {
-        ev.key == Key.Spacebar -> { active.spaceDown = true; true }
+        // space toggles run/stop (like the toolbar button); guard against key auto-repeat
+        ev.key == Key.Spacebar -> {
+            if (!active.spaceDown) {
+                active.spaceDown = true
+                if (active.running) active.stopRun() else active.startRun()
+            }
+            true
+        }
         ev.key == Key.Delete || ev.key == Key.Backspace -> { active.deleteSelection(); true }
         ctrl && ev.key == Key.C -> { active.copySelection(); true }
         ctrl && ev.key == Key.V -> { active.paste(); true }

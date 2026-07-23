@@ -92,32 +92,24 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     state.menu = null
-                    if (state.spaceDown) {
-                        down.consume()
-                        drag(down.id) { ch ->
-                            state.pan += ch.position - ch.previousPosition
-                            ch.consume()
-                        }
+                    // drag on empty canvas = rubber-band select, click = select/deselect an edge
+                    val startWorld = state.screenToWorld(down.position)
+                    var moved = false
+                    drag(down.id) { ch ->
+                        moved = true
+                        val cur = state.screenToWorld(ch.position)
+                        state.selRect = Rect(
+                            minOf(startWorld.x, cur.x), minOf(startWorld.y, cur.y),
+                            maxOf(startWorld.x, cur.x), maxOf(startWorld.y, cur.y),
+                        )
+                        ch.consume()
+                    }
+                    if (moved) {
+                        state.selRect?.let { state.selectInRect(it) }
+                        state.selRect = null
                     } else {
-                        // drag on empty canvas = rubber-band select, click = select/deselect an edge
-                        val startWorld = state.screenToWorld(down.position)
-                        var moved = false
-                        drag(down.id) { ch ->
-                            moved = true
-                            val cur = state.screenToWorld(ch.position)
-                            state.selRect = Rect(
-                                minOf(startWorld.x, cur.x), minOf(startWorld.y, cur.y),
-                                maxOf(startWorld.x, cur.x), maxOf(startWorld.y, cur.y),
-                            )
-                            ch.consume()
-                        }
-                        if (moved) {
-                            state.selRect?.let { state.selectInRect(it) }
-                            state.selRect = null
-                        } else {
-                            val hit = state.edgeAt(startWorld)
-                            if (hit != null) state.selectEdge(hit) else state.clearSel()
-                        }
+                        val hit = state.edgeAt(startWorld)
+                        if (hit != null) state.selectEdge(hit) else state.clearSel()
                     }
                 }
             }
