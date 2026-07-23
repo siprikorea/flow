@@ -180,6 +180,10 @@ class EditorState(
     // save to file; missing in/out boundary blocks the save, unconnected ports only warn
     fun save(): Boolean {
         showValidation = true // validate on save: flag unconnected modules on the canvas
+        // clear any leftover run state so its status borders (e.g. green "done")
+        // don't mask the red validation borders on problem modules
+        resetRun()
+        running = false
         validateComponent()?.let { ws.saveWarn = false; ws.saveError = it; return false }
         Platform.writeFlow(fileName, flowJson())
         persisted = true
