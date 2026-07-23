@@ -485,6 +485,7 @@ class EditorState(
     fun startRun() {
         if (nodes.isEmpty()) return
         resetRun()
+        showValidation = false // validation is only for open/save; run shows only run status
         running = true
         // start from source nodes (no incoming edges); otherwise the first node
         val sources = nodes.filter { n -> edges.none { it.to.node == n.id } }
@@ -495,6 +496,7 @@ class EditorState(
     fun runFromSelection(id: String? = null) {
         val nodeId = id ?: selNodes.firstOrNull() ?: return
         resetRun()
+        showValidation = false // validation is only for open/save; run shows only run status
         running = true
         // a node with input ports but no incoming connection fails here too (marked red),
         // just like a full run — it can't run without its input
