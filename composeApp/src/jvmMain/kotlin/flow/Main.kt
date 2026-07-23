@@ -72,10 +72,12 @@ fun main() {
             App(
                 ws,
                 leadingInset = if (isMac) 72.dp else 0.dp,
+                // double-click zooms (maximize/restore) like the native title bar,
+                // not the green-button fullscreen
                 onTitleDoubleClick = {
                     windowState.placement =
-                        if (windowState.placement == WindowPlacement.Fullscreen) WindowPlacement.Floating
-                        else WindowPlacement.Fullscreen
+                        if (windowState.placement == WindowPlacement.Maximized) WindowPlacement.Floating
+                        else WindowPlacement.Maximized
                 },
             )
         }
