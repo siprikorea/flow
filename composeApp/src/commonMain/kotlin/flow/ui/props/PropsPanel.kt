@@ -130,19 +130,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
         DtxField(node.label, { v -> state.updateNode(node.id) { it.copy(label = v) } }, onFocusChange = onFocusChange)
     }
 
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        SectionLabel(state.t("labelId"))
-        var idValue by remember(node.id) { mutableStateOf(node.id) }
-        DtxField(
-            idValue, { idValue = it }, mono = true, textColor = Palette.idText,
-            onFocusChange = { focused ->
-                onFocusChange(focused)
-                if (!focused && idValue != node.id) {
-                    if (!state.renameNodeId(node.id, idValue.trim())) idValue = node.id
-                }
-            },
-        )
-    }
+    // node ids are managed internally (unique within the component) and not shown
 
     if (node.params.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {

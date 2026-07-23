@@ -17,6 +17,7 @@ import androidx.compose.ui.window.MenuBar
 import flow.core.Workspace
 import androidx.compose.ui.window.WindowPlacement
 import flow.ui.shell.App
+import flow.ui.shell.ExtensionsScreen
 import flow.ui.shell.handleKey
 import java.awt.Taskbar
 import java.awt.Toolkit
@@ -81,6 +82,18 @@ fun main() {
                 },
             )
         }
+
+        // Extensions manager opens as its own window; closing it only closes this window
+        if (ws.showManage) {
+            Window(
+                onCloseRequest = { ws.showManage = false },
+                title = ws.t("manageTitle"),
+                state = rememberWindowState(width = 780.dp, height = 560.dp),
+                icon = iconPainter,
+            ) {
+                ExtensionsScreen(ws)
+            }
+        }
     }
 }
 
@@ -90,7 +103,6 @@ private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
     MenuBar {
         Menu(ws.t("menuFile")) {
             Item(ws.t("newComponent")) { ws.newComponent() }
-            Item(ws.t("newFlow")) { ws.newDoc() }
             Item(ws.t("closeTab")) { ws.requestClose(ws.activeIndex) }
             Separator()
             Item(ws.t("manageTitle")) { ws.showManage = true }

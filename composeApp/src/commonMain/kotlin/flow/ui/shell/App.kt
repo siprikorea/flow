@@ -83,7 +83,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
         ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
         ws.installConfirm?.let { OverwriteDialog(ws, it.label) }
         ws.renameTarget?.let { RenameDialog(ws, it) }
-        if (ws.showManage) ManageScreen(ws)
+        ws.saveError?.let { SaveErrorDialog(ws, it) }
         if (ws.showSettings) SettingsScreen(ws)
     }
 
@@ -251,9 +251,33 @@ private fun DragGhost(d: DragModule) {
     }
 }
 
-// Dedicated screen to install and manage modules/components
+// component validation error (e.g. missing/unconnected in/out)
 @Composable
-private fun ManageScreen(ws: Workspace) {
+private fun SaveErrorDialog(ws: Workspace, message: String) {
+    Box(
+        Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.saveError = null },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .background(Palette.dropdownBg, RoundedCornerShape(10.dp))
+                .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(10.dp))
+                .plainClick { }
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Txt(ws.t("saveErrorTitle"), 14.sp, Palette.errorSoft, weight = FontWeight.SemiBold)
+            Txt(message, 12.5.sp, Palette.subText)
+            Row(modifier = Modifier.align(Alignment.End)) {
+                DialogButton(ws.t("ok"), Palette.accent, Palette.holeBg, filled = true) { ws.saveError = null }
+            }
+        }
+    }
+}
+
+// Extensions: install and manage modules/components (hosted in its own window)
+@Composable
+fun ExtensionsScreen(ws: Workspace) {
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
             Row(
@@ -389,6 +413,8 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     return when {
         ev.key == Key.Spacebar -> { active.spaceDown = true; true }
         ev.key == Key.Delete || ev.key == Key.Backspace -> { active.deleteSelection(); true }
+        ctrl && ev.key == Key.C -> { active.copySelection(); true }
+        ctrl && ev.key == Key.V -> { active.paste(); true }
         ctrl && ev.key == Key.Z -> { if (ev.isShiftPressed) active.redo() else active.undo(); true }
         ctrl && ev.key == Key.Y -> { active.redo(); true }
         else -> false

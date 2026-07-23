@@ -7,7 +7,6 @@ import androidx.compose.runtime.setValue
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
-import flow.model.Node
 import flow.model.Session
 import flow.model.asComponent
 import flow.platform.Platform
@@ -48,8 +47,14 @@ class Workspace(private val scope: CoroutineScope) {
     // whether the settings screen is shown (logo menu > Settings)
     var showSettings by mutableStateOf(false)
 
-    // whether the module/component manage screen is shown
+    // whether the extensions (module/component manage) window is shown
     var showManage by mutableStateOf(false)
+
+    // internal clipboard for module copy/paste between documents
+    var clipboard by mutableStateOf<FlowFile?>(null)
+
+    // component validation error to display (null = none)
+    var saveError by mutableStateOf<String?>(null)
 
     // project panel multi-selection (highlight). Open via double-click / right-click menu.
     var projectSelected by mutableStateOf(setOf<String>())
@@ -221,26 +226,11 @@ class Workspace(private val scope: CoroutineScope) {
         activeIndex = docs.lastIndex
     }
 
-    // New flow: not written to a file (project list) until saved.
-    fun newDoc() {
-        val name = nextName("flow")
-        val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
-        docs.add(doc)
-        activeIndex = docs.lastIndex
-    }
-
-    // New component: pre-places input/output boundary nodes. Not written to a file until saved.
+    // New component: starts empty (drag in/out boundaries from the palette).
+    // Not written to a file until saved; saving validates the in/out contract.
     fun newComponent() {
         val name = nextName("comp")
-        val cin = Node(
-            id = "cin_1", type = "cin", label = "in",
-            x = 60f, y = 120f, w = 160f, h = 80f, inputs = emptyList(), outputs = listOf("out"),
-        )
-        val cout = Node(
-            id = "cout_2", type = "cout", label = "out",
-            x = 420f, y = 120f, w = 160f, h = 80f, inputs = listOf("in"), outputs = emptyList(),
-        )
-        val doc = EditorState(scope, this, name).also { it.load(FlowFile(1, listOf(cin, cout), emptyList(), 3)); it.persisted = false }
+        val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
         docs.add(doc)
         activeIndex = docs.lastIndex
     }
@@ -270,7 +260,11 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun confirmSaveAndClose() {
         closeConfirm?.let { i ->
-            docs.getOrNull(i)?.save()
+            // keep the tab open when validation fails (the error dialog explains why)
+            if (docs.getOrNull(i)?.save() == false) {
+                closeConfirm = null
+                return
+            }
             removeDoc(i)
         }
         closeConfirm = null
@@ -316,7 +310,7 @@ class Workspace(private val scope: CoroutineScope) {
             activeIndex = s.activeIndex.coerceIn(0, (docs.size - 1).coerceAtLeast(0))
         }
         if (docs.isEmpty()) {
-            if (files.isNotEmpty()) openFile(files.first()) else newDoc()
+            if (files.isNotEmpty()) openFile(files.first()) else newComponent()
         }
     }
 }

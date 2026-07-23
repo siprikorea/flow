@@ -48,6 +48,7 @@ class EditorState(
     var spaceDown by mutableStateOf(false)
     var canvasSize by mutableStateOf(IntSize.Zero)
     var canvasOrigin by mutableStateOf(Offset.Zero) // window coordinates
+    var cursorWorld by mutableStateOf(Offset(200f, 200f)) // last pointer position on the canvas (world dp), paste target
     var density by mutableStateOf(1f)
     var textEditing by mutableStateOf(false)
 
@@ -141,13 +142,26 @@ class EditorState(
     // whether there are unsaved edits (new unsaved docs are always dirty; run-state changes excluded)
     val dirty: Boolean get() = !persisted || flowJson() != savedSig
 
-    // save to file, update the saved signature/time, and refresh the project list
-    fun save() {
+    // A component must have at least one input and one output boundary node, all connected.
+    fun validateComponent(): String? {
+        val cins = nodes.filter { it.type == "cin" }
+        val couts = nodes.filter { it.type == "cout" }
+        if (cins.isEmpty() || couts.isEmpty()) return t("valNeedIo")
+        val disconnected = cins.any { c -> edges.none { it.from.node == c.id } } ||
+            couts.any { c -> edges.none { it.to.node == c.id } }
+        if (disconnected) return t("valNotConnected")
+        return null
+    }
+
+    // save to file after validation; on failure shows an error and returns false
+    fun save(): Boolean {
+        validateComponent()?.let { ws.saveError = it; return false }
         Platform.writeFlow(fileName, flowJson())
         persisted = true
         savedSig = flowJson()
         saveTime = Platform.currentTimeHms()
         ws.refreshFiles()
+        return true
     }
 
     fun t(key: String) = flow.i18n.tr(lang, key)
@@ -211,7 +225,9 @@ class EditorState(
             ins = def.ins; outs = def.outs; params = def.params; idBase = type
         }
         pushHistory()
-        val (w, h) = sizeForPorts(ins.size, outs.size)
+        // every palette drop starts at the same uniform size
+        val w = 180f
+        val h = 100f
         val id = "${idBase}_$seq"
         nodes = nodes + Node(
             id = id, type = type, label = label,
@@ -254,18 +270,38 @@ class EditorState(
         clearSel()
     }
 
-    // when a node id changes, sync every edge that references it
-    fun renameNodeId(oldId: String, newId: String): Boolean {
-        if (newId.isBlank() || newId == oldId || nodes.any { it.id == newId }) return false
-        nodes = nodes.map { if (it.id == oldId) it.copy(id = newId) else it }
-        edges = edges.map {
-            it.copy(
-                from = if (it.from.node == oldId) it.from.copy(node = newId) else it.from,
-                to = if (it.to.node == oldId) it.to.copy(node = newId) else it.to,
-            )
+    /* ───────── copy / paste ───────── */
+
+    // copy the selected modules (and the edges between them) to the workspace clipboard
+    fun copySelection() {
+        val ns = nodes.filter { it.id in selNodes }
+        if (ns.isEmpty()) return
+        val es = edges.filter { it.from.node in selNodes && it.to.node in selNodes }
+        ws.clipboard = FlowFile(1, ns, es, 0)
+    }
+
+    // paste the clipboard centered at the current cursor position, with fresh ids
+    fun paste() {
+        val clip = ws.clipboard ?: return
+        if (clip.nodes.isEmpty()) return
+        pushHistory()
+        val minX = clip.nodes.minOf { it.x }
+        val minY = clip.nodes.minOf { it.y }
+        val maxX = clip.nodes.maxOf { it.x + it.w }
+        val maxY = clip.nodes.maxOf { it.y + it.h }
+        val dx = cursorWorld.x - (minX + maxX) / 2
+        val dy = cursorWorld.y - (minY + maxY) / 2
+        var s = seq
+        val idMap = clip.nodes.associate { it.id to "${it.id}_${s++}" }
+        nodes = nodes + clip.nodes.map {
+            it.copy(id = idMap[it.id]!!, x = snapF(it.x + dx), y = snapF(it.y + dy), status = "idle")
         }
-        selectNode(newId)
-        return true
+        edges = edges + clip.edges.map { e ->
+            Edge("e_${s++}", PortRef(idMap[e.from.node]!!, e.from.port), PortRef(idMap[e.to.node]!!, e.to.port))
+        }
+        seq = s
+        selNodes = idMap.values.toSet()
+        selEdges = emptySet()
     }
 
     fun renamePort(nodeId: String, kind: String, idx: Int, name: String) {
@@ -334,8 +370,9 @@ class EditorState(
         for (e in edges) {
             val from = nodeById(e.from.node) ?: continue
             val to = nodeById(e.to.node) ?: continue
-            val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0))
-            val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0))
+            // anchors sit at the port circle's outer edge (see CanvasView) so the hit path matches the drawing
+            val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
+            val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0)).let { it.copy(x = it.x - 8f) }
             for (i in 0..32) {
                 val p = bezierPoint(a, b, i / 32f)
                 if (hypot(p.x - world.x, p.y - world.y) <= 8f) return e.id

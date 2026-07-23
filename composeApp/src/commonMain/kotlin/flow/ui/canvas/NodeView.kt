@@ -115,22 +115,45 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             }
             .background(Palette.nodeBg, RoundedCornerShape(9.dp))
             .border(1.5.dp, borderColor, RoundedCornerShape(9.dp))
+            .pointerHoverIcon(moveCursorIcon())
             .pointerInput(node.id, node.type) {
-                // select on down (no delay) + detect double-click (edit component) via uptime gap
+                // whole node is draggable (ports/resize handle consume their own events):
+                // down = select (Cmd/Win toggles), drag = move all selected nodes,
+                // click-click without movement = double-click (opens a component)
                 var lastDown = 0L
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume() // consume so the canvas can't clear the selection
                     val mods = currentEvent.keyboardModifiers
                     if (mods.isCtrlPressed || mods.isMetaPressed) state.toggleNode(node.id) // Cmd/Win = add to selection
-                    else state.selectNode(node.id)
+                    else if (node.id !in state.selNodes) state.selectNode(node.id)
                     state.menu = null
-                    val now = down.uptimeMillis
-                    if (comp && now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
-                        state.ws.openComponentFile(compFile(node.type))
+                    val snap0 = state.snapshot()
+                    val starts = state.nodes.filter { it.id in state.selNodes }
+                        .associate { it.id to Offset(it.x, it.y) }
+                    var acc = Offset.Zero
+                    var moved = false
+                    drag(down.id) { ch ->
+                        acc += (ch.position - ch.previousPosition) / density
+                        starts.forEach { (id, p) ->
+                            val nx = snapF(p.x + acc.x)
+                            val ny = snapF(p.y + acc.y)
+                            if (nx != p.x || ny != p.y) moved = true
+                            state.moveNode(id, nx, ny)
+                        }
+                        ch.consume()
+                    }
+                    if (moved) {
+                        state.pushHistory(snap0) // push once on mouseup
                         lastDown = 0L
                     } else {
-                        lastDown = now
+                        val now = down.uptimeMillis
+                        if (comp && now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
+                            state.ws.openComponentFile(compFile(node.type))
+                            lastDown = 0L
+                        } else {
+                            lastDown = now
+                        }
                     }
                 }
             }
@@ -148,28 +171,6 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 .height(28.dp)
                 .background(Palette.nodeHeaderBg, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
                 .background(headerTint, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
-                .pointerHoverIcon(moveCursorIcon())
-                .pointerInput(node.id) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        down.consume()
-                        if (node.id !in state.selNodes) state.selectNode(node.id)
-                        state.menu = null
-                        val snap0 = state.snapshot()
-                        val start = state.nodeById(node.id) ?: return@awaitEachGesture
-                        var acc = Offset.Zero
-                        var moved = false
-                        drag(down.id) { ch ->
-                            acc += (ch.position - ch.previousPosition) / density
-                            val nx = snapF(start.x + acc.x)
-                            val ny = snapF(start.y + acc.y)
-                            if (nx != start.x || ny != start.y) moved = true
-                            state.moveNode(node.id, nx, ny)
-                            ch.consume()
-                        }
-                        if (moved) state.pushHistory(snap0) // push once on mouseup
-                    }
-                }
                 .padding(horizontal = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -193,10 +194,6 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             }
         }
 
-        // node id (body center)
-        Box(Modifier.matchParentSize().padding(top = 14.dp), contentAlignment = Alignment.Center) {
-            Txt(node.id, 9.5.sp, Palette.faintText, mono = true)
-        }
         // status label (bottom)
         statusText?.let {
             Box(Modifier.matchParentSize().padding(bottom = 6.dp), contentAlignment = Alignment.BottomCenter) {
@@ -257,7 +254,8 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
             .offset(if (kind == "in") (-8).dp else (node.w - 7).dp, (cy - 7.5f).dp)
             .size(15.dp)
             .hoverable(hoverSrc)
-            .background(if (hovered) Palette.accent else Palette.holeBg, CircleShape)
+            // solid (opaque) fill so edges/grid never show behind the circle
+            .background(if (hovered) Palette.accent else Palette.nodeHeaderBg, CircleShape)
             .border(2.5.dp, if (connected) Palette.accent else Palette.portBorder, CircleShape)
             .pointerHoverIcon(PointerIcon.Crosshair)
             .pointerInput(node.id, kind, name) {

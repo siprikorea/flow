@@ -72,6 +72,10 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 state.canvasOrigin = it.positionInWindow()
                 state.canvasSize = it.size
             }
+            .onPointerEvent(PointerEventType.Move) { ev ->
+                // paste target: remember where the cursor is on the canvas (world dp)
+                state.cursorWorld = state.screenToWorld(ev.changes.first().position)
+            }
             .onPointerEvent(PointerEventType.Scroll) { ev ->
                 val ch = ev.changes.first()
                 val mods = ev.keyboardModifiers
@@ -142,8 +146,10 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 state.edges.forEach { e ->
                     val from = byId[e.from.node] ?: return@forEach
                     val to = byId[e.to.node] ?: return@forEach
-                    val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0))
-                    val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0))
+                    // anchor edges at the port circle's outer edge (radius ~8) so lines
+                    // never show behind the solid port circles
+                    val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
+                    val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0)).let { it.copy(x = it.x - 8f) }
                     val c = bezierCtrl(a, b)
                     val path = Path().apply {
                         moveTo(a.x, a.y)
@@ -175,7 +181,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 state.wire?.let { w ->
                     val from = byId[w.node]
                     if (from != null) {
-                        val a = portPos(from, "out", from.outputs.indexOf(w.port).coerceAtLeast(0))
+                        val a = portPos(from, "out", from.outputs.indexOf(w.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
                         val c = bezierCtrl(a, w.pos)
                         val path = Path().apply {
                             moveTo(a.x, a.y)
