@@ -1,5 +1,6 @@
 package flow.ui.tools
 
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -23,7 +24,11 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -40,48 +45,93 @@ import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 
-// Left tool window: switch between Project / Modules tabs
+// VS Code-style left side: an activity bar (icon rail) + an optional panel.
+// Clicking an icon opens its panel; clicking the same icon again collapses the panel.
 @Composable
 fun LeftToolWindow(ws: Workspace) {
     Row {
+        // activity bar
         Column(
-            Modifier
-                .width(240.dp)
-                .fillMaxHeight()
-                .background(Palette.panelBg),
+            Modifier.width(44.dp).fillMaxHeight().background(Palette.tabBarBg),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Row(
-                Modifier.fillMaxWidth().height(32.dp).padding(horizontal = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                ToolTab(ws.t("tabProject"), ws.leftTab == "project") { ws.leftTab = "project" }
-                ToolTab(ws.t("tabModules"), ws.leftTab == "modules") { ws.leftTab = "modules" }
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
-            when (ws.leftTab) {
-                "modules" -> ModulePalette(ws)
-                else -> ProjectPanel(ws)
-            }
+            ActivityIcon(ws, "project") { tint -> FolderGlyph(tint) }
+            ActivityIcon(ws, "modules") { tint -> BlocksGlyph(tint) }
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
+        if (ws.showLeft) {
+            Column(
+                Modifier
+                    .width(240.dp)
+                    .fillMaxHeight()
+                    .background(Palette.panelBg),
+            ) {
+                when (ws.leftTab) {
+                    "modules" -> {
+                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
+                            Txt(ws.t("tabModules").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+                        }
+                        ModulePalette(ws)
+                    }
+                    else -> ProjectPanel(ws)
+                }
+            }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
+        }
     }
 }
 
 @Composable
-private fun ToolTab(text: String, active: Boolean, onClick: () -> Unit) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.plainClick(onClick).padding(horizontal = 8.dp, vertical = 6.dp)) {
-            Txt(
-                text.uppercase(), 11.sp,
-                if (active) Palette.text else Palette.dimText,
-                weight = FontWeight.Bold, letterSpacing = 0.5.sp,
-            )
+private fun ActivityIcon(ws: Workspace, tab: String, icon: @Composable (Color) -> Unit) {
+    val (hoverSrc, hovered) = rememberHover()
+    val active = ws.showLeft && ws.leftTab == tab
+    val tint = when {
+        active -> Palette.text
+        hovered -> Palette.menuText
+        else -> Palette.dimText
+    }
+    Box(
+        Modifier.fillMaxWidth().height(44.dp)
+            .hoverable(hoverSrc)
+            .plainClick { ws.clickActivity(tab) },
+    ) {
+        if (active) {
+            Box(Modifier.align(Alignment.CenterStart).width(2.dp).height(22.dp).background(Palette.accent))
         }
-        Box(
-            Modifier.width(44.dp).height(2.dp)
-                .background(if (active) Palette.accent else Color.Transparent)
+        Box(Modifier.align(Alignment.Center)) { icon(tint) }
+    }
+}
+
+// folder outline (project files)
+@Composable
+private fun FolderGlyph(tint: Color) {
+    Canvas(Modifier.size(20.dp)) {
+        val w = size.width
+        val h = size.height
+        val st = Stroke(width = w * 0.09f)
+        drawRoundRect(
+            tint, topLeft = Offset(w * 0.10f, h * 0.16f), size = Size(w * 0.36f, h * 0.18f),
+            cornerRadius = CornerRadius(w * 0.05f, w * 0.05f), style = st,
         )
+        drawRoundRect(
+            tint, topLeft = Offset(w * 0.10f, h * 0.28f), size = Size(w * 0.80f, h * 0.52f),
+            cornerRadius = CornerRadius(w * 0.08f, w * 0.08f), style = st,
+        )
+    }
+}
+
+// blocks (palette), one square detached like the VS Code extensions icon
+@Composable
+private fun BlocksGlyph(tint: Color) {
+    Canvas(Modifier.size(20.dp)) {
+        val w = size.width
+        val s = Size(w * 0.34f, w * 0.34f)
+        val r = CornerRadius(w * 0.06f, w * 0.06f)
+        val st = Stroke(width = w * 0.09f)
+        drawRoundRect(tint, topLeft = Offset(w * 0.08f, w * 0.08f), size = s, cornerRadius = r, style = st)
+        drawRoundRect(tint, topLeft = Offset(w * 0.08f, w * 0.56f), size = s, cornerRadius = r, style = st)
+        drawRoundRect(tint, topLeft = Offset(w * 0.56f, w * 0.56f), size = s, cornerRadius = r, style = st)
+        drawRoundRect(tint, topLeft = Offset(w * 0.62f, w * 0.04f), size = s, cornerRadius = r, style = st)
     }
 }
 

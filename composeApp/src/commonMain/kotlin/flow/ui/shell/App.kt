@@ -61,7 +61,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp) {
         Column(Modifier.fillMaxSize()) {
             MenuBar(ws, leadingInset)
             Row(Modifier.fillMaxWidth().weight(1f)) {
-                if (ws.showLeft) LeftToolWindow(ws)
+                LeftToolWindow(ws) // activity bar always visible; panel folds via ws.showLeft
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     EditorTabs(ws)
                     Box(Modifier.weight(1f).fillMaxWidth()) {

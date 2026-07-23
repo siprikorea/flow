@@ -90,7 +90,7 @@ private fun Section(title: String, dot: Color? = null, content: @Composable () -
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             // expanded = filled/bright, collapsed = dim → clear visual state
-            Txt(if (expanded) "▾" else "▸", 10.sp, if (expanded) Palette.accent else Palette.subText, weight = FontWeight.Bold)
+            Txt(if (expanded) "▾" else "▸", 15.sp, if (expanded) Palette.accent else Palette.subText, weight = FontWeight.Bold)
             if (dot != null) Box(Modifier.size(6.dp).background(dot, RoundedCornerShape(3.dp)))
             Txt(title.uppercase(), 11.sp, if (expanded) Palette.text else Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
         }

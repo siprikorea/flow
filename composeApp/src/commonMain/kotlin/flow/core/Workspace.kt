@@ -25,6 +25,17 @@ class Workspace(private val scope: CoroutineScope) {
     var lang by mutableStateOf("en") // default language: English
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules
+
+    // VS Code-style activity bar click: open that panel, or collapse when the
+    // same icon is clicked while its panel is already open.
+    fun clickActivity(tab: String) {
+        if (showLeft && leftTab == tab) {
+            showLeft = false
+        } else {
+            leftTab = tab
+            showLeft = true
+        }
+    }
     var showProps by mutableStateOf(true)
     var showMinimap by mutableStateOf(true)
     var menu by mutableStateOf<String?>(null)
