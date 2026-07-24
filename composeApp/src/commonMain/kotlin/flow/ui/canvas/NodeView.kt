@@ -167,11 +167,13 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                         lastDown = 0L
                     } else {
                         val now = down.uptimeMillis
-                        if (comp && now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
-                            state.ws.openComponentFile(compFile(node.type))
-                            lastDown = 0L
-                        } else {
-                            lastDown = now
+                        val isDouble = now - lastDown <= viewConfiguration.doubleTapTimeoutMillis
+                        val boundary = node.type == "cin" || node.type == "cout"
+                        when {
+                            // double-click a component opens its editor; a boundary opens its data editor
+                            isDouble && comp -> { state.ws.openComponentFile(compFile(node.type)); lastDown = 0L }
+                            isDouble && boundary -> { state.ws.openDataEditor(state, node.id); lastDown = 0L }
+                            else -> lastDown = now
                         }
                     }
                 }

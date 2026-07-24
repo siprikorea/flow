@@ -7,6 +7,7 @@ import androidx.compose.runtime.setValue
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
+import flow.model.Node
 import flow.model.Session
 import flow.model.asComponent
 import flow.platform.Platform
@@ -15,6 +16,12 @@ import kotlinx.serialization.json.Json
 
 // pending install-overwrite confirmation (label = conflicting id, commit = perform overwrite)
 class InstallPending(val label: String, val commit: () -> Unit)
+
+// An open data-editor tab: edits the sample data of a component boundary (cin/cout) node.
+class DataTab(val doc: EditorState, val nodeId: String) {
+    val node: Node? get() = doc.nodeById(nodeId)
+    val title: String get() = node?.label ?: "?"
+}
 
 // Workspace: global UI state + open documents (tabs) + project file list + component registry
 class Workspace(private val scope: CoroutineScope) {
@@ -76,6 +83,24 @@ class Workspace(private val scope: CoroutineScope) {
     val docs = mutableStateListOf<EditorState>()
     var activeIndex by mutableStateOf(0)
     val active: EditorState? get() = docs.getOrNull(activeIndex)
+
+    // open data-editor tabs (in/out sample data). When activeData != null it is
+    // shown in the content area instead of the active document's canvas.
+    val dataTabs = mutableStateListOf<DataTab>()
+    var activeData by mutableStateOf<DataTab?>(null)
+
+    fun openDataEditor(doc: EditorState, nodeId: String) {
+        val tab = dataTabs.find { it.doc === doc && it.nodeId == nodeId }
+            ?: DataTab(doc, nodeId).also { dataTabs.add(it) }
+        activeData = tab
+    }
+
+    fun selectDataTab(tab: DataTab) { activeData = tab }
+
+    fun closeDataTab(tab: DataTab) {
+        dataTabs.remove(tab)
+        if (activeData === tab) activeData = null
+    }
 
     // project files + components + installed modules
     var files by mutableStateOf<List<String>>(emptyList())
@@ -169,6 +194,7 @@ class Workspace(private val scope: CoroutineScope) {
         val name = nextName(file.removeSuffix(".json").substringAfterLast('.').ifBlank { "component" })
         val doc = EditorState(scope, this, name).also { it.load(flow); it.persisted = false; it.showValidation = true }
         docs.add(doc)
+        activeData = null
         activeIndex = docs.lastIndex
     }
 
@@ -233,11 +259,12 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun openFile(name: String) {
         val i = docs.indexOfFirst { it.fileName == name }
-        if (i >= 0) { activeIndex = i; return }
+        if (i >= 0) { activeData = null; activeIndex = i; return }
         val raw = Platform.readFlow(name)
         val flow = raw?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() } ?: FlowFile()
         val doc = EditorState(scope, this, name).also { it.load(flow); it.showValidation = true }
         docs.add(doc)
+        activeData = null
         activeIndex = docs.lastIndex
     }
 
@@ -247,11 +274,13 @@ class Workspace(private val scope: CoroutineScope) {
         val name = nextName("comp")
         val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
         docs.add(doc)
+        activeData = null
         activeIndex = docs.lastIndex
     }
 
     fun select(i: Int) {
         if (docs.isEmpty()) return
+        activeData = null // switch back to the canvas view
         activeIndex = i.coerceIn(0, docs.lastIndex)
     }
 
@@ -296,6 +325,10 @@ class Workspace(private val scope: CoroutineScope) {
 
     private fun removeDoc(i: Int) {
         if (i !in docs.indices) return
+        val doc = docs[i]
+        // close any data-editor tabs that belonged to this document
+        dataTabs.removeAll { it.doc === doc }
+        if (activeData?.doc === doc) activeData = null
         docs.removeAt(i)
         if (activeIndex >= docs.size) activeIndex = (docs.size - 1).coerceAtLeast(0)
     }

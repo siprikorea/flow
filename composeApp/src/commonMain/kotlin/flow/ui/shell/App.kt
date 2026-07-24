@@ -44,6 +44,7 @@ import flow.model.findDef
 import flow.model.isComp
 import flow.platform.Platform
 import flow.ui.canvas.CanvasView
+import flow.ui.data.DataEditor
 import flow.ui.common.DtxField
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -65,13 +66,18 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     EditorTabs(ws)
                     Box(Modifier.weight(1f).fillMaxWidth()) {
+                        val dataTab = ws.activeData
                         val active = ws.active
-                        if (active != null) CanvasView(active, Modifier.fillMaxSize())
-                        else EmptyEditor(ws)
+                        when {
+                            dataTab != null -> DataEditor(ws, dataTab)
+                            active != null -> CanvasView(active, Modifier.fillMaxSize())
+                            else -> EmptyEditor(ws)
+                        }
                     }
                 }
                 val active = ws.active
-                if (ws.showProps && active != null) PropsPanel(active)
+                // the props panel belongs to the canvas; hide it on a data-editor tab
+                if (ws.showProps && active != null && ws.activeData == null) PropsPanel(active)
             }
             StatusBar(ws)
         }
@@ -409,8 +415,12 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     val ctrl = ev.isCtrlPressed || ev.isMetaPressed
     if (ctrl && ev.key == Key.N) { ws.newComponent(); return true }
     if (ctrl && ev.key == Key.S) { ws.saveActive(); return true }
-    if (ctrl && ev.key == Key.W) { ws.requestClose(ws.activeIndex); return true }
+    if (ctrl && ev.key == Key.W) {
+        ws.activeData?.let { ws.closeDataTab(it) } ?: ws.requestClose(ws.activeIndex)
+        return true
+    }
     if (active == null) return false
+    if (ws.activeData != null) return false // a data-editor tab handles its own keys
     if (active.textEditing) return false // ignore shortcuts while a text field is focused
     return when {
         // space toggles run/stop; with a node selected it runs from there

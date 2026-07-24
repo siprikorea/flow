@@ -37,11 +37,22 @@ fun EditorTabs(ws: Workspace) {
             ws.docs.forEachIndexed { i, doc ->
                 Tab(
                     name = doc.fileName.removeSuffix(".json"),
-                    active = i == ws.activeIndex,
-                    isComp = ws.isComponentFile(doc.fileName),
+                    active = i == ws.activeIndex && ws.activeData == null,
+                    dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catComponent else Palette.dimText,
                     dirty = doc.dirty,
                     onSelect = { ws.select(i) },
                     onClose = { ws.requestClose(i) },
+                )
+            }
+            // data-editor tabs (in/out sample data)
+            ws.dataTabs.forEach { tab ->
+                Tab(
+                    name = tab.title,
+                    active = ws.activeData === tab,
+                    dotColor = Palette.catIo,
+                    dirty = false,
+                    onSelect = { ws.selectDataTab(tab) },
+                    onClose = { ws.closeDataTab(tab) },
                 )
             }
             Box(
@@ -53,7 +64,7 @@ fun EditorTabs(ws: Workspace) {
 }
 
 @Composable
-private fun Tab(name: String, active: Boolean, isComp: Boolean, dirty: Boolean, onSelect: () -> Unit, onClose: () -> Unit) {
+private fun Tab(name: String, active: Boolean, dotColor: Color, dirty: Boolean, onSelect: () -> Unit, onClose: () -> Unit) {
     val (hoverSrc, hovered) = rememberHover()
     // IntrinsicSize.Max gives fillMaxWidth a real width inside the horizontal scroller,
     // so the active-tab top indicator (VS Code style) actually renders
@@ -71,7 +82,7 @@ private fun Tab(name: String, active: Boolean, isComp: Boolean, dirty: Boolean, 
         ) {
             Box(
                 Modifier.width(8.dp).height(8.dp)
-                    .background(if (isComp) Palette.catComponent else Palette.dimText, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
+                    .background(dotColor, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
             )
             Txt(
                 name, 12.sp,
