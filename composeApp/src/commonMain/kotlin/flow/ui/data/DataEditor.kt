@@ -93,10 +93,15 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             BasicTextField(
                 value = text,
                 onValueChange = { v ->
-                    val filtered = if (isHex) v.filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it.isWhitespace() } else v
-                    text = filtered
-                    // byte-first: commit the parsed/encoded bytes, keep the buffer for smooth typing
-                    commitBytes(if (isHex) hexBytes(filtered) else filtered.encodeToByteArray())
+                    if (isHex) {
+                        // auto-format: drop whitespace and regroup into "XX XX" byte pairs
+                        val grouped = groupHex(v)
+                        text = grouped
+                        commitBytes(hexBytes(grouped))
+                    } else {
+                        text = v
+                        commitBytes(v.encodeToByteArray())
+                    }
                 },
                 readOnly = readOnly,
                 textStyle = TextStyle(color = if (readOnly) Palette.subText else Palette.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
@@ -147,6 +152,13 @@ private fun Seg(label: String, active: Boolean, onClick: () -> Unit) {
 // canonical byte serialization: space-separated uppercase hex
 private fun hexOf(bytes: ByteArray): String =
     bytes.joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }
+
+// normalize free hex typing into space-separated uppercase byte pairs ("4865" -> "48 65")
+private fun groupHex(raw: String): String =
+    raw.filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
+        .uppercase()
+        .chunked(2)
+        .joinToString(" ")
 
 private fun hexBytes(h: String): ByteArray =
     h.split(Regex("\\s+")).filter { it.isNotBlank() }
