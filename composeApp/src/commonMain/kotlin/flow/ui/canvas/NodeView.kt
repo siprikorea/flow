@@ -55,6 +55,7 @@ import flow.core.portY
 import flow.core.snapF
 import flow.model.compFile
 import flow.model.findDef
+import flow.model.indexOfPort
 import flow.model.isComp
 import flow.ui.common.KindBadge
 import flow.ui.common.Txt
@@ -310,8 +311,8 @@ internal fun NodePortsView(state: EditorState, node: flow.model.Node) {
             .offset(node.x.dp, node.y.dp)
             .size(node.w.dp, node.h.dp)
     ) {
-        node.inputs.forEachIndexed { i, name -> PortView(state, node, "in", i, name) }
-        node.outputs.forEachIndexed { i, name -> PortView(state, node, "out", i, name) }
+        node.inputs.forEachIndexed { i, port -> PortView(state, node, "in", i, port.name) }
+        node.outputs.forEachIndexed { i, port -> PortView(state, node, "out", i, port.name) }
     }
 }
 
@@ -340,7 +341,7 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
                     down.consume()
                     if (kind == "out") {
                         val fresh = state.nodeById(node.id) ?: return@awaitEachGesture
-                        var cur = portPos(fresh, "out", fresh.outputs.indexOf(name).coerceAtLeast(0))
+                        var cur = portPos(fresh, "out", fresh.outputs.indexOfPort(name).coerceAtLeast(0))
                         state.wire = flow.core.Wire(node.id, name, cur)
                         drag(down.id) { ch ->
                             cur += (ch.position - ch.previousPosition) / density

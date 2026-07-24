@@ -38,6 +38,7 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import flow.model.indexOfPort
 import flow.core.EditorState
 import flow.core.GRID
 import flow.core.bezierCtrl
@@ -140,8 +141,8 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                     val to = byId[e.to.node] ?: return@forEach
                     // anchor edges at the port circle's outer edge (radius ~8) so lines
                     // never show behind the solid port circles
-                    val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
-                    val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0)).let { it.copy(x = it.x - 8f) }
+                    val a = portPos(from, "out", from.outputs.indexOfPort(e.from.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
+                    val b = portPos(to, "in", to.inputs.indexOfPort(e.to.port).coerceAtLeast(0)).let { it.copy(x = it.x - 8f) }
                     val c = bezierCtrl(a, b)
                     val path = Path().apply {
                         moveTo(a.x, a.y)
@@ -173,7 +174,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 state.wire?.let { w ->
                     val from = byId[w.node]
                     if (from != null) {
-                        val a = portPos(from, "out", from.outputs.indexOf(w.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
+                        val a = portPos(from, "out", from.outputs.indexOfPort(w.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
                         val c = bezierCtrl(a, w.pos)
                         val path = Path().apply {
                             moveTo(a.x, a.y)

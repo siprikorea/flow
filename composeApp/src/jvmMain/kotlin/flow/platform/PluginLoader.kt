@@ -8,6 +8,7 @@ import flow.model.FlowFile
 import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.Node
+import flow.model.Port
 import flow.model.PortRef
 import flow.plugin.ComponentPlugin
 import flow.plugin.ModulePlugin
@@ -171,18 +172,18 @@ internal object PluginLoader {
             val id = "cin_${seq++}"
             cinId[inp] = id
             val (w, h) = sizeForPorts(0, 1)
-            nodes.add(Node(id, "cin", inp, 0f, 0f, w, h, emptyList(), listOf("out")))
+            nodes.add(Node(id, "cin", inp, 0f, 0f, w, h, emptyList(), listOf(Port("out"))))
         }
         c.nodes().forEach { pn ->
             val (w, h) = sizeForPorts(pn.inputs.size, pn.outputs.size)
-            nodes.add(Node(pn.id, pn.type, pn.type, 0f, 0f, w, h, pn.inputs, pn.outputs, pn.params))
+            nodes.add(Node(pn.id, pn.type, pn.type, 0f, 0f, w, h, pn.inputs.map { Port(it) }, pn.outputs.map { Port(it) }, pn.params))
         }
         val coutId = HashMap<String, String>()
         c.outputs.forEach { out ->
             val id = "cout_${seq++}"
             coutId[out] = id
             val (w, h) = sizeForPorts(1, 0)
-            nodes.add(Node(id, "cout", out, 0f, 0f, w, h, listOf("in"), emptyList()))
+            nodes.add(Node(id, "cout", out, 0f, 0f, w, h, listOf(Port("in")), emptyList()))
         }
 
         c.connections().forEach {

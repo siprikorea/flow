@@ -9,9 +9,11 @@ import androidx.compose.ui.unit.IntSize
 import flow.model.Edge
 import flow.model.FlowFile
 import flow.model.Node
+import flow.model.Port
 import flow.model.PortRef
 import flow.model.compFile
 import flow.model.findDef
+import flow.model.indexOfPort
 import flow.model.isComp
 import flow.platform.Platform
 import kotlinx.coroutines.CoroutineScope
@@ -114,8 +116,8 @@ class EditorState(
             val from = nodeById(e.from.node); val to = nodeById(e.to.node)
             if (from == null || to == null) false
             else {
-                val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0))
-                val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0))
+                val a = portPos(from, "out", from.outputs.indexOfPort(e.from.port).coerceAtLeast(0))
+                val b = portPos(to, "in", to.inputs.indexOfPort(e.to.port).coerceAtLeast(0))
                 (0..24).any { r.contains(bezierPoint(a, b, it / 24f)) }
             }
         }.map { it.id }.toSet()
@@ -156,8 +158,8 @@ class EditorState(
     // Per-node connection error message (null = fully connected). Used on the
     // canvas to flag unconnected modules after an open/save validation.
     fun nodeConnectionError(node: Node): String? {
-        val missIn = node.inputs.any { port -> edges.none { it.to.node == node.id && it.to.port == port } }
-        val missOut = node.outputs.any { port -> edges.none { it.from.node == node.id && it.from.port == port } }
+        val missIn = node.inputs.any { port -> edges.none { it.to.node == node.id && it.to.port == port.name } }
+        val missOut = node.outputs.any { port -> edges.none { it.from.node == node.id && it.from.port == port.name } }
         return when {
             missIn && missOut -> t("valNodeInOut")
             missIn -> t("valNodeIn")
@@ -169,10 +171,10 @@ class EditorState(
     // Non-blocking warning: any node port (boundary or module/component) left unconnected.
     fun connectionWarning(): String? {
         val hasUnconnectedInput = nodes.any { n ->
-            n.inputs.any { port -> edges.none { it.to.node == n.id && it.to.port == port } }
+            n.inputs.any { port -> edges.none { it.to.node == n.id && it.to.port == port.name } }
         }
         val hasUnconnectedOutput = nodes.any { n ->
-            n.outputs.any { port -> edges.none { it.from.node == n.id && it.from.port == port } }
+            n.outputs.any { port -> edges.none { it.from.node == n.id && it.from.port == port.name } }
         }
         return if (hasUnconnectedInput || hasUnconnectedOutput) t("valNotConnected") else null
     }
@@ -262,7 +264,7 @@ class EditorState(
         nodes = nodes + Node(
             id = id, type = type, label = label,
             x = snapF(world.x - w / 2), y = snapF(world.y - 20f),
-            w = w, h = h, inputs = ins, outputs = outs, params = params,
+            w = w, h = h, inputs = ins.map { Port(it) }, outputs = outs.map { Port(it) }, params = params,
         )
         seq += 1
         selectNode(id)
@@ -338,13 +340,13 @@ class EditorState(
         val node = nodeById(nodeId) ?: return
         val list = if (kind == "in") node.inputs else node.outputs
         val old = list.getOrNull(idx) ?: return
-        if (old == name) return
-        val next = list.toMutableList().also { it[idx] = name }
+        if (old.name == name) return
+        val next = list.toMutableList().also { it[idx] = old.withName(name) } // keep the port's data
         updateNode(nodeId) { if (kind == "in") it.copy(inputs = next) else it.copy(outputs = next) }
         edges = edges.map {
             when {
-                kind == "in" && it.to.node == nodeId && it.to.port == old -> it.copy(to = it.to.copy(port = name))
-                kind == "out" && it.from.node == nodeId && it.from.port == old -> it.copy(from = it.from.copy(port = name))
+                kind == "in" && it.to.node == nodeId && it.to.port == old.name -> it.copy(to = it.to.copy(port = name))
+                kind == "out" && it.from.node == nodeId && it.from.port == old.name -> it.copy(from = it.from.copy(port = name))
                 else -> it
             }
         }
@@ -353,13 +355,13 @@ class EditorState(
     fun removePort(nodeId: String, kind: String, idx: Int) {
         val node = nodeById(nodeId) ?: return
         val list = if (kind == "in") node.inputs else node.outputs
-        val name = list.getOrNull(idx) ?: return
+        val port = list.getOrNull(idx) ?: return
         pushHistory()
         val next = list.filterIndexed { i, _ -> i != idx }
         updateNode(nodeId) { if (kind == "in") it.copy(inputs = next) else it.copy(outputs = next) }
         edges = edges.filter {
-            !((kind == "in" && it.to.node == nodeId && it.to.port == name) ||
-                (kind == "out" && it.from.node == nodeId && it.from.port == name))
+            !((kind == "in" && it.to.node == nodeId && it.to.port == port.name) ||
+                (kind == "out" && it.from.node == nodeId && it.from.port == port.name))
         }
     }
 
@@ -370,8 +372,8 @@ class EditorState(
         val base = if (kind == "in") "in" else "out"
         var i = list.size + 1
         var name = "$base$i"
-        while (list.contains(name)) name = "$base${++i}"
-        updateNode(nodeId) { if (kind == "in") it.copy(inputs = list + name) else it.copy(outputs = list + name) }
+        while (list.any { it.name == name }) name = "$base${++i}"
+        updateNode(nodeId) { if (kind == "in") it.copy(inputs = list + Port(name)) else it.copy(outputs = list + Port(name)) }
     }
 
     /* ───────── connections ───────── */
@@ -386,8 +388,8 @@ class EditorState(
                 val p = portPos(node, "in", idx)
                 if (hypot(p.x - world.x, p.y - world.y) <= 12f) {
                     pushHistory()
-                    edges = edges.filter { !(it.to.node == node.id && it.to.port == port) } + // one edge per input port — replace
-                        Edge("e_$seq", PortRef(w.node, w.port), PortRef(node.id, port))
+                    edges = edges.filter { !(it.to.node == node.id && it.to.port == port.name) } + // one edge per input port — replace
+                        Edge("e_$seq", PortRef(w.node, w.port), PortRef(node.id, port.name))
                     seq += 1
                     return
                 }
@@ -401,8 +403,8 @@ class EditorState(
             val from = nodeById(e.from.node) ?: continue
             val to = nodeById(e.to.node) ?: continue
             // anchors sit at the port circle's outer edge (see CanvasView) so the hit path matches the drawing
-            val a = portPos(from, "out", from.outputs.indexOf(e.from.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
-            val b = portPos(to, "in", to.inputs.indexOf(e.to.port).coerceAtLeast(0)).let { it.copy(x = it.x - 8f) }
+            val a = portPos(from, "out", from.outputs.indexOfPort(e.from.port).coerceAtLeast(0)).let { it.copy(x = it.x + 8f) }
+            val b = portPos(to, "in", to.inputs.indexOfPort(e.to.port).coerceAtLeast(0)).let { it.copy(x = it.x - 8f) }
             for (i in 0..32) {
                 val p = bezierPoint(a, b, i / 32f)
                 if (hypot(p.x - world.x, p.y - world.y) <= 8f) return e.id

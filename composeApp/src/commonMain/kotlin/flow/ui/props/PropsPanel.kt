@@ -264,10 +264,10 @@ private fun PortSection(state: EditorState, node: Node, kind: String, onFocusCha
     val list = if (kind == "in") node.inputs else node.outputs
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         SectionLabel(state.t(if (kind == "in") "labelInputs" else "labelOutputs"))
-        list.forEachIndexed { i, name ->
+        list.forEachIndexed { i, port ->
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 DtxField(
-                    name, { v -> state.renamePort(node.id, kind, i, v) },
+                    port.name, { v -> state.renamePort(node.id, kind, i, v) },
                     modifier = Modifier.weight(1f), mono = true, fontSize = 11.5.sp,
                     onFocusChange = onFocusChange,
                 )

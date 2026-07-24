@@ -1,6 +1,69 @@
 package flow.model
 
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.descriptors.PrimitiveKind
+import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
+import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encoding.Decoder
+import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.JsonDecoder
+import kotlinx.serialization.json.JsonEncoder
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+
+// A node port: a name (used for wiring) plus its byte data (the value on the port).
+// Serializes as a bare string when it carries no data (compact, and compatible with
+// the old List<String> port format), or as {"name","data"} with data as hex.
+@Serializable(with = PortSerializer::class)
+class Port(val name: String, val data: ByteArray = ByteArray(0)) {
+    fun withData(bytes: ByteArray) = Port(name, bytes)
+    fun withName(n: String) = Port(n, data)
+    override fun equals(other: Any?): Boolean =
+        this === other || (other is Port && name == other.name && data.contentEquals(other.data))
+    override fun hashCode(): Int = 31 * name.hashCode() + data.contentHashCode()
+    override fun toString(): String = "Port($name, ${data.size}B)"
+}
+
+// port-list helpers: ports wire by name, so these bridge name-based lookups
+fun List<Port>.portNames(): List<String> = map { it.name }
+fun List<Port>.indexOfPort(name: String): Int = indexOfFirst { it.name == name }
+
+// bytes <-> hex string (space-separated uppercase byte pairs, e.g. "48 65 6C")
+fun bytesToHex(bytes: ByteArray): String =
+    bytes.joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }
+
+fun hexToBytes(hex: String): ByteArray =
+    hex.split(Regex("\\s+")).filter { it.isNotBlank() }
+        .mapNotNull { it.toIntOrNull(16)?.toByte() }
+        .toByteArray()
+
+object PortSerializer : KSerializer<Port> {
+    override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("flow.model.Port", PrimitiveKind.STRING)
+
+    override fun serialize(encoder: Encoder, value: Port) {
+        val json = encoder as? JsonEncoder ?: error("Port supports only JSON serialization")
+        val el = if (value.data.isEmpty()) JsonPrimitive(value.name)
+        else buildJsonObject { put("name", value.name); put("data", bytesToHex(value.data)) }
+        json.encodeJsonElement(el)
+    }
+
+    override fun deserialize(decoder: Decoder): Port {
+        val json = decoder as? JsonDecoder ?: error("Port supports only JSON serialization")
+        return when (val el = json.decodeJsonElement()) {
+            is JsonPrimitive -> Port(el.content) // old bare-string form
+            is JsonObject -> Port(
+                el["name"]?.jsonPrimitive?.content ?: "",
+                hexToBytes(el["data"]?.jsonPrimitive?.content ?: ""),
+            )
+            else -> Port("")
+        }
+    }
+}
 
 @Serializable
 data class PortRef(val node: String, val port: String)
@@ -22,8 +85,8 @@ data class Node(
     val y: Float,
     val w: Float,
     val h: Float,
-    val inputs: List<String>,
-    val outputs: List<String>,
+    val inputs: List<Port>,
+    val outputs: List<Port>,
     val params: Map<String, String> = emptyMap(),
     val status: String = "idle", // idle | running | done | error
 )

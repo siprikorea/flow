@@ -27,15 +27,15 @@ class FlowEngine(
 
         for (nid in topoOrder(flow)) {
             val node = byId[nid] ?: continue
-            val inVals: Map<String, String?> = node.inputs.associateWith { port ->
-                val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port }
-                if (e == null) null else outVals[e.from.node to e.from.port]
+            val inVals: Map<String, String?> = node.inputs.associate { port ->
+                val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
+                port.name to (if (e == null) null else outVals[e.from.node to e.from.port])
             }
             evalNode(node, inVals, inputs).forEach { (p, v) -> outVals[nid to p] = v }
         }
 
         return flow.nodes.filter { it.type == "cout" }.associate { c ->
-            val e = flow.edges.firstOrNull { it.to.node == c.id && it.to.port == (c.inputs.firstOrNull() ?: "in") }
+            val e = flow.edges.firstOrNull { it.to.node == c.id && it.to.port == (c.inputs.firstOrNull()?.name ?: "in") }
             c.label to (if (e != null) outVals[e.from.node to e.from.port] else null)
         }
     }
@@ -43,15 +43,15 @@ class FlowEngine(
     private fun evalNode(node: Node, inVals: Map<String, String?>, externalInputs: Map<String, String?>): Map<String, String?> {
         fun single() = inVals.values.firstOrNull()
         return when {
-            node.type == "cin" -> mapOf((node.outputs.firstOrNull() ?: "out") to externalInputs[node.label])
+            node.type == "cin" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to externalInputs[node.label])
             node.type == "cout" -> emptyMap()
             node.type in moduleIds -> moduleProcess(node.type, inVals) // installed module plugin
             isComp(node.type) -> {
-                val sub = loadFlow(compFile(node.type)) ?: return node.outputs.associateWith { null }
+                val sub = loadFlow(compFile(node.type)) ?: return node.outputs.associate { it.name to null }
                 // component input ports (node.inputs) = the sub-component's cin labels
-                val subInputs = node.inputs.associateWith { inVals[it] ?: "" }
+                val subInputs = node.inputs.associate { it.name to (inVals[it.name] ?: "") }
                 val subOut = run(sub, subInputs.mapValues { it.value ?: "" })
-                node.outputs.associateWith { subOut[it] }
+                node.outputs.associate { it.name to subOut[it.name] }
             }
             node.type == "map" -> mapOf("out" to Expr.evalToString(node.params["expr"] ?: "x", single()))
             node.type == "filter" -> {
@@ -59,16 +59,16 @@ class FlowEngine(
                 val pass = Expr.evalToBool(node.params["expr"] ?: "value", v)
                 mapOf("pass" to if (pass) v else null, "fail" to if (pass) null else v)
             }
-            node.type == "split" -> node.outputs.associateWith { single() } // duplicate to each output
+            node.type == "split" -> node.outputs.associate { it.name to single() } // duplicate to each output
             node.type == "merge" -> {
                 val nums = inVals.values.mapNotNull { it?.toDoubleOrNull() }
                 val out = if (nums.isNotEmpty()) Expr.fmt(nums.sum()) else inVals.values.firstOrNull { it != null }
-                mapOf((node.outputs.firstOrNull() ?: "out") to out)
+                mapOf((node.outputs.firstOrNull()?.name ?: "out") to out)
             }
-            node.type == "agg" -> mapOf((node.outputs.firstOrNull() ?: "out") to single())
-            node.type == "csv" -> mapOf((node.outputs.firstOrNull() ?: "out") to (node.params["value"] ?: node.params["path"] ?: ""))
+            node.type == "agg" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to single())
+            node.type == "csv" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to (node.params["value"] ?: node.params["path"] ?: ""))
             node.outputs.isEmpty() -> emptyMap() // sink (log/fout, etc.)
-            else -> mapOf((node.outputs.firstOrNull() ?: "out") to single()) // default: identity
+            else -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to single()) // default: identity
         }
     }
 

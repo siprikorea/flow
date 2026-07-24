@@ -24,13 +24,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.DataTab
 import flow.core.Workspace
+import flow.model.Port
+import flow.model.bytesToHex
+import flow.model.hexToBytes
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.Palette
@@ -46,21 +51,33 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val readOnly = node.type == "cout"
     val fmt = node.params["dataFmt"] ?: "string"
     val isHex = fmt == "hex"
-    val canonical = node.params["data"] ?: ""
-    val bytes = hexBytes(canonical) // canonical bytes
+    // the port carrying the value: a cin injects on its output, a cout receives on its input
+    val port = if (node.type == "cin") node.outputs.firstOrNull() else node.inputs.firstOrNull()
+    val bytes = port?.data ?: ByteArray(0)
+    val canonicalKey = bytesToHex(bytes)
 
-    // local editing buffer; re-derived from the canonical bytes on a format change
-    // (a toggle never mutates the bytes, only how they're shown)
-    var text by remember(tab, fmt) { mutableStateOf(viewOf(bytes, isHex)) }
-    // keep the buffer in sync when the canonical bytes change outside our own typing
+    // local editing buffer (TextFieldValue so we control the caret through reformatting);
+    // re-derived from the port bytes on a format change (a toggle never mutates the bytes)
+    var field by remember(tab, fmt) { mutableStateOf(atEnd(viewOf(bytes, isHex))) }
+    // keep the buffer in sync when the port bytes change outside our own typing
     // (e.g. a cout port receiving fresh output); our own edits already match, so skip
-    LaunchedEffect(canonical, fmt) {
-        val bufBytes = if (isHex) hexBytes(text) else text.encodeToByteArray()
-        if (!bufBytes.contentEquals(bytes)) text = viewOf(bytes, isHex)
+    LaunchedEffect(canonicalKey, fmt) {
+        val bufBytes = if (isHex) hexToBytes(field.text) else field.text.encodeToByteArray()
+        if (!bufBytes.contentEquals(bytes)) field = atEnd(viewOf(bytes, isHex))
     }
 
     fun commitBytes(newBytes: ByteArray) {
-        tab.doc.updateNode(node.id) { it.copy(params = it.params + ("data" to hexOf(newBytes))) }
+        tab.doc.updateNode(node.id) { n ->
+            if (n.type == "cin") {
+                val outs = n.outputs.toMutableList()
+                if (outs.isEmpty()) outs.add(Port("out", newBytes)) else outs[0] = outs[0].withData(newBytes)
+                n.copy(outputs = outs)
+            } else {
+                val ins = n.inputs.toMutableList()
+                if (ins.isEmpty()) ins.add(Port("in", newBytes)) else ins[0] = ins[0].withData(newBytes)
+                n.copy(inputs = ins)
+            }
+        }
     }
     fun switchTo(target: String) {
         if (target != fmt) tab.doc.updateNode(node.id) { it.copy(params = it.params + ("dataFmt" to target)) }
@@ -91,16 +108,15 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
         ) {
             val scroll = rememberScrollState()
             BasicTextField(
-                value = text,
+                value = field,
                 onValueChange = { v ->
                     if (isHex) {
-                        // auto-format: drop whitespace and regroup into "XX XX" byte pairs
-                        val grouped = groupHex(v)
-                        text = grouped
-                        commitBytes(hexBytes(grouped))
+                        // auto-format into "XX XX" byte pairs while keeping the caret in place
+                        field = formatHex(v)
+                        commitBytes(hexToBytes(field.text))
                     } else {
-                        text = v
-                        commitBytes(v.encodeToByteArray())
+                        field = v
+                        commitBytes(v.text.encodeToByteArray())
                     }
                 },
                 readOnly = readOnly,
@@ -108,7 +124,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 cursorBrush = SolidColor(Palette.text),
                 modifier = Modifier.fillMaxSize().verticalScroll(scroll),
             )
-            if (text.isEmpty()) {
+            if (field.text.isEmpty()) {
                 Txt(
                     when {
                         readOnly -> ws.t("dataNoOutput")
@@ -130,8 +146,8 @@ private fun FormatToggle(isHex: Boolean, onChange: (Boolean) -> Unit) {
         Modifier.background(Palette.holeBg, RoundedCornerShape(6.dp)).border(1.dp, Palette.border, RoundedCornerShape(6.dp)).padding(2.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
     ) {
-        Seg("STRING", active = !isHex) { onChange(false) }
         Seg("HEX", active = isHex) { onChange(true) }
+        Seg("STRING", active = !isHex) { onChange(false) }
     }
 }
 
@@ -149,22 +165,22 @@ private fun Seg(label: String, active: Boolean, onClick: () -> Unit) {
 
 /* ───────── byte <-> view conversion (UTF-8) ───────── */
 
-// canonical byte serialization: space-separated uppercase hex
-private fun hexOf(bytes: ByteArray): String =
-    bytes.joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }
+private fun isHexDigit(c: Char) = c.isDigit() || c in 'a'..'f' || c in 'A'..'F'
 
-// normalize free hex typing into space-separated uppercase byte pairs ("4865" -> "48 65")
-private fun groupHex(raw: String): String =
-    raw.filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' }
-        .uppercase()
-        .chunked(2)
-        .joinToString(" ")
+// a TextFieldValue with the caret at the end
+private fun atEnd(s: String) = TextFieldValue(s, TextRange(s.length))
 
-private fun hexBytes(h: String): ByteArray =
-    h.split(Regex("\\s+")).filter { it.isNotBlank() }
-        .mapNotNull { it.toIntOrNull(16)?.toByte() }
-        .toByteArray()
+// Reformat free hex typing into space-separated "XX XX" pairs while keeping the caret
+// anchored to the same hex digit it was at (so it never drifts as spaces are inserted).
+private fun formatHex(v: TextFieldValue): TextFieldValue {
+    val caret = v.selection.end.coerceIn(0, v.text.length)
+    val digitsBefore = v.text.take(caret).count { isHexDigit(it) }
+    val grouped = v.text.filter { isHexDigit(it) }.uppercase().chunked(2).joinToString(" ")
+    // each completed pair before the caret adds one space; caret sits after `digitsBefore` digits
+    val pos = if (digitsBefore == 0) 0 else (digitsBefore + (digitsBefore - 1) / 2).coerceAtMost(grouped.length)
+    return TextFieldValue(grouped, TextRange(pos))
+}
 
-// how the canonical bytes appear in the given view
+// how the port bytes appear in the given view
 private fun viewOf(bytes: ByteArray, hex: Boolean): String =
-    if (hex) hexOf(bytes) else bytes.decodeToString()
+    if (hex) bytesToHex(bytes) else bytes.decodeToString()
