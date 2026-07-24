@@ -15,6 +15,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -30,26 +34,29 @@ import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.Palette
 
-// Data editor tab: edits the sample data of a component boundary (cin/cout) node.
-// The value can be entered as a string or as hex; toggling converts between them.
+// Data editor tab for a component boundary (cin/cout) node.
+//
+// The port value is BYTES. Those bytes are canonical (stored as hex in params);
+// the string view is just their UTF-8 decoding, and editing in either view keeps
+// the underlying bytes. A cout (output) port is display-only.
 @Composable
 fun DataEditor(ws: Workspace, tab: DataTab) {
     val node = tab.node ?: run { ws.closeDataTab(tab); return }
+    val readOnly = node.type == "cout"
     val fmt = node.params["dataFmt"] ?: "string"
-    val data = node.params["data"] ?: ""
     val isHex = fmt == "hex"
+    val bytes = hexBytes(node.params["data"] ?: "") // canonical bytes
 
-    fun write(newData: String = data, newFmt: String = fmt) {
-        tab.doc.updateNode(node.id) { it.copy(params = it.params + ("data" to newData) + ("dataFmt" to newFmt)) }
+    // local editing buffer; re-derived from the canonical bytes whenever the view
+    // format changes (so a toggle never mutates the bytes, only how they're shown)
+    var text by remember(tab, fmt) { mutableStateOf(viewOf(bytes, isHex)) }
+
+    fun commitBytes(newBytes: ByteArray) {
+        tab.doc.updateNode(node.id) { it.copy(params = it.params + ("data" to hexOf(newBytes))) }
     }
-
     fun switchTo(target: String) {
-        if (target == fmt) return
-        val converted = if (target == "hex") stringToHex(data) else hexToString(data)
-        write(converted, target)
+        if (target != fmt) tab.doc.updateNode(node.id) { it.copy(params = it.params + ("dataFmt" to target)) }
     }
-
-    val byteCount = if (isHex) hexBytes(data).size else data.encodeToByteArray().size
 
     Column(
         Modifier.fillMaxSize().background(Palette.appBg).padding(20.dp),
@@ -61,11 +68,11 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             Box(Modifier.background(Palette.catIo.copy(alpha = 0.16f), RoundedCornerShape(4.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
                 Txt(portKind, 10.sp, Palette.catIo, weight = FontWeight.Medium)
             }
+            if (readOnly) Txt(ws.t("dataReadOnly"), 10.sp, Palette.dimText)
             Spacer(Modifier.weight(1f))
             FormatToggle(isHex) { hex -> switchTo(if (hex) "hex" else "string") }
         }
 
-        // multiline data entry
         Box(
             Modifier
                 .fillMaxWidth()
@@ -76,21 +83,31 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
         ) {
             val scroll = rememberScrollState()
             BasicTextField(
-                value = data,
-                onValueChange = { v -> write(if (isHex) v.filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it.isWhitespace() } else v) },
-                textStyle = TextStyle(color = Palette.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
+                value = text,
+                onValueChange = { v ->
+                    val filtered = if (isHex) v.filter { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it.isWhitespace() } else v
+                    text = filtered
+                    // byte-first: commit the parsed/encoded bytes, keep the buffer for smooth typing
+                    commitBytes(if (isHex) hexBytes(filtered) else filtered.encodeToByteArray())
+                },
+                readOnly = readOnly,
+                textStyle = TextStyle(color = if (readOnly) Palette.subText else Palette.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
                 cursorBrush = SolidColor(Palette.text),
                 modifier = Modifier.fillMaxSize().verticalScroll(scroll),
             )
-            if (data.isEmpty()) {
+            if (text.isEmpty()) {
                 Txt(
-                    if (isHex) ws.t("dataHexHint") else ws.t("dataStringHint"),
+                    when {
+                        readOnly -> ws.t("dataNoOutput")
+                        isHex -> ws.t("dataHexHint")
+                        else -> ws.t("dataStringHint")
+                    },
                     13.sp, Palette.faintText, mono = true,
                 )
             }
         }
 
-        Txt(ws.t("dataBytes").replace("{n}", byteCount.toString()), 11.sp, Palette.dimText, mono = true)
+        Txt(ws.t("dataBytes").replace("{n}", bytes.size.toString()), 11.sp, Palette.dimText, mono = true)
     }
 }
 
@@ -117,14 +134,17 @@ private fun Seg(label: String, active: Boolean, onClick: () -> Unit) {
     }
 }
 
-/* ───────── hex <-> string conversion (UTF-8) ───────── */
+/* ───────── byte <-> view conversion (UTF-8) ───────── */
 
-private fun stringToHex(s: String): String =
-    s.encodeToByteArray().joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }
+// canonical byte serialization: space-separated uppercase hex
+private fun hexOf(bytes: ByteArray): String =
+    bytes.joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }
 
 private fun hexBytes(h: String): ByteArray =
     h.split(Regex("\\s+")).filter { it.isNotBlank() }
         .mapNotNull { it.toIntOrNull(16)?.toByte() }
         .toByteArray()
 
-private fun hexToString(h: String): String = hexBytes(h).decodeToString()
+// how the canonical bytes appear in the given view
+private fun viewOf(bytes: ByteArray, hex: Boolean): String =
+    if (hex) hexOf(bytes) else bytes.decodeToString()
