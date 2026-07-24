@@ -2,6 +2,7 @@ package flow.ui.props
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -23,11 +25,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import flow.core.EditorState
 import flow.model.Edge
 import flow.model.Node
+import flow.model.OptDef
+import flow.model.OptType
 import flow.model.compFile
 import flow.model.findDef
 import flow.model.isComp
@@ -35,6 +42,7 @@ import flow.ui.common.DtxField
 import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
+import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 
 @Composable
@@ -136,7 +144,20 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
 
     // node ids are managed internally (unique within the component) and not shown
 
-    if (node.params.isNotEmpty()) {
+    // module options: typed editors (text / number / select) for the module's
+    // predefined option names. Components have no options (excluded).
+    val options = if (comp) emptyList() else def?.options ?: emptyList()
+    if (options.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            SectionLabel(state.t("labelOptions"))
+            options.forEach { opt ->
+                OptionEditor(opt, node.params[opt.name] ?: opt.default, onFocusChange) { v ->
+                    state.updateNode(node.id) { it.copy(params = it.params + (opt.name to v)) }
+                }
+            }
+        }
+    } else if (!comp && def == null && node.params.isNotEmpty()) {
+        // plugin modules have untyped params -> plain text fields
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             SectionLabel(state.t("labelParams"))
             node.params.forEach { (key, value) ->
@@ -162,6 +183,79 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
     }
     PanelButton(state.t("deleteModule"), Palette.dangerBorder, Palette.errorSoft) {
         state.deleteNode(node.id)
+    }
+}
+
+// One option row: the option name + a typed editor (text / number / select).
+@Composable
+private fun OptionEditor(opt: OptDef, value: String, onFocusChange: (Boolean) -> Unit, onChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Txt(opt.name, 11.sp, Palette.subText, mono = true, maxLines = 1)
+        when (opt.type) {
+            OptType.SELECT -> OptionSelect(opt.choices, value, onChange)
+            OptType.NUMBER -> DtxField(
+                value,
+                { v -> if (v.isEmpty() || v.matches(NUMERIC)) onChange(v) },
+                mono = true, onFocusChange = onFocusChange,
+            )
+            OptType.TEXT -> DtxField(value, onChange, mono = true, onFocusChange = onFocusChange)
+        }
+    }
+}
+
+private val NUMERIC = Regex("^-?\\d*\\.?\\d*$")
+
+// A compact dropdown for SELECT options.
+@Composable
+private fun OptionSelect(choices: List<String>, value: String, onChange: (String) -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(Palette.holeBg, RoundedCornerShape(6.dp))
+                .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
+                .plainClick { open = !open }
+                .padding(horizontal = 9.dp, vertical = 7.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Txt(value, 12.sp, Palette.text, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+            Txt(if (open) "▲" else "▼", 9.sp, Palette.dimText)
+        }
+        if (open) {
+            Popup(
+                offset = IntOffset(0, 34),
+                onDismissRequest = { open = false },
+                properties = PopupProperties(focusable = true),
+            ) {
+                Column(
+                    Modifier
+                        .widthIn(min = 140.dp)
+                        .background(Palette.dropdownBg, RoundedCornerShape(8.dp))
+                        .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(8.dp))
+                        .padding(5.dp),
+                ) {
+                    choices.forEach { choice ->
+                        val (src, hovered) = rememberHover()
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .hoverable(src)
+                                .background(
+                                    if (hovered) Palette.dropdownHover else Color.Transparent,
+                                    RoundedCornerShape(5.dp),
+                                )
+                                .plainClick { onChange(choice); open = false }
+                                .padding(horizontal = 9.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Txt(choice, 12.sp, if (choice == value) Palette.accent else Palette.text, mono = true, modifier = Modifier.weight(1f))
+                            if (choice == value) Txt("✓", 11.sp, Palette.accent)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

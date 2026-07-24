@@ -252,7 +252,7 @@ class EditorState(
         } else {
             val def = findDef(type) ?: return
             label = def.name[lang] ?: def.name["ko"] ?: type
-            ins = def.ins; outs = def.outs; params = def.params; idBase = type
+            ins = def.ins; outs = def.outs; params = def.defaultParams(); idBase = type
         }
         pushHistory()
         // every palette drop starts at the same uniform size
