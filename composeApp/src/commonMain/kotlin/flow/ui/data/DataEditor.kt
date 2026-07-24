@@ -15,6 +15,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,11 +46,18 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val readOnly = node.type == "cout"
     val fmt = node.params["dataFmt"] ?: "string"
     val isHex = fmt == "hex"
-    val bytes = hexBytes(node.params["data"] ?: "") // canonical bytes
+    val canonical = node.params["data"] ?: ""
+    val bytes = hexBytes(canonical) // canonical bytes
 
-    // local editing buffer; re-derived from the canonical bytes whenever the view
-    // format changes (so a toggle never mutates the bytes, only how they're shown)
+    // local editing buffer; re-derived from the canonical bytes on a format change
+    // (a toggle never mutates the bytes, only how they're shown)
     var text by remember(tab, fmt) { mutableStateOf(viewOf(bytes, isHex)) }
+    // keep the buffer in sync when the canonical bytes change outside our own typing
+    // (e.g. a cout port receiving fresh output); our own edits already match, so skip
+    LaunchedEffect(canonical, fmt) {
+        val bufBytes = if (isHex) hexBytes(text) else text.encodeToByteArray()
+        if (!bufBytes.contentEquals(bytes)) text = viewOf(bytes, isHex)
+    }
 
     fun commitBytes(newBytes: ByteArray) {
         tab.doc.updateNode(node.id) { it.copy(params = it.params + ("data" to hexOf(newBytes))) }
