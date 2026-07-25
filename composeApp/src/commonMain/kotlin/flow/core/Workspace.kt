@@ -47,6 +47,8 @@ class Workspace(private val scope: CoroutineScope) {
     // resizable panel widths (dp), persisted in the session
     var leftWidth by mutableStateOf(240f)
     var propsWidth by mutableStateOf(268f)
+    // run animation speed multiplier (higher = faster), persisted in the config
+    var animSpeed by mutableStateOf(1f)
     var menu by mutableStateOf<String?>(null)
     var dragModule by mutableStateOf<DragModule?>(null)
     var saveTime by mutableStateOf<String?>(null)
@@ -343,7 +345,7 @@ class Workspace(private val scope: CoroutineScope) {
     /* ───────── session ───────── */
 
     fun sessionJson(): String = json.encodeToString(
-        Session(docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap, leftWidth, propsWidth)
+        Session(docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap, leftWidth, propsWidth, animSpeed)
     )
 
     private fun loadSession() {
@@ -356,6 +358,7 @@ class Workspace(private val scope: CoroutineScope) {
             showMinimap = s.showMinimap
             leftWidth = s.leftWidth.coerceIn(160f, 500f)
             propsWidth = s.propsWidth.coerceIn(200f, 560f)
+            animSpeed = s.animSpeed.coerceIn(0.25f, 8f)
             s.openFiles.filter { Platform.readFlow(it) != null }.forEach { openFile(it) }
             activeIndex = s.activeIndex.coerceIn(0, (docs.size - 1).coerceAtLeast(0))
         }

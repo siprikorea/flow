@@ -26,7 +26,6 @@ import kotlin.math.exp
 import kotlin.math.hypot
 
 private const val HISTORY_MAX = 60
-private const val SPEED = 1f
 
 data class Wire(val node: String, val port: String, val pos: Offset)
 data class DragModule(val type: String, val pos: Offset) // pos: window coordinates (px)
@@ -464,15 +463,16 @@ class EditorState(
             return
         }
         setStatus(id, "running")
+        val speed = ws.animSpeed.coerceIn(0.25f, 8f) // higher = faster animation
         // the timeout module runs for its configured delay; others use the default
         val runMs = if (node.type == "timeout") {
             node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
-        } else (900 / SPEED).toLong()
+        } else (900 / speed).toLong()
         later(runMs) {
             setStatus(id, "done")
             edges.filter { it.from.node == id }.forEach { e ->
                 setEdgeActive(e.id, true)
-                later((850 / SPEED).toLong()) {
+                later((850 / speed).toLong()) {
                     setEdgeActive(e.id, false)
                     runNode(e.to.node)
                 }

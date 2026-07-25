@@ -112,4 +112,5 @@ data class Session(
     val showMinimap: Boolean = true,
     val leftWidth: Float = 240f,
     val propsWidth: Float = 268f,
+    val animSpeed: Float = 1f,
 )

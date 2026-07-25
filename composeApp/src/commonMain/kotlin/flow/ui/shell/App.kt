@@ -381,6 +381,12 @@ private fun SettingsScreen(ws: Workspace) {
                 Txt(ws.t("language").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
                 SettingChoice("한국어", ws.lang == "ko") { ws.lang = "ko" }
                 SettingChoice("English", ws.lang == "en") { ws.lang = "en" }
+
+                Spacer(Modifier.height(10.dp))
+                Txt(ws.t("animSpeed").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
+                listOf(0.5f to "0.5×", 1f to "1× (${ws.t("default")})", 2f to "2×", 4f to "4×").forEach { (spd, label) ->
+                    SettingChoice(label, ws.animSpeed == spd) { ws.animSpeed = spd }
+                }
             }
         }
     }
