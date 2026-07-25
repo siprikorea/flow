@@ -52,7 +52,7 @@ val REGISTRY = listOf(
         listOf(optNum("depth", "2"))),
     ModuleDef("regex", mapOf("ko" to "정규식 추출", "en" to "Regex Extract"), "transform", listOf("in"), listOf("out"),
         listOf(optText("pattern", "\\d+"))),
-    ModuleDef("timeout", mapOf("ko" to "지연", "en" to "Timeout"), "transform", listOf("in"), listOf("out"),
+    ModuleDef("sleep", mapOf("ko" to "슬립", "en" to "Sleep"), "transform", listOf("in"), listOf("out"),
         listOf(optNum("ms", "1000"))),
     ModuleDef("b64enc", mapOf("ko" to "Base64 인코딩", "en" to "Base64 Encode"), "transform", listOf("in"), listOf("out")),
     ModuleDef("b64dec", mapOf("ko" to "Base64 디코딩", "en" to "Base64 Decode"), "transform", listOf("in"), listOf("out")),
@@ -68,6 +68,8 @@ val IO_DEFS = listOf(
 
 fun findDef(type: String): ModuleDef? =
     REGISTRY.find { it.type == type } ?: IO_DEFS.find { it.type == type }
+    // legacy alias: old files used "timeout" for what is now the "sleep" module
+        ?: if (type == "timeout") REGISTRY.find { it.type == "sleep" } else null
 
 // Component instance node type = "comp:<fileName>"
 fun isComp(type: String) = type.startsWith("comp:")

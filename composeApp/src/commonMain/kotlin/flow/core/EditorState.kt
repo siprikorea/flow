@@ -462,11 +462,14 @@ class EditorState(
             setStatus(id, "error")
             return
         }
+        // wait until every input is ready: each incoming edge's source node must be done.
+        // (re-triggered as each edge completes, so a merge starts only once all arrive)
+        if (incoming.any { nodeById(it.from.node)?.status != "done" }) return
         setStatus(id, "running")
         // per-step animation duration in ms (from the seconds setting; larger = slower)
         val stepMs = (ws.animSeconds.coerceIn(0.05f, 10f) * 1000).toLong()
-        // the timeout module runs for its configured delay; others use the step time
-        val runMs = if (node.type == "timeout") {
+        // the sleep module runs for its configured delay; others use the step time
+        val runMs = if (node.type == "sleep" || node.type == "timeout") {
             node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
         } else stepMs
         later(runMs) {
