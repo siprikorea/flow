@@ -160,10 +160,11 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                     drawPath(path, color, style = Stroke(if (selected) 3.5f else 2.5f, pathEffect = effect))
 
                     if (e.active) {
-                        // packet: white dot + glow, travels the curve exactly once (0.85s), synced to
-                        // edge activation so it arrives right when the next node starts
+                        // packet: white dot + glow, travels the whole curve exactly once over the
+                        // edge-active window (the animation-time setting), so it always runs start->end
                         val start = packetStart.getOrPut(e.id) { timeMs }
-                        val t = ((timeMs - start) / 850f).coerceIn(0f, 1f)
+                        val edgeMs = state.ws.animSeconds.coerceIn(0.05f, 10f) * 1000f
+                        val t = ((timeMs - start) / edgeMs).coerceIn(0f, 1f)
                         val p = bezierPoint(a, b, t)
                         drawCircle(Palette.accentSoft.copy(alpha = 0.45f), 8f, p)
                         drawCircle(Palette.edgeSelected, 4.5f, p)
