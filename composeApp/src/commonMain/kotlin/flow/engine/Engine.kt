@@ -78,9 +78,9 @@ class FlowEngine(
             }
             node.type == "split" -> node.outputs.associate { it.name to single() } // duplicate to each output
             node.type == "merge" -> {
-                val nums = inVals.values.mapNotNull { it?.toDoubleOrNull() }
-                val out = if (nums.isNotEmpty()) Expr.fmt(nums.sum()) else inVals.values.firstOrNull { it != null }
-                mapOf((node.outputs.firstOrNull()?.name ?: "out") to out)
+                // concatenate all connected inputs in port order (a, b, ...)
+                val vals = node.inputs.mapNotNull { inVals[it.name] }
+                mapOf((node.outputs.firstOrNull()?.name ?: "out") to (if (vals.isEmpty()) null else vals.joinToString("")))
             }
             node.type == "b64enc" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to
                 single()?.let { Base64.encode(it.encodeToByteArray()) })
