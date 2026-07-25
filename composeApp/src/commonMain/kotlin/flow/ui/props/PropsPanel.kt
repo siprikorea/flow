@@ -12,7 +12,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -209,7 +210,9 @@ private val NUMERIC = Regex("^-?\\d*\\.?\\d*$")
 @Composable
 private fun OptionSelect(choices: List<String>, value: String, onChange: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
-    Box {
+    var boxWidth by remember { mutableStateOf(0) }
+    val density = LocalDensity.current
+    Box(Modifier.onGloballyPositioned { boxWidth = it.size.width }) {
         Row(
             Modifier
                 .fillMaxWidth()
@@ -230,7 +233,8 @@ private fun OptionSelect(choices: List<String>, value: String, onChange: (String
             ) {
                 Column(
                     Modifier
-                        .widthIn(min = 140.dp)
+                        // match the select box width so the menu isn't full-screen wide
+                        .width(with(density) { boxWidth.toDp() })
                         .background(Palette.dropdownBg, RoundedCornerShape(8.dp))
                         .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(8.dp))
                         .padding(5.dp),
