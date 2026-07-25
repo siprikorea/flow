@@ -76,11 +76,22 @@ class FlowEngine(
                 val pass = Expr.evalToBool(node.params["expr"] ?: "value", v)
                 mapOf("pass" to if (pass) v else null, "fail" to if (pass) null else v)
             }
-            node.type == "split" -> node.outputs.associate { it.name to single() } // duplicate to each output
+            node.type == "split" -> {
+                // split the input by the separator; part i -> output port i (remainder in the last)
+                val input = single()
+                if (input == null) node.outputs.associate { it.name to null }
+                else {
+                    val sep = node.params["sep"] ?: ","
+                    val parts = if (sep.isEmpty()) listOf(input)
+                    else input.split(sep, limit = node.outputs.size.coerceAtLeast(1))
+                    node.outputs.mapIndexed { i, p -> p.name to parts.getOrNull(i) }.toMap()
+                }
+            }
             node.type == "merge" -> {
-                // concatenate all connected inputs in port order (a, b, ...)
+                // join all connected inputs in port order (a, b, ...) with the separator
                 val vals = node.inputs.mapNotNull { inVals[it.name] }
-                mapOf((node.outputs.firstOrNull()?.name ?: "out") to (if (vals.isEmpty()) null else vals.joinToString("")))
+                val sep = node.params["sep"] ?: ""
+                mapOf((node.outputs.firstOrNull()?.name ?: "out") to (if (vals.isEmpty()) null else vals.joinToString(sep)))
             }
             node.type == "b64enc" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to
                 single()?.let { Base64.encode(it.encodeToByteArray()) })
