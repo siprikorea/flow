@@ -4,6 +4,7 @@ import flow.model.FlowFile
 import flow.model.Node
 import flow.model.compFile
 import flow.model.isComp
+import flow.platform.digest
 import kotlin.io.encoding.Base64
 import kotlin.io.encoding.ExperimentalEncodingApi
 
@@ -72,6 +73,11 @@ class FlowEngine(
                 single()?.let { Base64.encode(it.encodeToByteArray()) })
             node.type == "b64dec" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to
                 single()?.let { runCatching { Base64.decode(it).decodeToString() }.getOrNull() })
+            node.type == "hash" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to
+                single()?.let { s ->
+                    digest(node.params["algo"] ?: "SHA-256", s.encodeToByteArray())
+                        ?.joinToString("") { (it.toInt() and 0xFF).toString(16).padStart(2, '0') }
+                })
             node.type == "agg" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to single())
             node.type == "csv" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to (node.params["value"] ?: node.params["path"] ?: ""))
             node.outputs.isEmpty() -> emptyMap() // sink (log/fout, etc.)

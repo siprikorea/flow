@@ -56,6 +56,8 @@ val REGISTRY = listOf(
         listOf(optNum("ms", "1000"))),
     ModuleDef("b64enc", mapOf("ko" to "Base64 인코딩", "en" to "Base64 Encode"), "transform", listOf("in"), listOf("out")),
     ModuleDef("b64dec", mapOf("ko" to "Base64 디코딩", "en" to "Base64 Decode"), "transform", listOf("in"), listOf("out")),
+    ModuleDef("hash", mapOf("ko" to "해시", "en" to "Hash"), "transform", listOf("in"), listOf("out"),
+        listOf(optSelect("algo", "SHA-256", "MD5", "SHA-1", "SHA-256", "SHA-512"))),
 )
 
 // Component boundary nodes: cin = component input port, cout = output port. The label is the port name.
