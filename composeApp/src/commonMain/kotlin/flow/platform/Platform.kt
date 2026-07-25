@@ -27,6 +27,14 @@ expect object Platform {
     fun renameFlow(oldName: String, newName: String): Boolean
     fun flowsDirLabel(): String
 
+    // arbitrary file access for the data editor
+    fun pickFileRead(): String?               // open dialog -> path
+    fun pickFileSave(defaultName: String): String? // save dialog -> path
+    fun fileSize(path: String): Long          // -1 if missing
+    fun readFileRange(path: String, offset: Long, length: Int): ByteArray // partial read (window)
+    fun writeBytes(path: String, bytes: ByteArray): Boolean
+    fun fileName(path: String): String
+
     // session (open tabs + UI state) restore
     fun loadSession(): String?
     fun saveSession(json: String)
