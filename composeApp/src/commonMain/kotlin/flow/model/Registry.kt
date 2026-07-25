@@ -54,6 +54,8 @@ val REGISTRY = listOf(
         listOf(optText("pattern", "\\d+"))),
     ModuleDef("timeout", mapOf("ko" to "지연", "en" to "Timeout"), "transform", listOf("in"), listOf("out"),
         listOf(optNum("ms", "1000"))),
+    ModuleDef("b64enc", mapOf("ko" to "Base64 인코딩", "en" to "Base64 Encode"), "transform", listOf("in"), listOf("out")),
+    ModuleDef("b64dec", mapOf("ko" to "Base64 디코딩", "en" to "Base64 Decode"), "transform", listOf("in"), listOf("out")),
 )
 
 // Component boundary nodes: cin = component input port, cout = output port. The label is the port name.

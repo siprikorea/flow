@@ -4,6 +4,8 @@ import flow.model.FlowFile
 import flow.model.Node
 import flow.model.compFile
 import flow.model.isComp
+import kotlin.io.encoding.Base64
+import kotlin.io.encoding.ExperimentalEncodingApi
 
 /**
  * Flow execution engine (UI-independent).
@@ -40,6 +42,7 @@ class FlowEngine(
         }
     }
 
+    @OptIn(ExperimentalEncodingApi::class)
     private fun evalNode(node: Node, inVals: Map<String, String?>, externalInputs: Map<String, String?>): Map<String, String?> {
         fun single() = inVals.values.firstOrNull()
         return when {
@@ -65,6 +68,10 @@ class FlowEngine(
                 val out = if (nums.isNotEmpty()) Expr.fmt(nums.sum()) else inVals.values.firstOrNull { it != null }
                 mapOf((node.outputs.firstOrNull()?.name ?: "out") to out)
             }
+            node.type == "b64enc" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to
+                single()?.let { Base64.encode(it.encodeToByteArray()) })
+            node.type == "b64dec" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to
+                single()?.let { runCatching { Base64.decode(it).decodeToString() }.getOrNull() })
             node.type == "agg" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to single())
             node.type == "csv" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to (node.params["value"] ?: node.params["path"] ?: ""))
             node.outputs.isEmpty() -> emptyMap() // sink (log/fout, etc.)
