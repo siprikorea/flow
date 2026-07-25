@@ -1,5 +1,7 @@
 package flow.model
 
+import flow.util.bytesToHex
+import flow.util.hexToBytes
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.descriptors.PrimitiveKind
@@ -32,15 +34,6 @@ class Port(val name: String, val data: ByteArray = ByteArray(0)) {
 // port-list helpers: ports wire by name, so these bridge name-based lookups
 fun List<Port>.portNames(): List<String> = map { it.name }
 fun List<Port>.indexOfPort(name: String): Int = indexOfFirst { it.name == name }
-
-// bytes <-> hex string (space-separated uppercase byte pairs, e.g. "48 65 6C")
-fun bytesToHex(bytes: ByteArray): String =
-    bytes.joinToString(" ") { (it.toInt() and 0xFF).toString(16).padStart(2, '0').uppercase() }
-
-fun hexToBytes(hex: String): ByteArray =
-    hex.split(Regex("\\s+")).filter { it.isNotBlank() }
-        .mapNotNull { it.toIntOrNull(16)?.toByte() }
-        .toByteArray()
 
 object PortSerializer : KSerializer<Port> {
     override val descriptor: SerialDescriptor = PrimitiveSerialDescriptor("flow.model.Port", PrimitiveKind.STRING)

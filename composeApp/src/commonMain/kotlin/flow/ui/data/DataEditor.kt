@@ -38,13 +38,15 @@ import androidx.compose.ui.unit.sp
 import flow.core.DataTab
 import flow.core.Workspace
 import flow.model.Port
-import flow.model.bytesToHex
-import flow.model.hexToBytes
 import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.Palette
+import flow.util.bytesToHex
+import flow.util.decodeUtf8Lossy
+import flow.util.hexToBytes
+import flow.util.spliceBytes
 
 // Data editor tab for a component boundary (cin/cout) node.
 //
@@ -261,64 +263,3 @@ private fun formatHex(v: TextFieldValue): TextFieldValue {
 // how the port bytes appear in the given view
 private fun viewOf(bytes: ByteArray, hex: Boolean): String =
     if (hex) bytesToHex(bytes) else decodeUtf8Lossy(bytes).first
-
-// Replace only the changed byte span. Diffs old vs new display text by common
-// prefix/suffix (in chars), maps those char boundaries to byte offsets via the
-// same lossy decode used for display, and splices the re-encoded middle into the
-// bytes. Untouched text (prefix/suffix) keeps its exact original bytes — so editing
-// or deleting a broken (U+FFFD) char never rewrites the surrounding bytes.
-private fun spliceBytes(bytes: ByteArray, old: String, new: String): ByteArray {
-    val (decoded, offsets) = decodeUtf8Lossy(bytes)
-    // `old` should equal the current decode; fall back to a full re-encode if not
-    if (decoded != old) return new.encodeToByteArray()
-    var p = 0
-    val minLen = minOf(old.length, new.length)
-    while (p < minLen && old[p] == new[p]) p++
-    var s = 0
-    while (s < minLen - p && old[old.length - 1 - s] == new[new.length - 1 - s]) s++
-    val byteStart = offsets[p]
-    val byteEnd = offsets[old.length - s]
-    val mid = new.substring(p, new.length - s).encodeToByteArray()
-    return bytes.copyOfRange(0, byteStart) + mid + bytes.copyOfRange(byteEnd, bytes.size)
-}
-
-// Decode bytes as UTF-8, emitting one U+FFFD per invalid byte, and record the byte
-// offset where each output char (UTF-16 unit) starts. offsets.size == text.length + 1.
-private fun decodeUtf8Lossy(bytes: ByteArray): Pair<String, IntArray> {
-    val sb = StringBuilder()
-    val offs = ArrayList<Int>(bytes.size + 1)
-    val n = bytes.size
-    fun at(k: Int) = bytes[k].toInt() and 0xFF
-    fun cont(k: Int) = k < n && at(k) in 0x80..0xBF
-    var i = 0
-    while (i < n) {
-        val b0 = at(i)
-        var cp = -1
-        var len = 1
-        when {
-            b0 < 0x80 -> { cp = b0; len = 1 }
-            b0 in 0xC2..0xDF -> if (cont(i + 1)) { cp = ((b0 and 0x1F) shl 6) or (at(i + 1) and 0x3F); len = 2 }
-            b0 in 0xE0..0xEF -> if (cont(i + 1) && cont(i + 2)) {
-                val c = ((b0 and 0x0F) shl 12) or ((at(i + 1) and 0x3F) shl 6) or (at(i + 2) and 0x3F)
-                if (c >= 0x800 && (c < 0xD800 || c > 0xDFFF)) { cp = c; len = 3 }
-            }
-            b0 in 0xF0..0xF4 -> if (cont(i + 1) && cont(i + 2) && cont(i + 3)) {
-                val c = ((b0 and 0x07) shl 18) or ((at(i + 1) and 0x3F) shl 12) or
-                    ((at(i + 2) and 0x3F) shl 6) or (at(i + 3) and 0x3F)
-                if (c in 0x10000..0x10FFFF) { cp = c; len = 4 }
-            }
-        }
-        if (cp < 0) {
-            sb.append('�'); offs.add(i); i += 1
-        } else if (cp <= 0xFFFF) {
-            sb.append(cp.toChar()); offs.add(i); i += len
-        } else {
-            val u = cp - 0x10000
-            sb.append((0xD800 + (u shr 10)).toChar()); offs.add(i)
-            sb.append((0xDC00 + (u and 0x3FF)).toChar()); offs.add(i)
-            i += len
-        }
-    }
-    offs.add(n)
-    return sb.toString() to offs.toIntArray()
-}
