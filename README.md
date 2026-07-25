@@ -94,17 +94,15 @@ Components are read from `~/.flow/flows` (by name) or a file path. The engine ev
 
 ## Plugins
 
-Plugins come in two kinds, both identified by a **package-format id** and declaring input/output ids. The `plugin-api` module defines the contracts:
+Plugins provide **modules only** — components are built inside the Flow tool and added there. A module plugin is identified by a **package-format id** and declares input/output ids. The `plugin-api` module defines the contract:
 
-- **Module plugin** (`ModulePlugin`) — has the actual implementation: `process(inputs) → outputs`. Distributed as code (a JAR).
-- **Component plugin** (`ComponentPlugin`) — defines only the connections between modules, with no coordinates. On install it is laid out automatically (BFS columns) into a component flow with input/output boundary nodes.
+- **Module plugin** (`ModulePlugin`) — the actual implementation: `process(inputs) → outputs`. Distributed as code (a JAR), registered under `META-INF/services/flow.plugin.ModulePlugin`.
 
 ### Storage & sandbox (installed, read-only)
-Installed artifacts live under the app data dir, separated by kind, keyed by id, each in **its own folder** with its dependency JARs bundled alongside:
+Installed modules live under the app data dir, keyed by id, each in **its own folder** with its dependency JARs bundled alongside:
 - `~/.flow/modules/<id>/*.jar` — module plugin + its dependency modules.
-- `~/.flow/components/<id>/component.json` (+ bundled dependency module JARs).
 
-Each module and each component runs in a **sandbox**: an isolated classloader over just its own folder's JARs. So one plugin's dependencies never clash with another's, and a component executes using the modules bundled in its folder — fully independent of what's installed globally.
+Tool-made components you install go to `~/.flow/components/<id>/component.json` (+ bundled dependency module JARs). Each module and each component runs in a **sandbox**: an isolated classloader over just its own folder's JARs, so one plugin's dependencies never clash with another's.
 
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 
@@ -114,10 +112,9 @@ Use the **Flow (logo) menu → Install Plugin…** to pick a JAR, or **Install C
 ```bash
 ./gradlew :plugins:sample-plugin:jar
 ./gradlew :composeApp:cli --args="--install /abs/path/sample-plugin.jar"   # add --force to overwrite
-./gradlew :composeApp:cli --args="com.example.triple 5"                    # out = 15 (via the mul3 module)
 ```
 
-Modules: `plugin-api` (contracts), `composeApp` (editor + CLI + install/registry), `plugins/sample-plugin` (a `ModulePlugin` `com.example.mul3` and a `ComponentPlugin` `com.example.triple`).
+Modules: `plugin-api` (contract), `composeApp` (editor + CLI + install/registry), `plugins/sample-plugin` (module plugins `com.example.mul3` and `com.example.upper`).
 
 ## Notes
 The numeric specs — grid snapping, port placement, bezier curves, simulation timings — come from the original HTML design prototype. This repository is a Compose Multiplatform reimplementation of that spec.

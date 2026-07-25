@@ -2,7 +2,7 @@ package com.example.sample
 
 import flow.plugin.ModulePlugin
 
-/** Module plugin: multiplies the input by 3. */
+/** Module plugin: multiplies the numeric input by 3. */
 class Mul3Module : ModulePlugin {
     override val id = "com.example.mul3"
     override val displayName = "×3"

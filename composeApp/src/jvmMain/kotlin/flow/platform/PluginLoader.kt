@@ -1,16 +1,9 @@
 package flow.platform
 
-import flow.core.sizeForPorts
-import flow.core.snapF
 import flow.engine.FlowEngine
-import flow.model.Edge
 import flow.model.FlowFile
 import flow.model.InstallResult
 import flow.model.ModuleInfo
-import flow.model.Node
-import flow.model.Port
-import flow.model.PortRef
-import flow.plugin.ComponentPlugin
 import flow.plugin.ModulePlugin
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -113,31 +106,23 @@ internal object PluginLoader {
 
     /* ───────── install ───────── */
 
+    // A plugin JAR provides modules only (components are built in the Flow tool).
     fun installJar(path: String, overwrite: Boolean): InstallResult {
         val jar = File(path).takeIf { it.isFile } ?: return InstallResult()
         ensureDirs()
         val tmp = isolatedLoader(arrayOf(jar))
         val mods = runCatching { ServiceLoader.load(ModulePlugin::class.java, tmp).toList() }.getOrDefault(emptyList())
-        val comps = runCatching { ServiceLoader.load(ComponentPlugin::class.java, tmp).toList() }.getOrDefault(emptyList())
-        if (mods.isEmpty() && comps.isEmpty()) return InstallResult()
+        if (mods.isEmpty()) return InstallResult()
 
-        val conflicts = mods.filter { File(modulesDir, it.id).exists() }.map { it.id } +
-            comps.filter { File(componentsDir, it.id).exists() }.map { it.id }
+        val conflicts = mods.filter { File(modulesDir, it.id).exists() }.map { it.id }
         if (conflicts.isNotEmpty() && !overwrite) return InstallResult(conflicts = conflicts)
 
         mods.forEach { m ->
             val d = File(modulesDir, m.id).also { it.deleteRecursively(); it.mkdirs() }
             runCatching { jar.copyTo(File(d, "${m.id}.jar"), overwrite = true) }
         }
-        comps.forEach { c ->
-            val d = File(componentsDir, c.id).also { it.deleteRecursively(); it.mkdirs() }
-            runCatching {
-                File(d, "component.json").writeText(json.encodeToString(materialize(c)))
-                jar.copyTo(File(d, "deps.jar"), overwrite = true) // bundle dependency module code for the sandbox
-            }
-        }
         moduleCache = null
-        return InstallResult(installed = mods.map { it.id } + comps.map { it.id })
+        return InstallResult(installed = mods.map { it.id })
     }
 
     // Install an editor component: create the folder + component.json, bundle referenced installed-module jars (sandbox)
@@ -159,65 +144,4 @@ internal object PluginLoader {
         }.getOrDefault(InstallResult())
     }
 
-    /* ───────── component graph -> flow with coordinates (auto layout) ───────── */
-
-    private fun materialize(c: ComponentPlugin): FlowFile {
-        val nodes = ArrayList<Node>()
-        val edges = ArrayList<Edge>()
-        var seq = 1
-        var e = 1
-
-        val cinId = HashMap<String, String>()
-        c.inputs.forEach { inp ->
-            val id = "cin_${seq++}"
-            cinId[inp] = id
-            val (w, h) = sizeForPorts(0, 1)
-            nodes.add(Node(id, "cin", inp, 0f, 0f, w, h, emptyList(), listOf(Port("out"))))
-        }
-        c.nodes().forEach { pn ->
-            val (w, h) = sizeForPorts(pn.inputs.size, pn.outputs.size)
-            nodes.add(Node(pn.id, pn.type, pn.type, 0f, 0f, w, h, pn.inputs.map { Port(it) }, pn.outputs.map { Port(it) }, pn.params))
-        }
-        val coutId = HashMap<String, String>()
-        c.outputs.forEach { out ->
-            val id = "cout_${seq++}"
-            coutId[out] = id
-            val (w, h) = sizeForPorts(1, 0)
-            nodes.add(Node(id, "cout", out, 0f, 0f, w, h, listOf(Port("in")), emptyList()))
-        }
-
-        c.connections().forEach {
-            edges.add(Edge("e_${e++}", PortRef(it.fromNode, it.fromPort), PortRef(it.toNode, it.toPort)))
-        }
-        c.inputBindings().forEach { (inp, target) ->
-            edges.add(Edge("e_${e++}", PortRef(cinId[inp] ?: return@forEach, "out"), PortRef(target.substringBefore('.'), target.substringAfter('.'))))
-        }
-        c.outputBindings().forEach { (out, source) ->
-            edges.add(Edge("e_${e++}", PortRef(source.substringBefore('.'), source.substringAfter('.')), PortRef(coutId[out] ?: return@forEach, "in")))
-        }
-
-        return FlowFile(1, autoLayout(nodes, edges), edges, seq)
-    }
-
-    private fun autoLayout(nodes: List<Node>, edges: List<Edge>): List<Node> {
-        if (nodes.isEmpty()) return nodes
-        val depth = nodes.associate { it.id to 0 }.toMutableMap()
-        repeat(nodes.size) {
-            var changed = false
-            edges.forEach { ed ->
-                val df = depth[ed.from.node] ?: return@forEach
-                if (ed.to.node !in depth) return@forEach
-                val d = df + 1
-                if (d > depth[ed.to.node]!! && d <= nodes.size) { depth[ed.to.node] = d; changed = true }
-            }
-            if (!changed) return@repeat
-        }
-        val cursorY = HashMap<Int, Float>()
-        return nodes.map { n ->
-            val d = depth[n.id] ?: 0
-            val y = cursorY.getOrElse(d) { 60f }
-            cursorY[d] = y + n.h + 50f
-            n.copy(x = snapF(60f + d * 280f), y = snapF(y))
-        }
-    }
 }
