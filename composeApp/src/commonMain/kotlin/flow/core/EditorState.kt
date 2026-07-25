@@ -11,6 +11,7 @@ import flow.model.FlowFile
 import flow.model.Node
 import flow.model.Port
 import flow.model.PortRef
+import flow.engine.FlowEngine
 import flow.model.compFile
 import flow.model.findDef
 import flow.model.indexOfPort
@@ -47,6 +48,8 @@ class EditorState(
     var selRect by mutableStateOf<Rect?>(null) // rubber-band selection rect (world dp)
     var wire by mutableStateOf<Wire?>(null)
     var running by mutableStateOf(false)
+    // transient run outputs: cout node id -> output bytes (not persisted to the file)
+    var runOutputs by mutableStateOf<Map<String, ByteArray>>(emptyMap())
     var spaceDown by mutableStateOf(false)
     var canvasSize by mutableStateOf(IntSize.Zero)
     var canvasOrigin by mutableStateOf(Offset.Zero) // window coordinates
@@ -489,10 +492,30 @@ class EditorState(
         resetRun()
         showValidation = false // validation is only for open/save; run shows only run status
         running = true
+        computeOutputs() // compute real data so the output (cout) editors show the result
         // start from source nodes (no incoming edges); otherwise the first node
         val sources = nodes.filter { n -> edges.none { it.to.node == n.id } }
         val starts = sources.ifEmpty { listOf(nodes.first()) }
         later(0) { starts.forEach { runNode(it.id) } }
+    }
+
+    // Run the flow engine over the current graph and store cout outputs (transient).
+    // cin input = its output-port bytes as a UTF-8 string; cout output bytes = engine result.
+    private fun computeOutputs() {
+        val flow = FlowFile(1, nodes, edges, seq)
+        val inputs = nodes.filter { it.type == "cin" }
+            .associate { n -> n.label to (n.outputs.firstOrNull()?.data?.decodeToString() ?: "") }
+        val engine = FlowEngine(
+            loadFlow = { name ->
+                (Platform.readFlow(name) ?: Platform.readInstalledComponent(name))
+                    ?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() }
+            },
+            moduleIds = runCatching { Platform.installedModuleInfos().map { it.id }.toSet() }.getOrDefault(emptySet()),
+            moduleProcess = { id, ins -> runCatching { Platform.moduleProcess(id, ins) }.getOrDefault(emptyMap()) },
+        )
+        val result = runCatching { engine.run(flow, inputs) }.getOrDefault(emptyMap())
+        runOutputs = nodes.filter { it.type == "cout" }
+            .associate { n -> n.id to (result[n.label] ?: "").encodeToByteArray() }
     }
 
     fun runFromSelection(id: String? = null) {
@@ -500,6 +523,7 @@ class EditorState(
         resetRun()
         showValidation = false // validation is only for open/save; run shows only run status
         running = true
+        computeOutputs()
         // a node with input ports but no incoming connection fails here too (marked red),
         // just like a full run — it can't run without its input
         later(0) { runNode(nodeId) }

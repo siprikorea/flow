@@ -60,9 +60,9 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val isOut = node.type == "cout"
     val fmt = node.params["dataFmt"] ?: "string"
     val isHex = fmt == "hex"
-    // the port carrying the value: a cin injects on its output, a cout receives on its input
-    val port = if (node.type == "cin") node.outputs.firstOrNull() else node.inputs.firstOrNull()
-    val bytes = port?.data ?: ByteArray(0)
+    // cin value = its editable output-port bytes; cout value = the transient run output
+    val bytes = if (isOut) (tab.doc.runOutputs[tab.nodeId] ?: ByteArray(0))
+    else (node.outputs.firstOrNull()?.data ?: ByteArray(0))
 
     // a cin can be backed by a file: we read/show only a leading window, never the whole file
     val filePath = if (isOut) null else node.params["dataFile"]
