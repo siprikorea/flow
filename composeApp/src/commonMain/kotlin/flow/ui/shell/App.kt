@@ -383,9 +383,12 @@ private fun SettingsScreen(ws: Workspace) {
                 SettingChoice("English", ws.lang == "en") { ws.lang = "en" }
 
                 Spacer(Modifier.height(10.dp))
-                Txt(ws.t("animSpeed").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
-                listOf(0.5f to "0.5×", 1f to "1× (${ws.t("default")})", 2f to "2×", 4f to "4×").forEach { (spd, label) ->
-                    SettingChoice(label, ws.animSpeed == spd) { ws.animSpeed = spd }
+                Txt(ws.t("animTime").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
+                val unit = ws.t("secUnit")
+                listOf(0.25f, 0.5f, 1f, 2f).forEach { v ->
+                    val num = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
+                    val label = "$num$unit" + if (v == 1f) " (${ws.t("default")})" else ""
+                    SettingChoice(label, ws.animSeconds == v) { ws.animSeconds = v }
                 }
             }
         }
