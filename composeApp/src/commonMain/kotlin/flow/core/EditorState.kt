@@ -463,16 +463,17 @@ class EditorState(
             return
         }
         setStatus(id, "running")
-        val speed = ws.animSpeed.coerceIn(0.25f, 8f) // higher = faster animation
-        // the timeout module runs for its configured delay; others use the default
+        // per-step animation duration in ms (from the seconds setting; larger = slower)
+        val stepMs = (ws.animSeconds.coerceIn(0.05f, 10f) * 1000).toLong()
+        // the timeout module runs for its configured delay; others use the step time
         val runMs = if (node.type == "timeout") {
             node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
-        } else (900 / speed).toLong()
+        } else stepMs
         later(runMs) {
             setStatus(id, "done")
             edges.filter { it.from.node == id }.forEach { e ->
                 setEdgeActive(e.id, true)
-                later((850 / speed).toLong()) {
+                later(stepMs) {
                     setEdgeActive(e.id, false)
                     runNode(e.to.node)
                 }
@@ -503,8 +504,15 @@ class EditorState(
     // cin input = its output-port bytes as a UTF-8 string; cout output bytes = engine result.
     private fun computeOutputs() {
         val flow = FlowFile(1, nodes, edges, seq)
-        val inputs = nodes.filter { it.type == "cin" }
-            .associate { n -> n.label to (n.outputs.firstOrNull()?.data?.decodeToString() ?: "") }
+        val inputs = nodes.filter { it.type == "cin" }.associate { n ->
+            // file-backed cin: read the whole file for processing; else the inline port bytes
+            val file = n.params["dataFile"]
+            val data = if (file != null) {
+                val sz = Platform.fileSize(file)
+                if (sz in 0..Int.MAX_VALUE.toLong()) Platform.readFileRange(file, 0, sz.toInt()) else ByteArray(0)
+            } else (n.outputs.firstOrNull()?.data ?: ByteArray(0))
+            n.label to data.decodeToString()
+        }
         val engine = FlowEngine(
             loadFlow = { name ->
                 (Platform.readFlow(name) ?: Platform.readInstalledComponent(name))
