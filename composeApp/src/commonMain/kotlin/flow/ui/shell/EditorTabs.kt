@@ -1,6 +1,8 @@
 package flow.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
@@ -17,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -42,6 +45,12 @@ fun EditorTabs(ws: Workspace) {
                     dirty = doc.dirty,
                     onSelect = { ws.select(i) },
                     onClose = { ws.requestClose(i) },
+                    onDoubleClick = {
+                        // leave only the canvas; double-click again restores both panels
+                        val anyOpen = ws.showLeft || ws.showProps
+                        ws.showLeft = !anyOpen
+                        ws.showProps = !anyOpen
+                    },
                 )
             }
             // data-editor tabs (in/out sample data)
@@ -64,7 +73,15 @@ fun EditorTabs(ws: Workspace) {
 }
 
 @Composable
-private fun Tab(name: String, active: Boolean, dotColor: Color, dirty: Boolean, onSelect: () -> Unit, onClose: () -> Unit) {
+private fun Tab(
+    name: String,
+    active: Boolean,
+    dotColor: Color,
+    dirty: Boolean,
+    onSelect: () -> Unit,
+    onClose: () -> Unit,
+    onDoubleClick: () -> Unit = {},
+) {
     val (hoverSrc, hovered) = rememberHover()
     // IntrinsicSize.Max gives fillMaxWidth a real width inside the horizontal scroller,
     // so the active-tab top indicator (VS Code style) actually renders
@@ -75,7 +92,19 @@ private fun Tab(name: String, active: Boolean, dotColor: Color, dirty: Boolean, 
                 .height(32.dp)
                 .background(if (active) Palette.tabActiveBg else if (hovered) Palette.hoverBg else Palette.tabBarBg)
                 .hoverable(hoverSrc)
-                .plainClick(onSelect)
+                // single click selects; double click toggles the side panels (canvas-only)
+                .pointerInput(Unit) {
+                    var last = 0L
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        val now = down.uptimeMillis
+                        if (now - last <= viewConfiguration.doubleTapTimeoutMillis) {
+                            onDoubleClick(); last = 0L
+                        } else {
+                            onSelect(); last = now
+                        }
+                    }
+                }
                 .padding(start = 12.dp, end = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
