@@ -174,6 +174,8 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                             // double-click a component opens its editor; a boundary opens its data editor
                             isDouble && comp -> { state.ws.openComponentFile(compFile(node.type)); lastDown = 0L }
                             isDouble && boundary -> { state.ws.openDataEditor(state, node.id); lastDown = 0L }
+                            // double-click a module reveals its properties panel
+                            isDouble -> { state.ws.showProps = true; lastDown = 0L }
                             else -> lastDown = now
                         }
                     }
