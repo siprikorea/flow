@@ -23,11 +23,10 @@ class FlowEngine(
     private val moduleProcess: (String, Map<String, String?>) -> Map<String, String?> = { _, _ -> emptyMap() },
 ) {
 
-    // cin label -> value. Returns: cout label -> value
-    fun run(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
+    // Evaluate every node; returns (nodeId, portName) -> value for all outputs.
+    private fun evaluate(flow: FlowFile, inputs: Map<String, String>): Map<Pair<String, String>, String?> {
         val byId = flow.nodes.associateBy { it.id }
         val outVals = HashMap<Pair<String, String>, String?>()
-
         for (nid in topoOrder(flow)) {
             val node = byId[nid] ?: continue
             val inVals: Map<String, String?> = node.inputs.associate { port ->
@@ -36,11 +35,25 @@ class FlowEngine(
             }
             evalNode(node, inVals, inputs).forEach { (p, v) -> outVals[nid to p] = v }
         }
+        return outVals
+    }
 
-        return flow.nodes.filter { it.type == "cout" }.associate { c ->
-            val e = flow.edges.firstOrNull { it.to.node == c.id && it.to.port == (c.inputs.firstOrNull()?.name ?: "in") }
-            c.label to (if (e != null) outVals[e.from.node to e.from.port] else null)
-        }
+    // the value arriving at a cout node (following its single input edge)
+    private fun coutValue(flow: FlowFile, cout: Node, outVals: Map<Pair<String, String>, String?>): String? {
+        val e = flow.edges.firstOrNull { it.to.node == cout.id && it.to.port == (cout.inputs.firstOrNull()?.name ?: "in") }
+        return if (e != null) outVals[e.from.node to e.from.port] else null
+    }
+
+    // cin label -> value. Returns: cout label -> value (labels must be unique)
+    fun run(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
+        val outVals = evaluate(flow, inputs)
+        return flow.nodes.filter { it.type == "cout" }.associate { it.label to coutValue(flow, it, outVals) }
+    }
+
+    // cout node id -> value (no label-collision; used by the in-app output editors)
+    fun runByNode(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
+        val outVals = evaluate(flow, inputs)
+        return flow.nodes.filter { it.type == "cout" }.associate { it.id to coutValue(flow, it, outVals) }
     }
 
     @OptIn(ExperimentalEncodingApi::class)

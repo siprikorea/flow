@@ -521,9 +521,10 @@ class EditorState(
             moduleIds = runCatching { Platform.installedModuleInfos().map { it.id }.toSet() }.getOrDefault(emptySet()),
             moduleProcess = { id, ins -> runCatching { Platform.moduleProcess(id, ins) }.getOrDefault(emptyMap()) },
         )
-        val result = runCatching { engine.run(flow, inputs) }.getOrDefault(emptyMap())
+        // key by cout node id (not label) so two outputs never share a value
+        val result = runCatching { engine.runByNode(flow, inputs) }.getOrDefault(emptyMap())
         runOutputs = nodes.filter { it.type == "cout" }
-            .associate { n -> n.id to (result[n.label] ?: "").encodeToByteArray() }
+            .associate { n -> n.id to (result[n.id] ?: "").encodeToByteArray() }
     }
 
     fun runFromSelection(id: String? = null) {
