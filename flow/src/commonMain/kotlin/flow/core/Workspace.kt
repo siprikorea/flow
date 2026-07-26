@@ -332,6 +332,9 @@ class Workspace(private val scope: CoroutineScope) {
         dataTabs.removeAll { it.doc === doc }
         if (activeData?.doc === doc) activeData = null
         docs.removeAt(i)
+        // a tab before the active one shifts everything left by one, so follow it to stay on the same doc
+        if (i < activeIndex) activeIndex--
+        // closing the active tab itself lands on the next tab at the same index; clamp to the previous one if it was last
         if (activeIndex >= docs.size) activeIndex = (docs.size - 1).coerceAtLeast(0)
     }
 
