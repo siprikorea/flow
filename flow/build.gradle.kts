@@ -68,6 +68,15 @@ compose.desktop {
             packageName = "Flow"
             packageVersion = "1.0.0"
             appResourcesRootDir.set(layout.buildDirectory.dir("builtinModules"))
+
+            macOS {
+                iconFile.set(project.file("icons/appicon.icns"))
+            }
+            linux {
+                iconFile.set(project.file("appicon.png"))
+            }
+            // no .ico on hand (built on macOS, no Windows/ImageMagick tooling here) — jpackage falls
+            // back to its default icon for the Windows target until one is added.
         }
     }
 }
