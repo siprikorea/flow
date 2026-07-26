@@ -12,12 +12,6 @@ data class OptDef(
     val choices: List<String> = emptyList(),
 )
 
-// convenience builders
-fun optText(name: String, default: String = "") = OptDef(name, OptType.TEXT, default)
-fun optNum(name: String, default: String = "0") = OptDef(name, OptType.NUMBER, default)
-fun optSelect(name: String, default: String, vararg choices: String) =
-    OptDef(name, OptType.SELECT, default, choices.toList())
-
 data class ModuleDef(
     val type: String,
     val name: Map<String, String>,
@@ -30,25 +24,10 @@ data class ModuleDef(
     fun defaultParams(): Map<String, String> = options.associate { it.name to it.default }
 }
 
-// Module definitions = the built-in registry.
-val REGISTRY = listOf(
-    ModuleDef("csv", mapOf("ko" to "CSV 입력", "en" to "CSV Input"), "source", emptyList(), listOf("out"),
-        listOf(optText("path", "data.csv"), optSelect("delimiter", ",", ",", ";", "\\t", "|"))),
-    ModuleDef("filter", mapOf("ko" to "필터", "en" to "Filter"), "transform", listOf("in"), listOf("pass", "fail"),
-        listOf(optText("expr", "value > 0"))),
-    ModuleDef("map", mapOf("ko" to "매핑", "en" to "Map"), "transform", listOf("in"), listOf("out"),
-        listOf(optText("expr", "x * 2"))),
-    ModuleDef("agg", mapOf("ko" to "집계", "en" to "Aggregate"), "transform", listOf("in"), listOf("out"),
-        listOf(optSelect("fn", "sum", "sum", "avg", "min", "max", "count"), optText("key", "value"))),
-    ModuleDef("log", mapOf("ko" to "로그 출력", "en" to "Log"), "sink", listOf("in"), emptyList(),
-        listOf(optSelect("level", "info", "debug", "info", "warn", "error"))),
-    ModuleDef("fout", mapOf("ko" to "파일 출력", "en" to "File Output"), "sink", listOf("in"), emptyList(),
-        listOf(optText("path", "out.json"))),
-    ModuleDef("jflat", mapOf("ko" to "JSON 평탄화", "en" to "JSON Flatten"), "transform", listOf("in"), listOf("out"),
-        listOf(optNum("depth", "2"))),
-    ModuleDef("regex", mapOf("ko" to "정규식 추출", "en" to "Regex Extract"), "transform", listOf("in"), listOf("out"),
-        listOf(optText("pattern", "\\d+"))),
-)
+// Built-in modules, beyond the io boundary nodes below, are provided entirely by extensions
+// (flow-extensions/*) now — this stays declared (rather than removed) so palette/props code that
+// iterates it keeps working unchanged if a true built-in is ever added again.
+val REGISTRY = emptyList<ModuleDef>()
 
 // Component boundary nodes: cin = component input port, cout = output port. The label is the port name.
 val IO_DEFS = listOf(

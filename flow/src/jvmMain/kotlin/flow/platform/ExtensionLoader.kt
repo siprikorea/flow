@@ -7,8 +7,6 @@ import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
 import flow.model.OptType
-import flow.util.bytesToLatin1
-import flow.util.latin1ToBytes
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URLClassLoader
@@ -47,16 +45,11 @@ internal object ExtensionLoader {
         }, it.default, it.choices)
     }
 
-    // Extension ports carry bytes; the engine speaks strings, so bridge losslessly (not UTF-8 —
-    // ciphertext and other binary output isn't valid UTF-8, and decodeToString's U+FFFD
-    // substitution for invalid sequences would corrupt/resize it on the way back to bytes).
+    // Extension ports and the engine both carry raw bytes now, so no bridging is needed here.
     // Exceptions (e.g. an invalid key/IV size) propagate to the caller, which attributes them to
     // the specific node and surfaces them as that node's error status (see FlowEngine.evaluate).
-    private fun runExtension(ext: ModuleExtension, inputs: Map<String, String?>, options: Map<String, String>): Map<String, String?> {
-        val byteIn = inputs.mapValues { it.value?.let { s -> latin1ToBytes(s) } }
-        val byteOut = ext.process(byteIn, options)
-        return byteOut.mapValues { it.value?.let { b -> bytesToLatin1(b) } }
-    }
+    private fun runExtension(ext: ModuleExtension, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
+        ext.process(inputs, options)
 
     /* ───────── installed modules (isolated loader per folder) ───────── */
 
@@ -91,7 +84,7 @@ internal object ExtensionLoader {
     fun moduleInfos(): List<ModuleInfo> =
         loadedModules().values.map { m -> ModuleInfo(m.ext.id, m.ext.displayName, m.ext.inputs, m.ext.outputs, optDefs(m.ext), m.builtin) }
 
-    fun process(id: String, inputs: Map<String, String?>, options: Map<String, String>): Map<String, String?> =
+    fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
         loadedModules()[id]?.ext?.let { runExtension(it, inputs, options) } ?: emptyMap()
 
     /* ───────── installed components (per folder) ───────── */
@@ -108,7 +101,7 @@ internal object ExtensionLoader {
     }
 
     // run a component in its own folder sandbox (only bundled dependency modules; independent of global modules)
-    fun runComponent(id: String, inputs: Map<String, String?>): Map<String, String?> {
+    fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> {
         val dir = File(componentsDir, id)
         val compFile = File(dir, "component.json")
         if (!compFile.exists()) return emptyMap()
@@ -125,7 +118,7 @@ internal object ExtensionLoader {
             moduleIds = sandbox.keys,
             moduleProcess = { mid, ins, params -> sandbox[mid]?.let { runExtension(it, ins, params) } ?: emptyMap() },
         )
-        return engine.run(flow, inputs.mapValues { it.value ?: "" })
+        return engine.run(flow, inputs.mapValues { it.value ?: ByteArray(0) })
     }
 
     /* ───────── uninstall ───────── */

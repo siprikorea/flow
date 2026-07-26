@@ -30,11 +30,11 @@ actual object Platform {
 
     // ── installed modules/components (delegated to ExtensionLoader) ──
     actual fun installedModuleInfos(): List<ModuleInfo> = ExtensionLoader.moduleInfos()
-    actual fun moduleProcess(id: String, inputs: Map<String, String?>, options: Map<String, String>): Map<String, String?> =
+    actual fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
         ExtensionLoader.process(id, inputs, options)
     actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
     actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
-    actual fun runComponent(id: String, inputs: Map<String, String?>): Map<String, String?> = ExtensionLoader.runComponent(id, inputs)
+    actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)
     actual fun installJar(path: String, overwrite: Boolean): InstallResult = ExtensionLoader.installJar(path, overwrite)
     actual fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult = ExtensionLoader.installComponent(id, flowJson, overwrite)
     actual fun uninstallModule(id: String) = ExtensionLoader.uninstallModule(id)

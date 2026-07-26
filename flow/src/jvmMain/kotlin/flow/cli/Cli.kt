@@ -111,13 +111,15 @@ fun main(args: Array<String>) {
     }
     comp.ins.forEach { inputs.putIfAbsent(it, "") }
 
-    val result: Map<String, String?>
+    // the engine speaks bytes; the CLI's own boundary (args in, stdout out) is plain UTF-8 text
+    val byteInputs = inputs.mapValues { it.value.encodeToByteArray() }
+    val result: Map<String, ByteArray?>
     if (isInstalled) {
-        result = Platform.runComponent(ref.removeSuffix(".json"), inputs) // sandbox
+        result = Platform.runComponent(ref.removeSuffix(".json"), byteInputs) // sandbox
     } else {
         val eng = engine()
-        result = eng.run(flow, inputs) // global modules
+        result = eng.run(flow, byteInputs) // global modules
         eng.errors.forEach { (nodeId, msg) -> System.err.println("⚠ $nodeId: $msg") }
     }
-    comp.outs.forEach { out -> println("$out = ${result[out] ?: ""}") }
+    comp.outs.forEach { out -> println("$out = ${result[out]?.decodeToString() ?: ""}") }
 }

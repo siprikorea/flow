@@ -8,7 +8,8 @@ import flow.model.isComp
 /**
  * Flow execution engine (UI-independent).
  * Takes cin (input boundary) values, evaluates nodes in topological order, and returns cout (output boundary) values.
- * Scalar (string/number) data model — expressions are evaluated by [Expr].
+ * Ports carry raw bytes end to end — no text/charset conversion happens inside the engine, so
+ * binary module output (e.g. Crypto ciphertext) flows between nodes without any risk of corruption.
  *
  * @param loadFlow loader used to expand nested components (comp:<file>)
  * @param moduleIds set of installed module extension ids (nodes of that type are evaluated via process)
@@ -17,20 +18,20 @@ import flow.model.isComp
 class FlowEngine(
     private val loadFlow: (String) -> FlowFile?,
     private val moduleIds: Set<String> = emptySet(),
-    private val moduleProcess: (String, Map<String, String?>, Map<String, String>) -> Map<String, String?> = { _, _, _ -> emptyMap() },
+    private val moduleProcess: (String, Map<String, ByteArray?>, Map<String, String>) -> Map<String, ByteArray?> = { _, _, _ -> emptyMap() },
 ) {
     // node id -> error message, from the most recent evaluate() call (run/runByNode)
     private val _errors = LinkedHashMap<String, String>()
     val errors: Map<String, String> get() = _errors
 
     // Evaluate every node; returns (nodeId, portName) -> value for all outputs.
-    private fun evaluate(flow: FlowFile, inputs: Map<String, String>): Map<Pair<String, String>, String?> {
+    private fun evaluate(flow: FlowFile, inputs: Map<String, ByteArray>): Map<Pair<String, String>, ByteArray?> {
         _errors.clear()
         val byId = flow.nodes.associateBy { it.id }
-        val outVals = HashMap<Pair<String, String>, String?>()
+        val outVals = HashMap<Pair<String, String>, ByteArray?>()
         for (nid in topoOrder(flow)) {
             val node = byId[nid] ?: continue
-            val inVals: Map<String, String?> = node.inputs.associate { port ->
+            val inVals: Map<String, ByteArray?> = node.inputs.associate { port ->
                 val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
                 port.name to (if (e == null) null else outVals[e.from.node to e.from.port])
             }
@@ -45,25 +46,24 @@ class FlowEngine(
     }
 
     // the value arriving at a cout node (following its single input edge)
-    private fun coutValue(flow: FlowFile, cout: Node, outVals: Map<Pair<String, String>, String?>): String? {
+    private fun coutValue(flow: FlowFile, cout: Node, outVals: Map<Pair<String, String>, ByteArray?>): ByteArray? {
         val e = flow.edges.firstOrNull { it.to.node == cout.id && it.to.port == (cout.inputs.firstOrNull()?.name ?: "in") }
         return if (e != null) outVals[e.from.node to e.from.port] else null
     }
 
     // cin label -> value. Returns: cout label -> value (labels must be unique)
-    fun run(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
+    fun run(flow: FlowFile, inputs: Map<String, ByteArray>): Map<String, ByteArray?> {
         val outVals = evaluate(flow, inputs)
         return flow.nodes.filter { it.type == "cout" }.associate { it.label to coutValue(flow, it, outVals) }
     }
 
     // cout node id -> value (no label-collision; used by the in-app output editors)
-    fun runByNode(flow: FlowFile, inputs: Map<String, String>): Map<String, String?> {
+    fun runByNode(flow: FlowFile, inputs: Map<String, ByteArray>): Map<String, ByteArray?> {
         val outVals = evaluate(flow, inputs)
         return flow.nodes.filter { it.type == "cout" }.associate { it.id to coutValue(flow, it, outVals) }
     }
 
-    private fun evalNode(node: Node, inVals: Map<String, String?>, externalInputs: Map<String, String?>): Map<String, String?> {
-        fun single() = inVals.values.firstOrNull()
+    private fun evalNode(node: Node, inVals: Map<String, ByteArray?>, externalInputs: Map<String, ByteArray?>): Map<String, ByteArray?> {
         return when {
             node.type == "cin" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to externalInputs[node.label])
             node.type == "cout" -> emptyMap()
@@ -71,20 +71,12 @@ class FlowEngine(
             isComp(node.type) -> {
                 val sub = loadFlow(compFile(node.type)) ?: return node.outputs.associate { it.name to null }
                 // component input ports (node.inputs) = the sub-component's cin labels
-                val subInputs = node.inputs.associate { it.name to (inVals[it.name] ?: "") }
-                val subOut = run(sub, subInputs.mapValues { it.value ?: "" })
+                val subInputs = node.inputs.associate { it.name to (inVals[it.name] ?: ByteArray(0)) }
+                val subOut = run(sub, subInputs)
                 node.outputs.associate { it.name to subOut[it.name] }
             }
-            node.type == "map" -> mapOf("out" to Expr.evalToString(node.params["expr"] ?: "x", single()))
-            node.type == "filter" -> {
-                val v = single()
-                val pass = Expr.evalToBool(node.params["expr"] ?: "value", v)
-                mapOf("pass" to if (pass) v else null, "fail" to if (pass) null else v)
-            }
-            node.type == "agg" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to single())
-            node.type == "csv" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to (node.params["value"] ?: node.params["path"] ?: ""))
-            node.outputs.isEmpty() -> emptyMap() // sink (log/fout, etc.)
-            else -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to single()) // default: identity
+            node.outputs.isEmpty() -> emptyMap() // sink
+            else -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to inVals.values.firstOrNull()) // default: identity
         }
     }
 

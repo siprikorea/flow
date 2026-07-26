@@ -17,8 +17,6 @@ import flow.model.findDef
 import flow.model.indexOfPort
 import flow.model.isComp
 import flow.platform.Platform
-import flow.util.bytesToLatin1
-import flow.util.latin1ToBytes
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -509,9 +507,7 @@ class EditorState(
     }
 
     // Run the flow engine over the current graph and store cout outputs (transient).
-    // cin input = its output-port bytes bridged losslessly to a string; cout output bytes = engine
-    // result bridged back. Not UTF-8: binary module output (e.g. Crypto ciphertext) flowing between
-    // nodes isn't valid UTF-8, and decodeToString's U+FFFD substitution would corrupt/resize it.
+    // Ports carry raw bytes end to end now, so no text/charset bridging happens here.
     private fun computeOutputs() {
         val flow = FlowFile(1, nodes, edges, seq)
         val inputs = nodes.filter { it.type == "cin" }.associate { n ->
@@ -521,7 +517,7 @@ class EditorState(
                 val sz = Platform.fileSize(file)
                 if (sz in 0..Int.MAX_VALUE.toLong()) Platform.readFileRange(file, 0, sz.toInt()) else ByteArray(0)
             } else (n.outputs.firstOrNull()?.data ?: ByteArray(0))
-            n.label to bytesToLatin1(data)
+            n.label to data
         }
         val engine = FlowEngine(
             loadFlow = { name ->
@@ -536,7 +532,7 @@ class EditorState(
         val result = runCatching { engine.runByNode(flow, inputs) }.getOrDefault(emptyMap())
         nodeErrors = engine.errors
         runOutputs = nodes.filter { it.type == "cout" }
-            .associate { n -> n.id to latin1ToBytes(result[n.id] ?: "") }
+            .associate { n -> n.id to (result[n.id] ?: ByteArray(0)) }
     }
 
     fun runFromSelection(id: String? = null) {
