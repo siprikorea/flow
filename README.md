@@ -11,19 +11,19 @@ Built with **Compose Multiplatform** (Kotlin). All UI, state, and logic live in 
 ## Run / Build
 
 ```bash
-./gradlew :composeApp:run              # Run the desktop app
-./gradlew :composeApp:compileKotlinJvm # Compile only
-./gradlew :composeApp:packageDistributionForCurrentOs  # Native distribution package
+./gradlew :flow:run              # Run the desktop app
+./gradlew :flow:compileKotlinJvm # Compile only
+./gradlew :flow:packageDistributionForCurrentOs  # Native distribution package
 ```
 
 ## Project Structure
 
 ```
 flow_editor/
-├── settings.gradle.kts          # rootProject "flow", includes :composeApp
+├── settings.gradle.kts          # rootProject "flow", includes :flow
 ├── gradle.properties
 ├── gradlew / gradlew.bat        # Gradle wrapper (9.3.1)
-└── composeApp/
+└── flow/
     ├── build.gradle.kts         # Kotlin Multiplatform + Compose + serialization
     └── src/
         ├── commonMain/kotlin/flow/
@@ -68,13 +68,13 @@ flow_editor/
 - JSON export: `{version, nodes, edges, seq}` / import via an AWT file dialog
 
 ## Module Definitions (plugin registry)
-The `ModuleDef` array in [Registry.kt](composeApp/src/commonMain/kotlin/flow/Registry.kt) is the plugin list — external plugins appear in the sidebar once registered here.
+The `ModuleDef` array in [Registry.kt](flow/src/commonMain/kotlin/flow/Registry.kt) is the plugin list — external plugins appear in the sidebar once registered here.
 - Built-in: csv(0→1), filter(1→2: pass/fail), map(1→1), merge(2→1: a,b), split(1→2), agg(1→1), log(1→0), fout(1→0)
 - Example plugins: jflat (JSON flatten), regex (regex extract)
 - Categories: source / transform / sink
 
 ## Design Tokens
-Colors, spacing, and typography reproduce the original design spec pixel for pixel. Color tokens are defined in [Palette.kt](composeApp/src/commonMain/kotlin/flow/Palette.kt).
+Colors, spacing, and typography reproduce the original design spec pixel for pixel. Color tokens are defined in [Palette.kt](flow/src/commonMain/kotlin/flow/Palette.kt).
 - Backgrounds: app #14161B · panel #1B1E26 · canvas #101218 · node #1D212B
 - Accents: #5B8CFF · success #34C98E · error #FF5C5C · categories #22C3A6 / #B07BFF / #FF9D5C
 - Grid unit 20, node/card radius 7–9, button radius 5–6
@@ -85,36 +85,38 @@ Colors, spacing, and typography reproduce the original design spec pixel for pix
 Besides the UI, a component can be executed from the terminal: pick a component (a flow with input/output boundary nodes) and feed it input; it evaluates the graph and prints the output. Backed by a UI-independent execution engine (`flow.engine`).
 
 ```bash
-./gradlew :composeApp:cli --args="--list"            # list available components
-./gradlew :composeApp:cli --args="triple 5"          # single input → out = 15
-./gradlew :composeApp:cli --args="double --in in=10" # per-port input → out = 20
+./gradlew :flow:cli --args="--list"            # list available components
+./gradlew :flow:cli --args="triple 5"          # single input → out = 15
+./gradlew :flow:cli --args="double --in in=10" # per-port input → out = 20
 ```
 
 Components are read from `~/.flow/flows` (by name) or a file path. The engine evaluates nodes in topological order; `map`/`filter` expressions are handled by a small evaluator (arithmetic, comparisons, variable `x`/`value`), and nested `comp:` nodes are expanded recursively.
 
-## Plugins
+## Extensions
 
-Plugins provide **modules only** — components are built inside the Flow tool and added there. A module plugin is identified by a **package-format id** and declares input/output ids. The `plugin-api` module defines the contract:
+Extensions provide **modules only** — components are built inside the Flow tool and added there. A module extension is identified by a **package-format id**, declares input/output ids, and may declare typed options (text / number / select) shown in the property panel. Its ports carry **bytes**. The `flow-extension-api` module defines the contract:
 
-- **Module plugin** (`ModulePlugin`) — the actual implementation: `process(inputs) → outputs`. Distributed as code (a JAR), registered under `META-INF/services/flow.plugin.ModulePlugin`.
+- **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code (a JAR), registered under `META-INF/services/flow.extension.ModuleExtension`.
+
+First-party (built-in) extensions live under `flow-extensions/` using `flow.*` package ids; `flow-extensions/sample-extension` is a third-party example under `com.example.*`.
 
 ### Storage & sandbox (installed, read-only)
 Installed modules live under the app data dir, keyed by id, each in **its own folder** with its dependency JARs bundled alongside:
-- `~/.flow/modules/<id>/*.jar` — module plugin + its dependency modules.
+- `~/.flow/modules/<id>/*.jar` — module extension + its dependency modules.
 
-Tool-made components you install go to `~/.flow/components/<id>/component.json` (+ bundled dependency module JARs). Each module and each component runs in a **sandbox**: an isolated classloader over just its own folder's JARs, so one plugin's dependencies never clash with another's.
+Tool-made components you install go to `~/.flow/components/<id>/component.json` (+ bundled dependency module JARs). Each module and each component runs in a **sandbox**: an isolated classloader over just its own folder's JARs, so one extension's dependencies never clash with another's.
 
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 
 ### Installing
-Use the **Flow (logo) menu → Install Plugin…** to pick a JAR, or **Install Current Component** to install the open editor component. If the id already exists, you're asked to **overwrite**. From the terminal:
+Use the **Flow (logo) menu → Install Extension…** to pick a JAR, or **Install Current Component** to install the open editor component. If the id already exists, you're asked to **overwrite**. From the terminal:
 
 ```bash
-./gradlew :plugins:sample-plugin:jar
-./gradlew :composeApp:cli --args="--install /abs/path/sample-plugin.jar"   # add --force to overwrite
+./gradlew :flow-extensions:base64-extension:jar
+./gradlew :flow:cli --args="--install /abs/path/base64-extension.jar"   # add --force to overwrite
 ```
 
-Modules: `plugin-api` (contract), `composeApp` (editor + CLI + install/registry), `plugins/sample-plugin` (module plugins `com.example.mul3` and `com.example.upper`).
+Modules: `flow-extension-api` (contract), `flow` (editor + CLI + install/registry), `flow-extensions/base64-extension` (`flow.base64`, with an encode/decode option) and `flow-extensions/sample-extension` (`com.example.mul3`, `com.example.upper`).
 
 ## Notes
 The numeric specs — grid snapping, port placement, bezier curves, simulation timings — come from the original HTML design prototype. This repository is a Compose Multiplatform reimplementation of that spec.

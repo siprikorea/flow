@@ -14,6 +14,7 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "flow"
-include(":composeApp")
-include(":plugin-api")
-include(":plugins:sample-plugin")
+include(":flow")
+include(":flow-extension-api")
+include(":flow-extensions:sample-extension")
+include(":flow-extensions:base64-extension")
