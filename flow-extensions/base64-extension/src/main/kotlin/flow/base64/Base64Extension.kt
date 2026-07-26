@@ -21,8 +21,9 @@ class Base64Extension : ModuleExtension {
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val data = inputs["in"] ?: return mapOf("out" to null)
+        // a malformed decode input throws — the host surfaces that as visible output
         val out = when (options["mode"] ?: "encode") {
-            "decode" -> runCatching { Base64.getDecoder().decode(data.decodeToString().trim()) }.getOrNull()
+            "decode" -> Base64.getDecoder().decode(data.decodeToString().trim())
             else -> Base64.getEncoder().encode(data)
         }
         return mapOf("out" to out)
