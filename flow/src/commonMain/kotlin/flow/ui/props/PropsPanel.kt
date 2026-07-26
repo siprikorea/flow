@@ -132,6 +132,19 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
         Txt(title, 13.5.sp, Palette.text, weight = FontWeight.SemiBold)
     }
 
+    // the module's exception message from the last run, if this node failed to process
+    state.nodeErrors[node.id]?.let { message ->
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            SectionLabel(state.t("errorLabel"))
+            Box(
+                Modifier.fillMaxWidth()
+                    .background(Palette.error.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                    .border(1.dp, Palette.dangerBorder, RoundedCornerShape(6.dp))
+                    .padding(10.dp),
+            ) { Txt(message, 12.sp, Palette.errorSoft) }
+        }
+    }
+
     if (comp) {
         PanelButton(state.t("openComponent"), Palette.runFromBorder, Palette.accentHover) {
             state.ws.openFile(compFile(node.type))

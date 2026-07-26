@@ -49,6 +49,8 @@ class EditorState(
     var running by mutableStateOf(false)
     // transient run outputs: cout node id -> output bytes (not persisted to the file)
     var runOutputs by mutableStateOf<Map<String, ByteArray>>(emptyMap())
+    // transient per-node processing errors from the last run (not persisted); node id -> message
+    var nodeErrors by mutableStateOf<Map<String, String>>(emptyMap())
     var spaceDown by mutableStateOf(false)
     var canvasSize by mutableStateOf(IntSize.Zero)
     var canvasOrigin by mutableStateOf(Offset.Zero) // window coordinates
@@ -523,10 +525,12 @@ class EditorState(
                     ?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() }
             },
             moduleIds = runCatching { Platform.installedModuleInfos().map { it.id }.toSet() }.getOrDefault(emptySet()),
-            moduleProcess = { id, ins, params -> runCatching { Platform.moduleProcess(id, ins, params) }.getOrDefault(emptyMap()) },
+            // let a module's exception propagate — the engine attributes it to the failing node
+            moduleProcess = { id, ins, params -> Platform.moduleProcess(id, ins, params) },
         )
         // key by cout node id (not label) so two outputs never share a value
         val result = runCatching { engine.runByNode(flow, inputs) }.getOrDefault(emptyMap())
+        nodeErrors = engine.errors
         runOutputs = nodes.filter { it.type == "cout" }
             .associate { n -> n.id to (result[n.id] ?: "").encodeToByteArray() }
     }

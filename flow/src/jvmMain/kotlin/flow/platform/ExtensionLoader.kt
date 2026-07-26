@@ -46,12 +46,11 @@ internal object ExtensionLoader {
     }
 
     // Extension ports carry bytes; the engine speaks strings, so bridge via UTF-8.
-    // A thrown exception (e.g. an invalid key/IV size) surfaces as the error text on every
-    // declared output port, instead of silently producing null with no clue why.
+    // Exceptions (e.g. an invalid key/IV size) propagate to the caller, which attributes them to
+    // the specific node and surfaces them as that node's error status (see FlowEngine.evaluate).
     private fun runExtension(ext: ModuleExtension, inputs: Map<String, String?>, options: Map<String, String>): Map<String, String?> {
         val byteIn = inputs.mapValues { it.value?.encodeToByteArray() }
-        val byteOut = runCatching { ext.process(byteIn, options) }
-            .getOrElse { e -> return ext.outputs.associateWith { "⚠ ${e.message ?: e::class.simpleName}" } }
+        val byteOut = ext.process(byteIn, options)
         return byteOut.mapValues { it.value?.decodeToString() }
     }
 

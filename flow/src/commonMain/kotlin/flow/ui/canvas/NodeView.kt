@@ -78,7 +78,11 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
     }
     // validation error (unconnected ports) — only flagged after an open/save validation
     val validationError = if (state.showValidation) state.nodeConnectionError(node) else null
+    // a module that threw while processing (bad key/IV size, etc.) on the last run — click the
+    // node to see the full message in the properties panel
+    val processError = state.nodeErrors[node.id]
     val borderColor = when {
+        processError != null -> Palette.error
         node.status == "running" -> Palette.accent
         node.status == "done" -> Palette.doneBorder
         node.status == "error" -> Palette.error
@@ -97,9 +101,9 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         "done" -> Palette.successText
         else -> Palette.errorSoft
     }
-    // bottom label: run status takes priority; otherwise show the validation error
-    val bottomMsg = statusText ?: validationError
-    val bottomColor = if (statusText != null) statusColor else Palette.errorSoft
+    // bottom label: a processing error takes priority, then run status, then the validation error
+    val bottomMsg = if (processError != null) state.t("stError") else statusText ?: validationError
+    val bottomColor = if (processError != null) Palette.errorSoft else if (statusText != null) statusColor else Palette.errorSoft
     // kind badge (top-left): I=input / O=output / M=module / C=component
     val kindLetter = when {
         node.type == "cin" -> "I"

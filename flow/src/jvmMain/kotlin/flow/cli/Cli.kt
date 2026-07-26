@@ -111,7 +111,13 @@ fun main(args: Array<String>) {
     }
     comp.ins.forEach { inputs.putIfAbsent(it, "") }
 
-    val result = if (isInstalled) Platform.runComponent(ref.removeSuffix(".json"), inputs) // sandbox
-    else engine().run(flow, inputs) // global modules
+    val result: Map<String, String?>
+    if (isInstalled) {
+        result = Platform.runComponent(ref.removeSuffix(".json"), inputs) // sandbox
+    } else {
+        val eng = engine()
+        result = eng.run(flow, inputs) // global modules
+        eng.errors.forEach { (nodeId, msg) -> System.err.println("⚠ $nodeId: $msg") }
+    }
     comp.outs.forEach { out -> println("$out = ${result[out] ?: ""}") }
 }

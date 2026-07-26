@@ -19,9 +19,13 @@ class FlowEngine(
     private val moduleIds: Set<String> = emptySet(),
     private val moduleProcess: (String, Map<String, String?>, Map<String, String>) -> Map<String, String?> = { _, _, _ -> emptyMap() },
 ) {
+    // node id -> error message, from the most recent evaluate() call (run/runByNode)
+    private val _errors = LinkedHashMap<String, String>()
+    val errors: Map<String, String> get() = _errors
 
     // Evaluate every node; returns (nodeId, portName) -> value for all outputs.
     private fun evaluate(flow: FlowFile, inputs: Map<String, String>): Map<Pair<String, String>, String?> {
+        _errors.clear()
         val byId = flow.nodes.associateBy { it.id }
         val outVals = HashMap<Pair<String, String>, String?>()
         for (nid in topoOrder(flow)) {
@@ -30,7 +34,12 @@ class FlowEngine(
                 val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
                 port.name to (if (e == null) null else outVals[e.from.node to e.from.port])
             }
-            evalNode(node, inVals, inputs).forEach { (p, v) -> outVals[nid to p] = v }
+            // a module throwing (bad key/IV size, etc.) is attributed to this node, not swallowed silently
+            val result = runCatching { evalNode(node, inVals, inputs) }.getOrElse { e ->
+                _errors[nid] = e.message ?: e::class.simpleName ?: "error"
+                node.outputs.associate { it.name to null }
+            }
+            result.forEach { (p, v) -> outVals[nid to p] = v }
         }
         return outVals
     }
