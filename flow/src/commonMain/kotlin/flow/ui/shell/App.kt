@@ -316,9 +316,8 @@ fun ExtensionsScreen(ws: Workspace) {
                     Txt(ws.t("installedModules").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
                     if (ws.installedModules.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
                     ws.installedModules.forEach { m ->
-                        ManageRow(ws, title = m.name, id = m.id, io = "${m.inputs.size}→${m.outputs.size}") {
-                            ws.uninstallModule(m.id)
-                        }
+                        ManageRow(ws, title = m.name, id = m.id, io = "${m.inputs.size}→${m.outputs.size}",
+                            onUninstall = if (m.builtin) null else { { ws.uninstallModule(m.id) } })
                     }
                 }
 
@@ -338,7 +337,7 @@ fun ExtensionsScreen(ws: Workspace) {
 }
 
 @Composable
-private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUninstall: () -> Unit) {
+private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUninstall: (() -> Unit)?) {
     Row(
         Modifier
             .width(520.dp)
@@ -351,11 +350,18 @@ private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUn
         Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
         Txt(id, 11.sp, Palette.dimText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
         Txt(io, 10.5.sp, Palette.dimText, mono = true)
-        Box(
-            Modifier.border(1.dp, Palette.dangerBorder, RoundedCornerShape(5.dp))
-                .plainClick(onUninstall)
-                .padding(horizontal = 8.dp, vertical = 3.dp)
-        ) { Txt(ws.t("uninstall"), 11.sp, Palette.errorSoft) }
+        if (onUninstall != null) {
+            Box(
+                Modifier.border(1.dp, Palette.dangerBorder, RoundedCornerShape(5.dp))
+                    .plainClick(onUninstall)
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) { Txt(ws.t("uninstall"), 11.sp, Palette.errorSoft) }
+        } else {
+            Box(
+                Modifier.border(1.dp, Palette.buttonBorder, RoundedCornerShape(5.dp))
+                    .padding(horizontal = 8.dp, vertical = 3.dp)
+            ) { Txt(ws.t("builtin"), 11.sp, Palette.faintText) }
+        }
     }
 }
 

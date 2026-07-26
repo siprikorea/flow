@@ -79,6 +79,7 @@ data class ModuleInfo(
     val inputs: List<String>,
     val outputs: List<String>,
     val options: List<OptDef> = emptyList(),
+    val builtin: Boolean = false, // bundled with the app install, not user-removable
 )
 
 // Install result: installed ids and conflicting (already-existing) ids
