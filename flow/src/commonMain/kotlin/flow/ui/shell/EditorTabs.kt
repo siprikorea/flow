@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -38,31 +39,39 @@ fun EditorTabs(ws: Workspace) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             ws.docs.forEachIndexed { i, doc ->
-                Tab(
-                    name = doc.fileName.removeSuffix(".flow"),
-                    active = i == ws.activeIndex && ws.activeData == null,
-                    dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catComponent else Palette.dimText,
-                    dirty = doc.dirty,
-                    onSelect = { ws.select(i) },
-                    onClose = { ws.requestClose(i) },
-                    onDoubleClick = {
-                        // leave only the canvas; double-click again restores both panels
-                        val anyOpen = ws.showLeft || ws.showProps
-                        ws.showLeft = !anyOpen
-                        ws.showProps = !anyOpen
-                    },
-                )
+                // keyed by the doc's own identity, not its list position: closing a tab shifts every
+                // later one left, and without a key Compose reuses each slot's remembered state
+                // (including the click/double-click gesture detector below) for whatever tab now
+                // lands there — stale state that can make the first click after a close misbehave.
+                key(doc) {
+                    Tab(
+                        name = doc.fileName.removeSuffix(".flow"),
+                        active = i == ws.activeIndex && ws.activeData == null,
+                        dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catComponent else Palette.dimText,
+                        dirty = doc.dirty,
+                        onSelect = { ws.select(i) },
+                        onClose = { ws.requestClose(i) },
+                        onDoubleClick = {
+                            // leave only the canvas; double-click again restores both panels
+                            val anyOpen = ws.showLeft || ws.showProps
+                            ws.showLeft = !anyOpen
+                            ws.showProps = !anyOpen
+                        },
+                    )
+                }
             }
             // data-editor tabs (in/out sample data)
             ws.dataTabs.forEach { tab ->
-                Tab(
-                    name = tab.title,
-                    active = ws.activeData === tab,
-                    dotColor = Palette.catIo,
-                    dirty = false,
-                    onSelect = { ws.selectDataTab(tab) },
-                    onClose = { ws.closeDataTab(tab) },
-                )
+                key(tab) {
+                    Tab(
+                        name = tab.title,
+                        active = ws.activeData === tab,
+                        dotColor = Palette.catIo,
+                        dirty = false,
+                        onSelect = { ws.selectDataTab(tab) },
+                        onClose = { ws.closeDataTab(tab) },
+                    )
+                }
             }
             Box(
                 Modifier.plainClick { ws.newComponent() }.padding(horizontal = 12.dp, vertical = 6.dp),

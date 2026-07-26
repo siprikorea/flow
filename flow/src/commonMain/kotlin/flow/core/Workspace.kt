@@ -100,8 +100,14 @@ class Workspace(private val scope: CoroutineScope) {
     fun selectDataTab(tab: DataTab) { activeData = tab }
 
     fun closeDataTab(tab: DataTab) {
-        dataTabs.remove(tab)
-        if (activeData === tab) activeData = null
+        val i = dataTabs.indexOf(tab)
+        if (i < 0) return
+        dataTabs.removeAt(i)
+        if (activeData === tab) {
+            // same index now holds the next tab; if this was the last one, fall back to the previous;
+            // if there are no data tabs left, null reveals the active document's canvas
+            activeData = dataTabs.getOrNull(i) ?: dataTabs.getOrNull(i - 1)
+        }
     }
 
     // project files + components + installed modules
