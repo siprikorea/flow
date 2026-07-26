@@ -7,6 +7,8 @@ import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
 import flow.model.OptType
+import flow.util.bytesToLatin1
+import flow.util.latin1ToBytes
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URLClassLoader
@@ -45,13 +47,15 @@ internal object ExtensionLoader {
         }, it.default, it.choices)
     }
 
-    // Extension ports carry bytes; the engine speaks strings, so bridge via UTF-8.
+    // Extension ports carry bytes; the engine speaks strings, so bridge losslessly (not UTF-8 —
+    // ciphertext and other binary output isn't valid UTF-8, and decodeToString's U+FFFD
+    // substitution for invalid sequences would corrupt/resize it on the way back to bytes).
     // Exceptions (e.g. an invalid key/IV size) propagate to the caller, which attributes them to
     // the specific node and surfaces them as that node's error status (see FlowEngine.evaluate).
     private fun runExtension(ext: ModuleExtension, inputs: Map<String, String?>, options: Map<String, String>): Map<String, String?> {
-        val byteIn = inputs.mapValues { it.value?.encodeToByteArray() }
+        val byteIn = inputs.mapValues { it.value?.let { s -> latin1ToBytes(s) } }
         val byteOut = ext.process(byteIn, options)
-        return byteOut.mapValues { it.value?.decodeToString() }
+        return byteOut.mapValues { it.value?.let { b -> bytesToLatin1(b) } }
     }
 
     /* ───────── installed modules (isolated loader per folder) ───────── */

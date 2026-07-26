@@ -11,6 +11,17 @@ fun hexToBytes(hex: String): ByteArray =
         .mapNotNull { it.toIntOrNull(16)?.toByte() }
         .toByteArray()
 
+// Lossless byte <-> string bridge (1 byte <-> 1 char, Latin-1-style) used to carry raw bytes
+// through the engine's string-typed ports without loss. Unlike UTF-8 (decodeToString/
+// encodeToByteArray), every byte value round-trips exactly — required for binary module output
+// (e.g. Crypto ciphertext) flowing into another module or a cout: UTF-8's lossy U+FFFD
+// substitution for invalid sequences would otherwise silently corrupt/resize the data.
+fun bytesToLatin1(bytes: ByteArray): String = buildString(bytes.size) {
+    for (b in bytes) append((b.toInt() and 0xFF).toChar())
+}
+
+fun latin1ToBytes(s: String): ByteArray = ByteArray(s.length) { i -> (s[i].code and 0xFF).toByte() }
+
 // Decode bytes as UTF-8, emitting one U+FFFD per invalid byte, and record the byte
 // offset where each output char (UTF-16 unit) starts. offsets.size == text.length + 1.
 fun decodeUtf8Lossy(bytes: ByteArray): Pair<String, IntArray> {
