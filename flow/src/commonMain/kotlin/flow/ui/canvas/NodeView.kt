@@ -134,7 +134,9 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 }
             }
             .background(Palette.nodeBg, RoundedCornerShape(9.dp))
-            .border(1.5.dp, borderColor, RoundedCornerShape(9.dp))
+            // selection gets a thicker border independent of status color, so a selected node
+            // stays visibly marked even while running/done/error (mirrors the edge treatment).
+            .border(if (selected) 2.5.dp else 1.5.dp, borderColor, RoundedCornerShape(9.dp))
             .pointerHoverIcon(moveCursorIcon())
             .pointerInput(node.id, node.type) {
                 // whole node is draggable (ports/resize handle consume their own events):
