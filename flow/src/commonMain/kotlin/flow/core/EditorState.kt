@@ -470,7 +470,7 @@ class EditorState(
         // per-step animation duration in ms (from the seconds setting; larger = slower)
         val stepMs = (ws.animSeconds.coerceIn(0.05f, 10f) * 1000).toLong()
         // the sleep module runs for its configured delay; others use the step time
-        val runMs = if (node.type == "sleep" || node.type == "timeout") {
+        val runMs = if (node.type == "sleep" || node.type == "timeout" || node.type == "flow.sleep") {
             node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
         } else stepMs
         later(runMs) {

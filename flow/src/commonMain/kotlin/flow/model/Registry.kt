@@ -38,10 +38,6 @@ val REGISTRY = listOf(
         listOf(optText("expr", "value > 0"))),
     ModuleDef("map", mapOf("ko" to "매핑", "en" to "Map"), "transform", listOf("in"), listOf("out"),
         listOf(optText("expr", "x * 2"))),
-    ModuleDef("merge", mapOf("ko" to "병합", "en" to "Merge"), "transform", listOf("a", "b"), listOf("out"),
-        listOf(optText("sep", ""))),
-    ModuleDef("split", mapOf("ko" to "분기", "en" to "Split"), "transform", listOf("in"), listOf("a", "b"),
-        listOf(optText("sep", ","))),
     ModuleDef("agg", mapOf("ko" to "집계", "en" to "Aggregate"), "transform", listOf("in"), listOf("out"),
         listOf(optSelect("fn", "sum", "sum", "avg", "min", "max", "count"), optText("key", "value"))),
     ModuleDef("log", mapOf("ko" to "로그 출력", "en" to "Log"), "sink", listOf("in"), emptyList(),
@@ -52,12 +48,6 @@ val REGISTRY = listOf(
         listOf(optNum("depth", "2"))),
     ModuleDef("regex", mapOf("ko" to "정규식 추출", "en" to "Regex Extract"), "transform", listOf("in"), listOf("out"),
         listOf(optText("pattern", "\\d+"))),
-    ModuleDef("sleep", mapOf("ko" to "슬립", "en" to "Sleep"), "transform", listOf("in"), listOf("out"),
-        listOf(optNum("ms", "1000"))),
-    ModuleDef("b64enc", mapOf("ko" to "Base64 인코딩", "en" to "Base64 Encode"), "transform", listOf("in"), listOf("out")),
-    ModuleDef("b64dec", mapOf("ko" to "Base64 디코딩", "en" to "Base64 Decode"), "transform", listOf("in"), listOf("out")),
-    ModuleDef("hash", mapOf("ko" to "해시", "en" to "Hash"), "transform", listOf("in"), listOf("out"),
-        listOf(optSelect("algo", "SHA-256", "MD5", "SHA-1", "SHA-256", "SHA-512"))),
 )
 
 // Component boundary nodes: cin = component input port, cout = output port. The label is the port name.
@@ -68,8 +58,6 @@ val IO_DEFS = listOf(
 
 fun findDef(type: String): ModuleDef? =
     REGISTRY.find { it.type == type } ?: IO_DEFS.find { it.type == type }
-    // legacy alias: old files used "timeout" for what is now the "sleep" module
-        ?: if (type == "timeout") REGISTRY.find { it.type == "sleep" } else null
 
 // Component instance node type = "comp:<fileName>"
 fun isComp(type: String) = type.startsWith("comp:")
