@@ -93,5 +93,6 @@ fun FlowFile.asComponent(file: String): CompDef? {
     val cin = nodes.filter { it.type == "cin" }.sortedWith(compareBy({ it.y }, { it.x })).map { it.label }
     val cout = nodes.filter { it.type == "cout" }.sortedWith(compareBy({ it.y }, { it.x })).map { it.label }
     if (cin.isEmpty() && cout.isEmpty()) return null
-    return CompDef(file, file.removeSuffix(".json"), cin, cout)
+    // project files are ".flow"; installed components are always ".json" — strip whichever applies
+    return CompDef(file, file.removeSuffix(".flow").removeSuffix(".json"), cin, cout)
 }

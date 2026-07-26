@@ -225,7 +225,7 @@ private fun FileRow(ws: Workspace, name: String) {
         ) {
             Txt(if (isComp) "◆" else "▪", 11.sp, if (isComp) Palette.catComponent else Palette.dimText, weight = FontWeight.Bold)
             Txt(
-                name.removeSuffix(".json"), 12.sp,
+                name.removeSuffix(".flow"), 12.sp,
                 if (isActive || isOpen) Palette.text else Palette.menuText,
                 weight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1, modifier = Modifier.weight(1f),

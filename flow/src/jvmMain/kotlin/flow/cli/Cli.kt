@@ -10,13 +10,15 @@ import kotlin.system.exitProcess
 
 private val json = Json { ignoreUnknownKeys = true }
 
-// load a flow by name (project/installed component) or by file path
+// load a flow by name (project/installed component) or by file path.
+// project flow files are ".flow"; installed components are always ".json" (see ExtensionLoader) —
+// try both when no extension was given.
 private fun loadFlow(ref: String): FlowFile? {
-    val name = if (ref.endsWith(".json")) ref else "$ref.json"
+    val names = if (ref.endsWith(".flow") || ref.endsWith(".json")) listOf(ref) else listOf("$ref.flow", "$ref.json")
     val raw = File(ref).takeIf { it.isFile }?.readText()
-        ?: File(name).takeIf { it.isFile }?.readText()
-        ?: Platform.readFlow(name)
-        ?: Platform.readInstalledComponent(name)
+        ?: names.firstNotNullOfOrNull { name -> File(name).takeIf { it.isFile }?.readText() }
+        ?: names.firstNotNullOfOrNull { name -> Platform.readFlow(name) }
+        ?: names.firstNotNullOfOrNull { name -> Platform.readInstalledComponent(name) }
         ?: return null
     return runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull()
 }

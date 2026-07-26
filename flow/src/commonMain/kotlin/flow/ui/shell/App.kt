@@ -83,7 +83,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
         }
         ws.dragModule?.let { DragGhost(it) }
         ws.closeConfirm?.let { i ->
-            val name = ws.docs.getOrNull(i)?.fileName?.removeSuffix(".json") ?: ""
+            val name = ws.docs.getOrNull(i)?.fileName?.removeSuffix(".flow") ?: ""
             SaveCloseDialog(ws, name)
         }
         ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
@@ -153,7 +153,7 @@ private fun FileDeleteDialog(ws: Workspace, count: Int) {
 
 @Composable
 private fun RenameDialog(ws: Workspace, current: String) {
-    var text by remember(current) { mutableStateOf(current.removeSuffix(".json")) }
+    var text by remember(current) { mutableStateOf(current.removeSuffix(".flow")) }
     Box(
         Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelRename() },
         contentAlignment = Alignment.Center,
@@ -238,7 +238,7 @@ private fun DragGhost(d: DragModule) {
     val comp = isComp(d.type)
     val def = findDef(d.type)
     val label = when {
-        comp -> d.type.removePrefix("comp:").removeSuffix(".json")
+        comp -> d.type.removePrefix("comp:").removeSuffix(".flow").removeSuffix(".json")
         def != null -> def.name["en"] ?: def.type
         else -> d.type
     }

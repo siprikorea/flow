@@ -153,7 +153,7 @@ class Workspace(private val scope: CoroutineScope) {
     fun installActiveComponent() {
         val doc = active ?: return
         if (doc.nodes.none { it.type == "cin" || it.type == "cout" }) return // components only
-        val id = "local." + doc.fileName.removeSuffix(".json")
+        val id = "local." + doc.fileName.removeSuffix(".flow")
         val payload = doc.flowJson()
         val r = Platform.installComponent(id, payload, overwrite = false)
         if (r.conflicts.isNotEmpty()) {
@@ -193,7 +193,7 @@ class Workspace(private val scope: CoroutineScope) {
     fun openInstalledComponent(file: String) {
         val raw = Platform.readInstalledComponent(file) ?: return
         val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return
-        val name = nextName(file.removeSuffix(".json").substringAfterLast('.').ifBlank { "component" })
+        val name = nextName(file.removeSuffix(".flow").substringAfterLast('.').ifBlank { "flow" })
         val doc = EditorState(scope, this, name).also { it.load(flow); it.persisted = false; it.showValidation = true }
         docs.add(doc)
         activeData = null
@@ -248,7 +248,7 @@ class Workspace(private val scope: CoroutineScope) {
         renameTarget = null
         val trimmed = newBase.trim()
         if (trimmed.isEmpty()) return
-        val new = if (trimmed.endsWith(".json")) trimmed else "$trimmed.json"
+        val new = if (trimmed.endsWith(".flow")) trimmed else "$trimmed.flow"
         if (new == old) return
         if (Platform.renameFlow(old, new)) {
             docs.find { it.fileName == old }?.fileName = new // sync the open tab's file name
@@ -273,7 +273,7 @@ class Workspace(private val scope: CoroutineScope) {
     // New component: starts empty (drag in/out boundaries from the palette).
     // Not written to a file until saved; saving validates the in/out contract.
     fun newComponent() {
-        val name = nextName("comp")
+        val name = nextName("flow")
         val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
         docs.add(doc)
         activeData = null
@@ -341,8 +341,8 @@ class Workspace(private val scope: CoroutineScope) {
     private fun nextName(base: String): String {
         val existing = (files + docs.map { it.fileName }).toSet()
         var n = 1
-        while ("$base-$n.json" in existing) n++
-        return "$base-$n.json"
+        while ("$base-$n.flow" in existing) n++
+        return "$base-$n.flow"
     }
 
     /* ───────── session ───────── */

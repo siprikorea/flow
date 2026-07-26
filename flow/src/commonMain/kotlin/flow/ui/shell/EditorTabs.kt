@@ -39,7 +39,7 @@ fun EditorTabs(ws: Workspace) {
         ) {
             ws.docs.forEachIndexed { i, doc ->
                 Tab(
-                    name = doc.fileName.removeSuffix(".json"),
+                    name = doc.fileName.removeSuffix(".flow"),
                     active = i == ws.activeIndex && ws.activeData == null,
                     dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catComponent else Palette.dimText,
                     dirty = doc.dirty,
