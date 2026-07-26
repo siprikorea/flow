@@ -426,7 +426,14 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
         return false
     }
     if (ev.type != KeyEventType.KeyDown) return false
-    if (ev.key == Key.Escape) { active?.wire = null; ws.menu = null; return true }
+    if (ev.key == Key.Escape) {
+        // only closes an Input/Output data-editor tab; the canvas (document) tab never closes on Esc
+        val dataTab = ws.activeData
+        if (dataTab != null) { ws.closeDataTab(dataTab); return true }
+        active?.wire = null
+        ws.menu = null
+        return true
+    }
     val ctrl = ev.isCtrlPressed || ev.isMetaPressed
     if (ctrl && ev.key == Key.N) { ws.newComponent(); return true }
     if (ctrl && ev.key == Key.S) { ws.saveActive(); return true }
