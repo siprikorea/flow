@@ -456,6 +456,7 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
         ctrl && ev.key == Key.V -> { active.paste(); true }
         ctrl && ev.key == Key.Z -> { if (ev.isShiftPressed) active.redo() else active.undo(); true }
         ctrl && ev.key == Key.Y -> { active.redo(); true }
+        ctrl && ev.isShiftPressed && ev.key == Key.L -> { active.autoLayout(); true }
         else -> false
     }
 }
