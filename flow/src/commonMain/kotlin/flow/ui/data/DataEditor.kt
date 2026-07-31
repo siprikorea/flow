@@ -3,14 +3,19 @@ package flow.ui.data
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.draganddrop.dragAndDropTarget
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
@@ -28,6 +33,9 @@ import androidx.compose.ui.draganddrop.DragAndDropEvent
 import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
@@ -47,13 +55,35 @@ import flow.util.bytesToHex
 import flow.util.decodeUtf8Lossy
 import flow.util.hexToBytes
 import flow.util.spliceBytes
+import kotlin.math.roundToInt
 
 // Data editor tab for a component boundary (cin/cout) node.
 //
 // The port value is BYTES. Those bytes are canonical (stored as hex in params);
 // the string view is just their UTF-8 decoding, and editing in either view keeps
 // the underlying bytes. A cout (output) port is display-only.
-private const val PREVIEW_BYTES = 4096 // for a loaded file we read/show only this leading window
+//
+// Neither the field nor the underlying data is ever fully materialized as one blob past
+// WINDOW_BYTES: only the slice currently in view is turned into hex/string text, so a
+// multi-hundred-MB value stays scrollable and responsive instead of freezing the field.
+private const val WINDOW_BYTES = 262_144 // 256 KiB shown/edited at once, scroll for the rest
+
+// Where windowed bytes come from: an in-memory value, or a range read straight off disk.
+private sealed class DataSource {
+    abstract val totalSize: Long
+    data class Memory(val bytes: ByteArray) : DataSource() {
+        override val totalSize get() = bytes.size.toLong()
+    }
+    data class FileRange(val path: String, override val totalSize: Long) : DataSource()
+}
+
+private fun DataSource.read(offset: Long, length: Int): ByteArray = when (this) {
+    is DataSource.Memory -> {
+        val end = minOf(offset + length, bytes.size.toLong()).toInt()
+        if (offset >= bytes.size) ByteArray(0) else bytes.copyOfRange(offset.toInt(), end)
+    }
+    is DataSource.FileRange -> Platform.readFileRange(path, offset, length)
+}
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -66,14 +96,10 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val bytes = if (isOut) (tab.doc.runOutputs[tab.nodeId] ?: ByteArray(0))
     else (node.outputs.firstOrNull()?.data ?: ByteArray(0))
 
-    // a cin can be backed by a file: we read/show only a leading window, never the whole file
+    // a cin can be backed by a file: read windows straight off disk, never the whole file
     val filePath = if (isOut) null else node.params["dataFile"]
-    val totalSize = remember(filePath) { if (filePath != null) Platform.fileSize(filePath) else -1L }
-    val fileBacked = filePath != null && totalSize >= 0
-    val previewBytes = remember(filePath, totalSize) {
-        if (fileBacked) Platform.readFileRange(filePath!!, 0, PREVIEW_BYTES) else ByteArray(0)
-    }
-    val displayBytes = if (fileBacked) previewBytes else bytes
+    val totalFileSize = remember(filePath) { if (filePath != null) Platform.fileSize(filePath) else -1L }
+    val fileBacked = filePath != null && totalFileSize >= 0
     val editable = !isOut && !fileBacked
 
     fun switchTo(target: String) {
@@ -92,6 +118,8 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             }
         }
     }
+
+    val totalSize = if (fileBacked) totalFileSize else bytes.size.toLong()
 
     Column(
         Modifier.fillMaxSize().background(Palette.appBg).padding(20.dp),
@@ -123,10 +151,14 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Txt("📄 ${Platform.fileName(filePath!!)}", 12.sp, Palette.text, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
-                Txt(ws.t("dataBytes").replace("{n}", totalSize.toString()), 11.sp, Palette.dimText, mono = true)
+                Txt(ws.t("dataBytes").replace("{n}", totalFileSize.toString()), 11.sp, Palette.dimText, mono = true)
                 Txt("×", 14.sp, Palette.dimText, modifier = Modifier.plainClick { setParam("dataFile", null) }.padding(horizontal = 4.dp))
             }
         }
+
+        var windowStart by remember(tab, isHex, filePath) { mutableStateOf(0L) }
+        val maxStart = (totalSize - WINDOW_BYTES).coerceAtLeast(0)
+        if (windowStart > maxStart) windowStart = maxStart
 
         Box(
             Modifier
@@ -137,9 +169,14 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 .then(if (isOut) Modifier else Modifier.dragAndDropTarget(shouldStartDragAndDrop = { true }, target = dropTarget))
                 .padding(12.dp),
         ) {
-            if (editable) EditableField(bytes, isHex, tab, node) else ReadOnlyView(displayBytes, isHex)
+            if (editable) {
+                EditableField(bytes, isHex, tab, node, windowStart) { windowStart = it }
+            } else {
+                val source = if (fileBacked) DataSource.FileRange(filePath!!, totalFileSize) else DataSource.Memory(bytes)
+                ReadOnlyView(source, isHex, windowStart) { windowStart = it }
+            }
 
-            if (displayBytes.isEmpty()) {
+            if (totalSize == 0L) {
                 Txt(
                     when {
                         isOut -> ws.t("dataNoOutput")
@@ -151,62 +188,149 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             }
         }
 
-        val shown = if (fileBacked) minOf(displayBytes.size.toLong(), totalSize) else displayBytes.size.toLong()
-        val label = if (fileBacked && totalSize > shown)
-            ws.t("dataPreviewOf").replace("{n}", shown.toString()).replace("{total}", totalSize.toString())
-        else ws.t("dataBytes").replace("{n}", shown.toString())
+        val windowEnd = minOf(windowStart + WINDOW_BYTES, totalSize)
+        val label = if (totalSize > WINDOW_BYTES)
+            ws.t("dataWindowOf").replace("{start}", windowStart.toString())
+                .replace("{end}", windowEnd.toString()).replace("{total}", totalSize.toString())
+        else ws.t("dataBytes").replace("{n}", totalSize.toString())
         Txt(label, 11.sp, Palette.dimText, mono = true)
     }
 }
 
-// Editable inline byte field (cin, not file-backed).
+// Editable inline byte field (cin, not file-backed). Only ever holds up to WINDOW_BYTES of the
+// underlying value in the text field itself; edits splice back into the full byte array at the
+// window's absolute offset, and an oversized paste is committed in full but the displayed field
+// snaps back to a bounded slice (starting where the paste landed) rather than staying huge.
 @Composable
-private fun EditableField(bytes: ByteArray, isHex: Boolean, tab: DataTab, node: flow.model.Node) {
-    val canonicalKey = bytesToHex(bytes)
-    var field by remember(tab, isHex) { mutableStateOf(atEnd(viewOf(bytes, isHex))) }
+private fun EditableField(
+    bytes: ByteArray,
+    isHex: Boolean,
+    tab: DataTab,
+    node: flow.model.Node,
+    windowStart: Long,
+    onWindowStart: (Long) -> Unit,
+) {
+    val total = bytes.size
+    val winStart = windowStart.toInt().coerceIn(0, total)
+    val winSize = minOf(WINDOW_BYTES, total - winStart)
+    val windowBytes = remember(bytes, winStart, winSize) {
+        if (winSize <= 0) ByteArray(0) else bytes.copyOfRange(winStart, winStart + winSize)
+    }
+
+    val canonicalKey = bytesToHex(windowBytes)
+    var field by remember(tab, isHex) { mutableStateOf(atEnd(viewOf(windowBytes, isHex))) }
     var lastKey by remember(tab, isHex) { mutableStateOf(canonicalKey) }
     LaunchedEffect(canonicalKey) {
-        if (canonicalKey != lastKey) { field = atEnd(viewOf(bytes, isHex)); lastKey = canonicalKey }
+        if (canonicalKey != lastKey) { field = atEnd(viewOf(windowBytes, isHex)); lastKey = canonicalKey }
     }
-    fun commit(newBytes: ByteArray) {
-        lastKey = bytesToHex(newBytes)
+
+    // splice the edited window back into the full array at its absolute offset, then re-clamp
+    // what's displayed to WINDOW_BYTES — a huge paste is fully committed but not fully shown
+    fun commit(newWindowBytes: ByteArray, caretInNewWindow: Int) {
+        val newFull = spliceWindow(bytes, winStart, winSize, newWindowBytes)
         tab.doc.updateNode(node.id) { n ->
             val outs = n.outputs.toMutableList()
-            if (outs.isEmpty()) outs.add(Port("out", newBytes)) else outs[0] = outs[0].withData(newBytes)
+            if (outs.isEmpty()) outs.add(Port("out", newFull)) else outs[0] = outs[0].withData(newFull)
             n.copy(outputs = outs)
         }
+        val bounded = if (newWindowBytes.size <= WINDOW_BYTES) newWindowBytes else newWindowBytes.copyOfRange(0, WINDOW_BYTES)
+        val text = viewOf(bounded, isHex)
+        field = if (newWindowBytes.size <= WINDOW_BYTES) TextFieldValue(text, TextRange(caretInNewWindow.coerceIn(0, text.length)))
+        else atEnd(text) // paste overflowed the window: show its start, caret at the end of what's shown
+        lastKey = bytesToHex(bounded)
     }
-    val scroll = rememberScrollState()
-    BasicTextField(
-        value = field,
-        onValueChange = { v ->
-            if (isHex) {
-                field = formatHex(v)
-                commit(hexToBytes(field.text))
-            } else {
-                val old = field.text
-                field = v
-                commit(spliceBytes(bytes, old, v.text))
-            }
-        },
-        textStyle = TextStyle(color = Palette.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
-        cursorBrush = SolidColor(Palette.text),
-        modifier = Modifier.fillMaxSize().verticalScroll(scroll),
-    )
+
+    Row(Modifier.fillMaxSize()) {
+        val scroll = rememberScrollState()
+        BasicTextField(
+            value = field,
+            onValueChange = { v ->
+                if (isHex) {
+                    val formatted = formatHex(v)
+                    commit(hexToBytes(formatted.text), formatted.selection.end)
+                } else {
+                    val old = field.text
+                    val newWindowBytes = spliceBytes(windowBytes, old, v.text)
+                    commit(newWindowBytes, v.selection.end)
+                }
+            },
+            textStyle = TextStyle(color = Palette.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
+            cursorBrush = SolidColor(Palette.text),
+            modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll),
+        )
+        if (total > WINDOW_BYTES) {
+            WindowScrollbar(total.toLong(), windowStart, winSize.toLong(), onWindowStart)
+        }
+    }
 }
 
-// Read-only view of bytes (cout output, or a file-backed preview window).
+// Read-only windowed view: cout output (in-memory) or a file-backed cin (read straight off disk).
 @Composable
-private fun ReadOnlyView(bytes: ByteArray, isHex: Boolean) {
-    val scroll = rememberScrollState()
-    BasicTextField(
-        value = viewOf(bytes, isHex),
-        onValueChange = {},
-        readOnly = true,
-        textStyle = TextStyle(color = Palette.subText, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
-        cursorBrush = SolidColor(Palette.text),
-        modifier = Modifier.fillMaxSize().verticalScroll(scroll),
-    )
+private fun ReadOnlyView(source: DataSource, isHex: Boolean, windowStart: Long, onWindowStart: (Long) -> Unit) {
+    val total = source.totalSize
+    val winSize = minOf(WINDOW_BYTES.toLong(), total - windowStart).coerceAtLeast(0)
+    val windowBytes = remember(source, windowStart, winSize) { source.read(windowStart, winSize.toInt()) }
+
+    Row(Modifier.fillMaxSize()) {
+        val scroll = rememberScrollState()
+        BasicTextField(
+            value = viewOf(windowBytes, isHex),
+            onValueChange = {},
+            readOnly = true,
+            textStyle = TextStyle(color = Palette.subText, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
+            cursorBrush = SolidColor(Palette.text),
+            modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll),
+        )
+        if (total > WINDOW_BYTES) {
+            WindowScrollbar(total, windowStart, winSize, onWindowStart)
+        }
+    }
+}
+
+// A thin draggable position indicator for jumping the window through data far larger than
+// WINDOW_BYTES — click or drag anywhere on the track to seek there, thumb sized to the fraction
+// of the total currently in view.
+@Composable
+private fun WindowScrollbar(total: Long, windowStart: Long, windowSize: Long, onSeek: (Long) -> Unit) {
+    val maxStart = (total - windowSize).coerceAtLeast(0)
+    val thumbFrac = (windowSize.toFloat() / total.toFloat()).coerceIn(0.04f, 1f)
+    val posFrac = if (maxStart > 0) windowStart.toFloat() / maxStart.toFloat() else 0f
+    var trackHeightPx by remember { mutableStateOf(0f) }
+    val density = LocalDensity.current
+
+    fun seekTo(y: Float) {
+        if (trackHeightPx <= 0f) return
+        val thumbPx = (thumbFrac * trackHeightPx).coerceAtLeast(20f)
+        val usable = (trackHeightPx - thumbPx).coerceAtLeast(1f)
+        val topY = (y - thumbPx / 2).coerceIn(0f, usable)
+        onSeek(((topY / usable) * maxStart).roundToInt().toLong().coerceIn(0, maxStart))
+    }
+
+    Box(
+        Modifier
+            .fillMaxHeight()
+            .width(10.dp)
+            .padding(start = 6.dp)
+            .background(Palette.holeBg, RoundedCornerShape(4.dp))
+            .onGloballyPositioned { trackHeightPx = it.size.height.toFloat() }
+            .pointerInput(total, windowSize) {
+                detectDragGestures(onDragStart = { seekTo(it.y) }) { change, _ ->
+                    change.consume()
+                    seekTo(change.position.y)
+                }
+            },
+    ) {
+        val thumbHeightPx = (thumbFrac * trackHeightPx).coerceAtLeast(20f)
+        val thumbOffsetPx = posFrac * (trackHeightPx - thumbHeightPx).coerceAtLeast(0f)
+        Box(
+            Modifier
+                .align(Alignment.TopStart)
+                .offset(y = with(density) { thumbOffsetPx.toDp() })
+                .width(10.dp)
+                .height(with(density) { thumbHeightPx.toDp() })
+                .background(Palette.accent.copy(alpha = 0.55f), RoundedCornerShape(4.dp)),
+        )
+    }
 }
 
 @Composable
@@ -240,6 +364,14 @@ private fun Seg(label: String, active: Boolean, onClick: () -> Unit) {
     ) {
         Txt(label, 11.sp, if (active) Palette.holeBg else Palette.subText, weight = FontWeight.Medium, mono = true, maxLines = 1)
     }
+}
+
+// Replace the [winStart, winStart+winSize) slice of `full` with `newWindowBytes` — the window's
+// edit result — leaving everything before/after the window untouched. Internal visibility (not
+// private) so a headless check can verify it directly.
+internal fun spliceWindow(full: ByteArray, winStart: Int, winSize: Int, newWindowBytes: ByteArray): ByteArray {
+    val windowEndAbs = winStart + winSize
+    return full.copyOfRange(0, winStart) + newWindowBytes + full.copyOfRange(windowEndAbs, full.size)
 }
 
 /* ───────── byte <-> view conversion (UTF-8) ───────── */
