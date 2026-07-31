@@ -132,6 +132,17 @@ actual object Platform {
 
     actual fun fileName(path: String): String = File(path).name
 
+    // scratch space for data the editor spills out of memory (e.g. an oversized paste) — an
+    // app-owned dir rather than the shared OS temp dir, so it's easy to find and doesn't compete
+    // with unrelated cleanup policies; each file is marked deleteOnExit as a backstop.
+    private val tmpDir = File(baseDir, "tmp")
+    actual fun createTempFile(prefix: String): String {
+        tmpDir.mkdirs()
+        val f = File.createTempFile(prefix, ".bin", tmpDir)
+        f.deleteOnExit()
+        return f.absolutePath
+    }
+
     actual fun loadSession(): String? =
         runCatching { sessionFile.takeIf { it.exists() }?.readText() }.getOrNull()
 

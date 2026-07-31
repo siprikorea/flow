@@ -34,6 +34,7 @@ expect object Platform {
     fun readFileRange(path: String, offset: Long, length: Int): ByteArray // partial read (window)
     fun writeBytes(path: String, bytes: ByteArray): Boolean
     fun fileName(path: String): String
+    fun createTempFile(prefix: String): String // an app-owned scratch file (deleteOnExit); caller writes to it
 
     // session (open tabs + UI state) restore
     fun loadSession(): String?

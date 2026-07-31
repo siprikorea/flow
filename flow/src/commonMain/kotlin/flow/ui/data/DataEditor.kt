@@ -63,10 +63,14 @@ import kotlin.math.roundToInt
 // the string view is just their UTF-8 decoding, and editing in either view keeps
 // the underlying bytes. A cout (output) port is display-only.
 //
-// Neither the field nor the underlying data is ever fully materialized as one blob past
-// WINDOW_BYTES: only the slice currently in view is turned into hex/string text, so a
-// multi-hundred-MB value stays scrollable and responsive instead of freezing the field.
+// The displayed/edited text is never more than WINDOW_BYTES worth of hex/string at a time — only
+// the slice currently in view gets converted, so a multi-hundred-MB value stays scrollable and
+// responsive instead of freezing the field. An edit that pushes the *underlying* value's size past
+// SPILL_THRESHOLD_BYTES is written out to a temp file and the node switches to file-backed (the
+// same on-disk-windowed path "Read file" already uses), so it isn't kept as one live in-memory
+// buffer either — only held transiently while being spliced and written.
 private const val WINDOW_BYTES = 262_144 // 256 KiB shown/edited at once, scroll for the rest
+private const val SPILL_THRESHOLD_BYTES = 8 * 1024 * 1024 // 8 MiB — beyond this, don't keep it as one in-memory node value
 
 // Where windowed bytes come from: an in-memory value, or a range read straight off disk.
 private sealed class DataSource {
@@ -228,11 +232,28 @@ private fun EditableField(
     // what's displayed to WINDOW_BYTES — a huge paste is fully committed but not fully shown
     fun commit(newWindowBytes: ByteArray, caretInNewWindow: Int) {
         val newFull = spliceWindow(bytes, winStart, winSize, newWindowBytes)
+        if (newFull.size > SPILL_THRESHOLD_BYTES) {
+            // don't keep this as one live in-memory buffer on the node — spill it to a temp file
+            // and switch to file-backed, reusing the same on-disk windowed reading "Read file" uses.
+            // newFull is still momentarily whole here (spliceWindow/the paste itself already built
+            // it that large), but nothing keeps a reference to it after this write returns.
+            val path = Platform.createTempFile("flow-cin")
+            Platform.writeBytes(path, newFull)
+            tab.doc.updateNode(node.id) { n ->
+                n.copy(
+                    params = n.params + ("dataFile" to path),
+                    outputs = listOf((n.outputs.firstOrNull() ?: Port("out")).withData(ByteArray(0))),
+                )
+            }
+            return
+        }
         tab.doc.updateNode(node.id) { n ->
             val outs = n.outputs.toMutableList()
             if (outs.isEmpty()) outs.add(Port("out", newFull)) else outs[0] = outs[0].withData(newFull)
             n.copy(outputs = outs)
         }
+        // below the spill threshold but still possibly above WINDOW_BYTES (a few-MB paste): commit
+        // it in full above, but keep what's actually live in the field bounded
         val bounded = if (newWindowBytes.size <= WINDOW_BYTES) newWindowBytes else newWindowBytes.copyOfRange(0, WINDOW_BYTES)
         val text = viewOf(bounded, isHex)
         field = if (newWindowBytes.size <= WINDOW_BYTES) TextFieldValue(text, TextRange(caretInNewWindow.coerceIn(0, text.length)))
