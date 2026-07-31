@@ -18,9 +18,11 @@ import flow.model.indexOfPort
 import flow.model.isComp
 import flow.platform.Platform
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlin.math.exp
 import kotlin.math.hypot
@@ -82,6 +84,7 @@ class EditorState(
     private val past = ArrayDeque<String>()
     private val future = ArrayDeque<String>()
     private val simJobs = mutableSetOf<Job>()
+    private var computeJob: Job? = null
 
     // normalized signature at the last save (or open); basis for the dirty check.
     var savedSig by mutableStateOf("")
@@ -507,32 +510,41 @@ class EditorState(
     }
 
     // Run the flow engine over the current graph and store cout outputs (transient).
-    // Ports carry raw bytes end to end now, so no text/charset bridging happens here.
+    // Reads file-backed cin data and runs the engine off the UI thread (Dispatchers.IO), so a
+    // large file (or a slow module) doesn't freeze the canvas while it's read and processed.
+    // Snapshots everything nodes/edges-derived synchronously first so a concurrent edit mid-run
+    // can't tear the computation; a newer call cancels whatever the previous one had in flight.
     private fun computeOutputs() {
+        computeJob?.cancel()
         val flow = FlowFile(1, nodes, edges, seq)
-        val inputs = nodes.filter { it.type == "cin" }.associate { n ->
-            // file-backed cin: read the whole file for processing; else the inline port bytes
-            val file = n.params["dataFile"]
-            val data = if (file != null) {
-                val sz = Platform.fileSize(file)
-                if (sz in 0..Int.MAX_VALUE.toLong()) Platform.readFileRange(file, 0, sz.toInt()) else ByteArray(0)
-            } else (n.outputs.firstOrNull()?.data ?: ByteArray(0))
-            n.label to data
+        val cins = nodes.filter { it.type == "cin" }
+        val coutIds = nodes.filter { it.type == "cout" }.map { it.id }
+        computeJob = scope.launch(Dispatchers.IO) {
+            val inputs = cins.associate { n ->
+                // file-backed cin: read the whole file for processing; else the inline port bytes
+                val file = n.params["dataFile"]
+                val data = if (file != null) {
+                    val sz = Platform.fileSize(file)
+                    if (sz in 0..Int.MAX_VALUE.toLong()) Platform.readFileRange(file, 0, sz.toInt()) else ByteArray(0)
+                } else (n.outputs.firstOrNull()?.data ?: ByteArray(0))
+                n.label to data
+            }
+            val engine = FlowEngine(
+                loadFlow = { name ->
+                    (Platform.readFlow(name) ?: Platform.readInstalledComponent(name))
+                        ?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() }
+                },
+                moduleIds = runCatching { Platform.installedModuleInfos().map { it.id }.toSet() }.getOrDefault(emptySet()),
+                // let a module's exception propagate — the engine attributes it to the failing node
+                moduleProcess = { id, ins, params -> Platform.moduleProcess(id, ins, params) },
+            )
+            // key by cout node id (not label) so two outputs never share a value
+            val result = runCatching { engine.runByNode(flow, inputs) }.getOrDefault(emptyMap())
+            withContext(Dispatchers.Main) {
+                nodeErrors = engine.errors
+                runOutputs = coutIds.associateWith { id -> result[id] ?: ByteArray(0) }
+            }
         }
-        val engine = FlowEngine(
-            loadFlow = { name ->
-                (Platform.readFlow(name) ?: Platform.readInstalledComponent(name))
-                    ?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() }
-            },
-            moduleIds = runCatching { Platform.installedModuleInfos().map { it.id }.toSet() }.getOrDefault(emptySet()),
-            // let a module's exception propagate — the engine attributes it to the failing node
-            moduleProcess = { id, ins, params -> Platform.moduleProcess(id, ins, params) },
-        )
-        // key by cout node id (not label) so two outputs never share a value
-        val result = runCatching { engine.runByNode(flow, inputs) }.getOrDefault(emptyMap())
-        nodeErrors = engine.errors
-        runOutputs = nodes.filter { it.type == "cout" }
-            .associate { n -> n.id to (result[n.id] ?: ByteArray(0)) }
     }
 
     fun runFromSelection(id: String? = null) {

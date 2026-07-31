@@ -60,7 +60,7 @@ private const val PREVIEW_BYTES = 4096 // for a loaded file we read/show only th
 fun DataEditor(ws: Workspace, tab: DataTab) {
     val node = tab.node ?: run { ws.closeDataTab(tab); return }
     val isOut = node.type == "cout"
-    val fmt = node.params["dataFmt"] ?: "string"
+    val fmt = node.params["dataFmt"] ?: "hex"
     val isHex = fmt == "hex"
     // cin value = its editable output-port bytes; cout value = the transient run output
     val bytes = if (isOut) (tab.doc.runOutputs[tab.nodeId] ?: ByteArray(0))
