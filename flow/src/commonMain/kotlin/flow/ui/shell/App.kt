@@ -390,7 +390,7 @@ fun SettingsScreen(ws: Workspace) {
                 Spacer(Modifier.height(10.dp))
                 Txt(ws.t("animTime").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
                 val unit = ws.t("secUnit")
-                listOf(0.25f, 0.5f, 1f, 2f).forEach { v ->
+                listOf(0.25f, 0.5f, 1f).forEach { v ->
                     val num = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
                     val label = "$num$unit" + if (v == 1f) " (${ws.t("default")})" else ""
                     SettingChoice(label, ws.animSeconds == v) { ws.animSeconds = v }
