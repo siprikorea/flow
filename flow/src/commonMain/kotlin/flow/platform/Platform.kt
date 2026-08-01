@@ -33,8 +33,13 @@ expect object Platform {
     fun fileSize(path: String): Long          // -1 if missing
     fun readFileRange(path: String, offset: Long, length: Int): ByteArray // partial read (window)
     fun writeBytes(path: String, bytes: ByteArray): Boolean
+    fun appendBytes(path: String, bytes: ByteArray): Boolean
     fun fileName(path: String): String
     fun createTempFile(prefix: String): String // an app-owned scratch file (deleteOnExit); caller writes to it
+
+    // Streams the system clipboard's text in bounded chunks (never materializes it all as one
+    // string) via onChunk; returns false if the clipboard has no text content at all.
+    fun pasteClipboardChunks(maxChunkChars: Int, onChunk: (String) -> Unit): Boolean
 
     // session (open tabs + UI state) restore
     fun loadSession(): String?

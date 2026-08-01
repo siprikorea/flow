@@ -90,7 +90,6 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
         ws.installConfirm?.let { OverwriteDialog(ws, it.label) }
         ws.renameTarget?.let { RenameDialog(ws, it) }
         ws.saveError?.let { SaveErrorDialog(ws, it) }
-        if (ws.showSettings) SettingsScreen(ws)
     }
 
     // Save the session (open tabs + UI); file contents are saved explicitly (Ctrl+S / close-confirm)
@@ -365,9 +364,9 @@ private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUn
     }
 }
 
-// Dedicated settings screen (logo menu > Settings)
+// Dedicated settings screen (logo menu > Settings) — opens in its own window, same as ExtensionsScreen
 @Composable
-private fun SettingsScreen(ws: Workspace) {
+fun SettingsScreen(ws: Workspace) {
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
             Row(

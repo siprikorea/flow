@@ -130,6 +130,9 @@ actual object Platform {
     actual fun writeBytes(path: String, bytes: ByteArray): Boolean =
         runCatching { File(path).writeBytes(bytes); true }.getOrDefault(false)
 
+    actual fun appendBytes(path: String, bytes: ByteArray): Boolean =
+        runCatching { java.io.FileOutputStream(path, true).use { it.write(bytes) } }.isSuccess
+
     actual fun fileName(path: String): String = File(path).name
 
     // scratch space for data the editor spills out of memory (e.g. an oversized paste) — an
@@ -141,6 +144,26 @@ actual object Platform {
         val f = File.createTempFile(prefix, ".bin", tmpDir)
         f.deleteOnExit()
         return f.absolutePath
+    }
+
+    // Reads the clipboard's text via a java.io.Reader (java.awt.datatransfer.DataFlavor's own
+    // text-reader support), so the content is pulled through in bounded chunks rather than
+    // materialized as one String up front — the point for a very large clipboard paste.
+    actual fun pasteClipboardChunks(maxChunkChars: Int, onChunk: (String) -> Unit): Boolean {
+        val contents = runCatching {
+            java.awt.Toolkit.getDefaultToolkit().systemClipboard.getContents(null)
+        }.getOrNull() ?: return false
+        if (!contents.isDataFlavorSupported(java.awt.datatransfer.DataFlavor.stringFlavor)) return false
+        return runCatching {
+            java.awt.datatransfer.DataFlavor.stringFlavor.getReaderForText(contents).use { reader ->
+                val buf = CharArray(maxChunkChars)
+                while (true) {
+                    val n = reader.read(buf)
+                    if (n < 0) break
+                    if (n > 0) onChunk(String(buf, 0, n))
+                }
+            }
+        }.isSuccess
     }
 
     actual fun loadSession(): String? =

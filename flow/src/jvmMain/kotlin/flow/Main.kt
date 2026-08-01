@@ -18,6 +18,7 @@ import flow.core.Workspace
 import androidx.compose.ui.window.WindowPlacement
 import flow.ui.shell.App
 import flow.ui.shell.ExtensionsScreen
+import flow.ui.shell.SettingsScreen
 import flow.ui.shell.handleKey
 import java.awt.Taskbar
 import java.awt.Toolkit
@@ -92,6 +93,18 @@ fun main() {
                 icon = iconPainter,
             ) {
                 ExtensionsScreen(ws)
+            }
+        }
+
+        // Settings opens as its own window too, same as the extensions manager
+        if (ws.showSettings) {
+            Window(
+                onCloseRequest = { ws.showSettings = false },
+                title = ws.t("settingsTitle"),
+                state = rememberWindowState(width = 480.dp, height = 460.dp),
+                icon = iconPainter,
+            ) {
+                SettingsScreen(ws)
             }
         }
     }
