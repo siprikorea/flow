@@ -35,6 +35,11 @@ val builtinExtensions = mapOf(
     "flow.merge" to ":flow-extensions:merge-extension",
     "flow.split" to ":flow-extensions:split-extension",
     "flow.sleep" to ":flow-extensions:sleep-extension",
+    "flow.mac" to ":flow-extensions:mac-extension",
+    "flow.signature" to ":flow-extensions:signature-extension",
+    "flow.keygen" to ":flow-extensions:keygen-extension",
+    "flow.keypairgen" to ":flow-extensions:keypairgen-extension",
+    "flow.securerandom" to ":flow-extensions:securerandom-extension",
 )
 
 // Lays each built-in extension's jar out as modules/<id>/<id>.jar (same shape ExtensionLoader

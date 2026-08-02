@@ -20,7 +20,7 @@ import javax.crypto.spec.SecretKeySpec
  */
 class CryptoExtension : ModuleExtension {
     override val id = "flow.crypto"
-    override val displayName = "Crypto"
+    override val displayName = "Cipher"
     override val inputs = listOf("in", "key", "iv")
     override val outputs = listOf("out")
     override val options = listOf(
