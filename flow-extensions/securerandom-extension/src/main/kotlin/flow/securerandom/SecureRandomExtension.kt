@@ -7,7 +7,7 @@ import java.security.SecureRandom
 
 /**
  * Random byte generator. Takes no input; each run produces "length" fresh random bytes on "out" —
- * plug it into flow.crypto's/flow.mac's "key" or "iv" input, or use as raw random data on its own.
+ * plug it into flow.cipher's/flow.mac's "key" or "iv" input, or use as raw random data on its own.
  */
 class SecureRandomExtension : ModuleExtension {
     override val id = "flow.securerandom"

@@ -1,4 +1,4 @@
-package flow.crypto
+package flow.cipher
 
 import flow.extension.ExtensionOption
 import flow.extension.ModuleExtension
@@ -18,8 +18,8 @@ import javax.crypto.spec.SecretKeySpec
  * generated on encrypt and prepended to "out"; decrypt reads it back off the front of "in".
  * ECB needs no IV either way. GCM's auth tag is already part of the JCE output.
  */
-class CryptoExtension : ModuleExtension {
-    override val id = "flow.crypto"
+class CipherExtension : ModuleExtension {
+    override val id = "flow.cipher"
     override val displayName = "Cipher"
     override val inputs = listOf("in", "key", "iv")
     override val outputs = listOf("out")

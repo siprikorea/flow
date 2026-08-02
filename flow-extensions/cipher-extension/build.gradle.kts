@@ -11,7 +11,7 @@ dependencies {
     compileOnly(project(":flow-extension-api"))
 }
 
-// distribution JAR: ./gradlew :flow-extensions:crypto-extension:jar → build/libs/crypto-extension.jar
+// distribution JAR: ./gradlew :flow-extensions:cipher-extension:jar → build/libs/cipher-extension.jar
 tasks.jar {
-    archiveBaseName.set("crypto-extension")
+    archiveBaseName.set("cipher-extension")
 }

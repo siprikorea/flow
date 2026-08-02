@@ -30,7 +30,7 @@ kotlin {
 // id -> the flow-extensions project that builds its jar.
 val builtinExtensions = mapOf(
     "flow.base64" to ":flow-extensions:base64-extension",
-    "flow.crypto" to ":flow-extensions:crypto-extension",
+    "flow.cipher" to ":flow-extensions:cipher-extension",
     "flow.hash" to ":flow-extensions:hash-extension",
     "flow.merge" to ":flow-extensions:merge-extension",
     "flow.split" to ":flow-extensions:split-extension",

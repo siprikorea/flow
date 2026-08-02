@@ -8,7 +8,7 @@ import javax.crypto.KeyGenerator
 
 /**
  * Symmetric key generator. Takes no input; each run produces a fresh random key of the chosen
- * algorithm/size on "out" — plug it straight into flow.crypto's or flow.mac's "key" input.
+ * algorithm/size on "out" — plug it straight into flow.cipher's or flow.mac's "key" input.
  */
 class KeyGenExtension : ModuleExtension {
     override val id = "flow.keygen"
