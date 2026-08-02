@@ -49,6 +49,13 @@ class Workspace(private val scope: CoroutineScope) {
     var propsWidth by mutableStateOf(268f)
     // run animation duration per step, in seconds (larger = slower), persisted in the config
     var animSeconds by mutableStateOf(1f)
+    // main window bounds (dp), persisted in the session; null = no saved bounds yet (Main.kt falls
+    // back to its own default centered/clamped-to-screen size)
+    var windowX by mutableStateOf<Float?>(null)
+    var windowY by mutableStateOf<Float?>(null)
+    var windowWidth by mutableStateOf<Float?>(null)
+    var windowHeight by mutableStateOf<Float?>(null)
+    var windowMaximized by mutableStateOf(false)
     var menu by mutableStateOf<String?>(null)
     var dragModule by mutableStateOf<DragModule?>(null)
     var saveTime by mutableStateOf<String?>(null)
@@ -354,7 +361,10 @@ class Workspace(private val scope: CoroutineScope) {
     /* ───────── session ───────── */
 
     fun sessionJson(): String = json.encodeToString(
-        Session(docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap, leftWidth, propsWidth, animSeconds)
+        Session(
+            docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap, leftWidth, propsWidth, animSeconds,
+            windowX, windowY, windowWidth, windowHeight, windowMaximized,
+        )
     )
 
     private fun loadSession() {
@@ -368,6 +378,11 @@ class Workspace(private val scope: CoroutineScope) {
             leftWidth = s.leftWidth.coerceIn(160f, 500f)
             propsWidth = s.propsWidth.coerceIn(200f, 560f)
             animSeconds = s.animSeconds.coerceIn(0.05f, 10f)
+            windowX = s.windowX
+            windowY = s.windowY
+            windowWidth = s.windowWidth
+            windowHeight = s.windowHeight
+            windowMaximized = s.windowMaximized
             s.openFiles.filter { Platform.readFlow(it) != null }.forEach { openFile(it) }
             activeIndex = s.activeIndex.coerceIn(0, (docs.size - 1).coerceAtLeast(0))
         }

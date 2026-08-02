@@ -106,4 +106,10 @@ data class Session(
     val leftWidth: Float = 240f,
     val propsWidth: Float = 268f,
     val animSeconds: Float = 1f,
+    // main window bounds (dp); null x/y/width/height = no saved bounds yet, use the default layout
+    val windowX: Float? = null,
+    val windowY: Float? = null,
+    val windowWidth: Float? = null,
+    val windowHeight: Float? = null,
+    val windowMaximized: Boolean = false,
 )
