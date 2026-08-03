@@ -65,7 +65,11 @@ class FlowEngine(
 
     private fun evalNode(node: Node, inVals: Map<String, ByteArray?>, externalInputs: Map<String, ByteArray?>): Map<String, ByteArray?> {
         return when {
-            node.type == "cin" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to externalInputs[node.label])
+            // top-level (in-app Input tabs) callers key externalInputs by node id, so two cin nodes
+            // with the same display label never collide (labels are cosmetic only — see
+            // EditorState.computeOutputs); nested-component invocation only knows the sub-flow's
+            // cin labels (its public interface, see asComponent()), so that path stays label-keyed
+            node.type == "cin" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to (externalInputs[node.id] ?: externalInputs[node.label]))
             node.type == "cout" -> emptyMap()
             node.type in moduleIds -> moduleProcess(node.type, inVals, node.params) // installed module extension
             isComp(node.type) -> {
