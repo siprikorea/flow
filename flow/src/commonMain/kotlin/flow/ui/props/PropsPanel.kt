@@ -158,6 +158,10 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
 
     // node ids are managed internally (unique within the component) and not shown
 
+    // an installed extension module (not a component, not a built-in cin/cout) — its ports are
+    // fixed by the extension, not user-editable, though they may vary with its option values
+    val isModule = !comp && def == null && state.ws.moduleInfo(node.type) != null
+
     // module options: typed editors (text / number / select) for the module's
     // predefined option names. Built-ins come from the registry; extensions from
     // their ModuleInfo. Components have no options (excluded).
@@ -171,7 +175,8 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
             SectionLabel(state.t("labelOptions"))
             options.forEach { opt ->
                 OptionEditor(opt, node.params[opt.name] ?: opt.default, onFocusChange) { v ->
-                    state.updateNode(node.id) { it.copy(params = it.params + (opt.name to v)) }
+                    if (isModule) state.setModuleOption(node.id, opt.name, v)
+                    else state.updateNode(node.id) { it.copy(params = it.params + (opt.name to v)) }
                 }
             }
         }
@@ -193,8 +198,8 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
         }
     }
 
-    PortSection(state, node, "in", onFocusChange)
-    PortSection(state, node, "out", onFocusChange)
+    PortSection(state, node, "in", editable = !isModule, onFocusChange)
+    PortSection(state, node, "out", editable = !isModule, onFocusChange)
 
     // available for both modules and components (any node can be a run start)
     PanelButton(state.t("runFromHere"), Palette.runFromBorder, Palette.accentHover) {
@@ -281,28 +286,37 @@ private fun OptionSelect(choices: List<String>, value: String, onChange: (String
     }
 }
 
+// editable = true for cin/cout/component nodes (arbitrary user-defined ports). false for
+// extension modules — their ports are fixed by the extension (see ModuleExtension.inputsFor/
+// outputsFor), so this shows plain names only, no rename/add/remove.
 @Composable
-private fun PortSection(state: EditorState, node: Node, kind: String, onFocusChange: (Boolean) -> Unit) {
+private fun PortSection(state: EditorState, node: Node, kind: String, editable: Boolean, onFocusChange: (Boolean) -> Unit) {
     val list = if (kind == "in") node.inputs else node.outputs
     Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
         SectionLabel(state.t(if (kind == "in") "labelInputs" else "labelOutputs"))
         list.forEachIndexed { i, port ->
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                DtxField(
-                    port.name, { v -> state.renamePort(node.id, kind, i, v) },
-                    modifier = Modifier.weight(1f), mono = true, fontSize = 11.5.sp,
-                    onFocusChange = onFocusChange,
-                )
-                Txt(
-                    "×", 13.sp, Palette.dimText,
-                    modifier = Modifier.plainClick { state.removePort(node.id, kind, i) }.padding(horizontal = 5.dp, vertical = 2.dp),
-                )
+            if (editable) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    DtxField(
+                        port.name, { v -> state.renamePort(node.id, kind, i, v) },
+                        modifier = Modifier.weight(1f), mono = true, fontSize = 11.5.sp,
+                        onFocusChange = onFocusChange,
+                    )
+                    Txt(
+                        "×", 13.sp, Palette.dimText,
+                        modifier = Modifier.plainClick { state.removePort(node.id, kind, i) }.padding(horizontal = 5.dp, vertical = 2.dp),
+                    )
+                }
+            } else {
+                Txt(port.name, 11.5.sp, Palette.text, mono = true, maxLines = 1)
             }
         }
-        Txt(
-            state.t("addPort"), 11.5.sp, Palette.accent,
-            modifier = Modifier.plainClick { state.addPort(node.id, kind) }.padding(vertical = 2.dp),
-        )
+        if (editable) {
+            Txt(
+                state.t("addPort"), 11.5.sp, Palette.accent,
+                modifier = Modifier.plainClick { state.addPort(node.id, kind) }.padding(vertical = 2.dp),
+            )
+        }
     }
 }
 

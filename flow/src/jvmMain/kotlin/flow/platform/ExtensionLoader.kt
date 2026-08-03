@@ -87,6 +87,11 @@ internal object ExtensionLoader {
     fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
         loadedModules()[id]?.ext?.let { runExtension(it, inputs, options) } ?: emptyMap()
 
+    // ports for the given option values (null = id isn't a known module — the host treats a null
+    // result differently from an empty port list, which is legitimate for a no-input generator)
+    fun inputsFor(id: String, options: Map<String, String>): List<String>? = loadedModules()[id]?.ext?.inputsFor(options)
+    fun outputsFor(id: String, options: Map<String, String>): List<String>? = loadedModules()[id]?.ext?.outputsFor(options)
+
     /* ───────── installed components (per folder) ───────── */
 
     fun listComponents(): List<String> {

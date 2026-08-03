@@ -7,6 +7,10 @@ expect object Platform {
     // ── installed modules/components (each folder isolated by a classloader = sandbox) ──
     fun installedModuleInfos(): List<ModuleInfo>
     fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?>
+    // ports for the given option values (null = id isn't a known module). Most modules' ports
+    // don't depend on options, in which case this just returns the module's fixed inputs/outputs.
+    fun moduleInputsFor(id: String, options: Map<String, String>): List<String>?
+    fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>?
     fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?
     // run a component in its own folder sandbox (bundled dependency modules)

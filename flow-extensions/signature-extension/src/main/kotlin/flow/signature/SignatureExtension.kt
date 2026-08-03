@@ -17,7 +17,7 @@ import java.security.spec.X509EncodedKeySpec
 class SignatureExtension : ModuleExtension {
     override val id = "flow.signature"
     override val displayName = "Signature"
-    override val inputs = listOf("in", "key", "signature")
+    override val inputs = listOf("in", "key", "signature") // full set; see inputsFor for the per-operation set
     override val outputs = listOf("out")
     override val options = listOf(
         ExtensionOption("operation", OptionType.SELECT, "sign", listOf("sign", "verify")),
@@ -30,6 +30,10 @@ class SignatureExtension : ModuleExtension {
             ),
         ),
     )
+
+    // "signature" is only meaningful for verify (the value being checked); sign produces it, doesn't consume it
+    override fun inputsFor(options: Map<String, String>): List<String> =
+        if (options["operation"] == "verify") listOf("in", "key", "signature") else listOf("in", "key")
 
     // the key algorithm KeyFactory needs is encoded in the tail of the signature algorithm name
     private fun keyAlgoFor(signatureAlgorithm: String): String = when {

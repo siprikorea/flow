@@ -32,6 +32,8 @@ actual object Platform {
     actual fun installedModuleInfos(): List<ModuleInfo> = ExtensionLoader.moduleInfos()
     actual fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
         ExtensionLoader.process(id, inputs, options)
+    actual fun moduleInputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.inputsFor(id, options)
+    actual fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.outputsFor(id, options)
     actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
     actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
     actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)

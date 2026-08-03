@@ -16,6 +16,7 @@ import flow.model.compFile
 import flow.model.findDef
 import flow.model.indexOfPort
 import flow.model.isComp
+import flow.model.portNames
 import flow.platform.Platform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -256,8 +257,12 @@ class EditorState(
             val c = ws.findComp(compFile(type)) ?: return
             label = c.name; ins = c.ins; outs = c.outs; params = emptyMap(); idBase = "comp"
         } else if (moduleInfo != null) {
-            label = moduleInfo.name; ins = moduleInfo.inputs; outs = moduleInfo.outputs
+            label = moduleInfo.name
             params = moduleInfo.options.associate { it.name to it.default } // seed extension option defaults
+            // ports for a module can depend on its (default) option values (e.g. flow.signature's
+            // "signature" input only applies to verify) — ask the extension, not the static list
+            ins = Platform.moduleInputsFor(type, params) ?: moduleInfo.inputs
+            outs = Platform.moduleOutputsFor(type, params) ?: moduleInfo.outputs
             idBase = type.substringAfterLast('.').ifBlank { "mod" }
         } else {
             val def = findDef(type) ?: return
@@ -382,6 +387,35 @@ class EditorState(
         var name = "$base$i"
         while (list.any { it.name == name }) name = "$base${++i}"
         updateNode(nodeId) { if (kind == "in") it.copy(inputs = list + Port(name)) else it.copy(outputs = list + Port(name)) }
+    }
+
+    // Sets an extension module option and, if that option changes which ports the module declares
+    // (e.g. flow.signature's "signature" input only applies when operation=verify), resyncs the
+    // node's actual ports to match — adding newly-relevant ports, dropping ones that no longer
+    // apply (and any edge wired to them). Ports on module nodes are never user-added/renamed/removed
+    // directly; this is the only thing that changes them, driven entirely by the option value.
+    fun setModuleOption(nodeId: String, optName: String, value: String) {
+        val node = nodeById(nodeId) ?: return
+        val newParams = node.params + (optName to value)
+        val newInNames = Platform.moduleInputsFor(node.type, newParams)
+        val newOutNames = Platform.moduleOutputsFor(node.type, newParams)
+        if (newInNames == null || newOutNames == null) {
+            // not a recognized extension module — just record the value, no ports to resync
+            updateNode(nodeId) { it.copy(params = newParams) }
+            return
+        }
+        val portsChanged = newInNames != node.inputs.portNames() || newOutNames != node.outputs.portNames()
+        if (portsChanged) pushHistory()
+        val newIns = newInNames.map { name -> node.inputs.find { it.name == name } ?: Port(name) }
+        val newOuts = newOutNames.map { name -> node.outputs.find { it.name == name } ?: Port(name) }
+        updateNode(nodeId) { it.copy(params = newParams, inputs = newIns, outputs = newOuts) }
+        if (portsChanged) {
+            val keepIn = newInNames.toSet()
+            val keepOut = newOutNames.toSet()
+            edges = edges.filter {
+                !(it.to.node == nodeId && it.to.port !in keepIn) && !(it.from.node == nodeId && it.from.port !in keepOut)
+            }
+        }
     }
 
     /* ───────── connections ───────── */
