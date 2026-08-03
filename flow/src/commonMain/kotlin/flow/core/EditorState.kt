@@ -266,7 +266,11 @@ class EditorState(
             idBase = type.substringAfterLast('.').ifBlank { "mod" }
         } else {
             val def = findDef(type) ?: return
-            label = def.name[lang] ?: def.name["ko"] ?: type
+            val base = def.name[lang] ?: def.name["ko"] ?: type
+            // cin/cout labels double as this flow's public input/output names (see asComponent()) —
+            // two of the same kind sharing a label is genuinely ambiguous (the engine looks up
+            // external input/output values by this label), so keep them unique from the start
+            label = if (type == "cin" || type == "cout") uniqueBoundaryLabel(type, base) else base
             ins = def.ins; outs = def.outs; params = def.defaultParams(); idBase = type
         }
         pushHistory()
@@ -285,6 +289,26 @@ class EditorState(
 
     fun updateNode(id: String, transform: (Node) -> Node) {
         nodes = nodes.map { if (it.id == id) transform(it) else it }
+    }
+
+    // If `base` collides with another cin (or cout) node's label in this flow, append " 2", " 3", …
+    // until it doesn't. cin/cout labels are the engine's external-input/output lookup key (and this
+    // flow's public port names when used as a component), so — unlike a regular module's label,
+    // which is purely cosmetic — they must stay unique within the flow to mean anything.
+    private fun uniqueBoundaryLabel(type: String, base: String, excludeId: String? = null): String {
+        val used = nodes.filter { it.type == type && it.id != excludeId }.map { it.label }.toSet()
+        if (base !in used) return base
+        var i = 2
+        while ("$base $i" in used) i++
+        return "$base $i"
+    }
+
+    // Renames a node's label, auto-uniquifying it first for cin/cout (see uniqueBoundaryLabel).
+    // Regular module labels are cosmetic only and are set directly, no uniqueness needed.
+    fun renameNodeLabel(nodeId: String, newLabel: String) {
+        val node = nodeById(nodeId) ?: return
+        val label = if (node.type == "cin" || node.type == "cout") uniqueBoundaryLabel(node.type, newLabel, excludeId = nodeId) else newLabel
+        updateNode(nodeId) { it.copy(label = label) }
     }
 
     fun moveNode(id: String, x: Float, y: Float) = updateNode(id) { it.copy(x = x, y = y) }
@@ -338,8 +362,24 @@ class EditorState(
         val dy = cursorWorld.y - (minY + maxY) / 2
         var s = seq
         val idMap = clip.nodes.associate { it.id to "${it.id}_${s++}" }
-        nodes = nodes + clip.nodes.map {
-            it.copy(id = idMap[it.id]!!, x = snapF(it.x + dx), y = snapF(it.y + dy), status = "idle")
+        // cin/cout labels must stay unique (see uniqueBoundaryLabel) — track labels claimed so far
+        // in this same paste batch too, in case several boundary nodes were copied together
+        val usedCin = nodes.filter { it.type == "cin" }.map { it.label }.toMutableSet()
+        val usedCout = nodes.filter { it.type == "cout" }.map { it.label }.toMutableSet()
+        fun claim(base: String, used: MutableSet<String>): String {
+            var label = base
+            var i = 2
+            while (label in used) label = "$base $i".also { i++ }
+            used += label
+            return label
+        }
+        nodes = nodes + clip.nodes.map { n ->
+            val label = when (n.type) {
+                "cin" -> claim(n.label, usedCin)
+                "cout" -> claim(n.label, usedCout)
+                else -> n.label
+            }
+            n.copy(id = idMap[n.id]!!, x = snapF(n.x + dx), y = snapF(n.y + dy), status = "idle", label = label)
         }
         edges = edges + clip.edges.map { e ->
             Edge("e_${s++}", PortRef(idMap[e.from.node]!!, e.from.port), PortRef(idMap[e.to.node]!!, e.to.port))

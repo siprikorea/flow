@@ -153,7 +153,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
 
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         SectionLabel(state.t("labelName"))
-        DtxField(node.label, { v -> state.updateNode(node.id) { it.copy(label = v) } }, onFocusChange = onFocusChange)
+        DtxField(node.label, { v -> state.renameNodeLabel(node.id, v) }, onFocusChange = onFocusChange)
     }
 
     // node ids are managed internally (unique within the component) and not shown
