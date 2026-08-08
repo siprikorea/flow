@@ -76,6 +76,7 @@ compose.desktop {
 
             macOS {
                 iconFile.set(project.file("icons/appicon.icns"))
+                bundleID = "com.siprikorea.flow"
             }
             linux {
                 iconFile.set(project.file("appicon.png"))
