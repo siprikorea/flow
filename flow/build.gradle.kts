@@ -39,6 +39,7 @@ val builtinExtensions = mapOf(
     "flow.signature" to ":flow-extensions:signature-extension",
     "flow.keygen" to ":flow-extensions:keygen-extension",
     "flow.keypairgen" to ":flow-extensions:keypairgen-extension",
+    "flow.keyfactory" to ":flow-extensions:keyfactory-extension",
     "flow.securerandom" to ":flow-extensions:securerandom-extension",
 )
 
