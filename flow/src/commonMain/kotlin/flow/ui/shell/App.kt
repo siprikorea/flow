@@ -43,14 +43,16 @@ import flow.core.Workspace
 import flow.model.findDef
 import flow.model.isComp
 import flow.platform.Platform
+import flow.util.flowLabel
 import flow.ui.canvas.CanvasView
 import flow.ui.data.DataEditor
 import flow.ui.common.DtxField
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
-import flow.ui.props.PropsPanel
 import flow.ui.theme.Palette
 import flow.ui.tools.LeftToolWindow
+import flow.ui.tools.ProjectContextMenu
+import flow.ui.tools.RightToolWindow
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlin.math.roundToInt
@@ -75,20 +77,20 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
                         }
                     }
                 }
-                val active = ws.active
-                // the props panel belongs to the canvas; hide it on a data-editor tab
-                if (ws.showProps && active != null && ws.activeData == null) PropsPanel(active)
+                RightToolWindow(ws) // props panel + the settings/properties rail
             }
             StatusBar(ws)
         }
         ws.dragModule?.let { DragGhost(it) }
+        if (ws.projectMenuFor != null) ProjectContextMenu(ws)
         ws.closeConfirm?.let { i ->
-            val name = ws.docs.getOrNull(i)?.fileName?.removeSuffix(".flow") ?: ""
+            val name = ws.docs.getOrNull(i)?.let { flowLabel(it.fileName) } ?: ""
             SaveCloseDialog(ws, name)
         }
         ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
         ws.installConfirm?.let { OverwriteDialog(ws, it.label) }
         ws.renameTarget?.let { RenameDialog(ws, it) }
+        ws.newFolderParent?.let { NewFolderDialog(ws) }
         ws.saveError?.let { SaveErrorDialog(ws, it) }
     }
 
@@ -152,7 +154,7 @@ private fun FileDeleteDialog(ws: Workspace, count: Int) {
 
 @Composable
 private fun RenameDialog(ws: Workspace, current: String) {
-    var text by remember(current) { mutableStateOf(current.removeSuffix(".flow")) }
+    var text by remember(current) { mutableStateOf(ws.renameInitial()) }
     Box(
         Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelRename() },
         contentAlignment = Alignment.Center,
@@ -171,6 +173,34 @@ private fun RenameDialog(ws: Workspace, current: String) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelRename() }
                 DialogButton(ws.t("rename"), Palette.accent, Palette.holeBg, filled = true) { ws.doRename(text) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NewFolderDialog(ws: Workspace) {
+    var text by remember { mutableStateOf("") }
+    Box(
+        Modifier.fillMaxSize().background(Palette.appBg.copy(alpha = 0.55f)).plainClick { ws.cancelNewFolder() },
+        contentAlignment = Alignment.Center,
+    ) {
+        Column(
+            Modifier
+                .width(320.dp)
+                .background(Palette.dropdownBg, RoundedCornerShape(10.dp))
+                .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(10.dp))
+                .plainClick { }
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            Txt(ws.t("newFolderTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
+            // where it lands: the project root shows as its folder name
+            Txt(ws.rootLabel + "/" + (ws.newFolderParent ?: ""), 11.sp, Palette.faintText, mono = true, maxLines = 1)
+            DtxField(text, { text = it })
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
+                DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelNewFolder() }
+                DialogButton(ws.t("create"), Palette.accent, Palette.holeBg, filled = true) { ws.createFolder(text) }
             }
         }
     }
@@ -271,7 +301,7 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            val title = if (ws.saveWarn) ws.t("saveWarnTitle") else ws.t("saveErrorTitle")
+            val title = if (ws.saveWarn) ws.t("saveWarnTitle") else ws.t(ws.errorTitleKey)
             val titleColor = if (ws.saveWarn) Palette.warnSoft else Palette.errorSoft
             Txt(title, 14.sp, titleColor, weight = FontWeight.SemiBold)
             Txt(message, 12.5.sp, Palette.subText)
@@ -431,6 +461,7 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
         if (dataTab != null) { ws.closeDataTab(dataTab); return true }
         active?.wire = null
         ws.menu = null
+        ws.closeProjectMenu()
         return true
     }
     val ctrl = ev.isCtrlPressed || ev.isMetaPressed

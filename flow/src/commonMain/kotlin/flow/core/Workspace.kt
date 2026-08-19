@@ -4,6 +4,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
@@ -11,6 +12,13 @@ import flow.model.Node
 import flow.model.Session
 import flow.model.asComponent
 import flow.platform.Platform
+import flow.util.flowLabel
+import flow.util.isValidSegment
+import flow.util.pathAncestors
+import flow.util.pathJoin
+import flow.util.pathName
+import flow.util.pathParent
+import flow.util.pathUnder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
 
@@ -31,6 +39,13 @@ class Workspace(private val scope: CoroutineScope) {
     var lang by mutableStateOf("en") // default language: English
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules
+    // palette sections left open, by key
+    var expandedSections by mutableStateOf(setOf<String>())
+
+    fun isSectionOpen(key: String) = key in expandedSections
+    fun toggleSection(key: String) {
+        expandedSections = if (key in expandedSections) expandedSections - key else expandedSections + key
+    }
 
     // VS Code-style activity bar click: open that panel, or collapse when the
     // same icon is clicked while its panel is already open.
@@ -72,19 +87,36 @@ class Workspace(private val scope: CoroutineScope) {
     // internal clipboard for module copy/paste between documents
     var clipboard by mutableStateOf<FlowFile?>(null)
 
-    // component validation message to display (null = none)
+    // message dialog (null = none)
     var saveError by mutableStateOf<String?>(null)
-    // true when saveError is a non-blocking warning (the save still succeeded)
+    // true when the message is a non-blocking warning
     var saveWarn by mutableStateOf(false)
+    var errorTitleKey by mutableStateOf("saveErrorTitle")
 
-    // project panel multi-selection (highlight). Open via double-click / right-click menu.
+    fun showError(message: String, titleKey: String = "saveErrorTitle") {
+        saveWarn = false
+        errorTitleKey = titleKey
+        saveError = message
+    }
+
+    // project tree multi-selection, by path
     var projectSelected by mutableStateOf(setOf<String>())
-    // file whose right-click context menu is open (null = none)
+    // item whose context menu is open, and where it was opened (window px)
     var projectMenuFor by mutableStateOf<String?>(null)
-    // files pending delete-confirmation (null = no dialog)
+    var projectMenuPos by mutableStateOf(Offset.Zero)
+
+    fun openProjectMenu(path: String, pos: Offset) {
+        projectMenuPos = pos
+        projectMenuFor = path
+    }
+
+    fun closeProjectMenu() { projectMenuFor = null }
+    // items pending delete-confirmation
     var fileDeleteConfirm by mutableStateOf<Set<String>?>(null)
-    // file pending rename (null = no dialog)
+    // item pending rename
     var renameTarget by mutableStateOf<String?>(null)
+    // parent of a pending new folder
+    var newFolderParent by mutableStateOf<String?>(null)
     // install-overwrite confirmation (null = none)
     var installConfirm by mutableStateOf<InstallPending?>(null)
 
@@ -117,10 +149,14 @@ class Workspace(private val scope: CoroutineScope) {
         }
     }
 
-    // project files + components + installed modules
+    // project tree; paths are relative to the flows root
     var files by mutableStateOf<List<String>>(emptyList())
+    var folders by mutableStateOf<List<String>>(emptyList())
+    // folders drawn open; "" is the root row
+    var expandedDirs by mutableStateOf(setOf(""))
     var components by mutableStateOf<List<CompDef>>(emptyList())
     var installedModules by mutableStateOf<List<ModuleInfo>>(emptyList())
+    val rootLabel: String = Platform.flowsDirName()
     val dirLabel: String = Platform.flowsDirLabel()
 
     fun t(key: String) = flow.i18n.tr(lang, key)
@@ -133,10 +169,11 @@ class Workspace(private val scope: CoroutineScope) {
     /* ───────── project files + installed ───────── */
 
     fun refreshFiles() {
-        files = Platform.listFlows()
+        files = Platform.listProjectFiles()
+        folders = Platform.listFlowDirs()
         installedModules = Platform.installedModuleInfos()
         // project components (flows/) + installed components (components/, read-only)
-        val local = files.mapNotNull { name ->
+        val local = files.filter { it.endsWith(".flow") }.mapNotNull { name ->
             val raw = Platform.readFlow(name) ?: return@mapNotNull null
             val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return@mapNotNull null
             flow.asComponent(name)
@@ -166,7 +203,7 @@ class Workspace(private val scope: CoroutineScope) {
     fun installActiveComponent() {
         val doc = active ?: return
         if (doc.nodes.none { it.type == "cin" || it.type == "cout" }) return // components only
-        val id = "local." + doc.fileName.removeSuffix(".flow")
+        val id = "local." + doc.fileName.removeSuffix(".flow").replace('/', '.')
         val payload = doc.flowJson()
         val r = Platform.installComponent(id, payload, overwrite = false)
         if (r.conflicts.isNotEmpty()) {
@@ -206,7 +243,7 @@ class Workspace(private val scope: CoroutineScope) {
     fun openInstalledComponent(file: String) {
         val raw = Platform.readInstalledComponent(file) ?: return
         val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return
-        val name = nextName(file.removeSuffix(".flow").substringAfterLast('.').ifBlank { "flow" })
+        val name = nextName("", file.removeSuffix(".flow").substringAfterLast('.').ifBlank { "flow" })
         val doc = EditorState(scope, this, name).also { it.load(flow); it.persisted = false; it.showValidation = true }
         docs.add(doc)
         activeData = null
@@ -217,7 +254,46 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun isComponentFile(file: String): Boolean = components.any { it.file == file }
 
-    /* ───────── project file select/open/delete (multi) ───────── */
+    /* ───────── project tree ───────── */
+
+    class Row(val path: String, val name: String, val isDir: Boolean, val depth: Int)
+
+    fun isDir(path: String): Boolean = path in folders
+
+    fun isExpanded(dir: String): Boolean = dir in expandedDirs
+
+    fun toggleExpand(dir: String) {
+        expandedDirs = if (dir in expandedDirs) expandedDirs - dir else expandedDirs + dir
+    }
+
+    // open every folder down to [dir]
+    fun revealDir(dir: String) { expandedDirs = expandedDirs + pathAncestors(dir) }
+
+    // Tree order: folders first, then files, alphabetical; expanded folders include their children.
+    fun projectRows(): List<Row> {
+        val dirsByParent = folders.groupBy { pathParent(it) }
+        val filesByParent = files.groupBy { pathParent(it) }
+        val out = mutableListOf<Row>()
+        fun walk(dir: String, depth: Int) {
+            dirsByParent[dir].orEmpty().sortedBy { pathName(it).lowercase() }.forEach { d ->
+                out += Row(d, pathName(d), isDir = true, depth = depth)
+                if (isExpanded(d)) walk(d, depth + 1)
+            }
+            filesByParent[dir].orEmpty().sortedBy { pathName(it).lowercase() }.forEach { f ->
+                out += Row(f, pathName(f), isDir = false, depth = depth)
+            }
+        }
+        walk("", 0)
+        return out
+    }
+
+    // where a new file/folder lands
+    fun targetDir(): String {
+        val sel = projectSelected.firstOrNull() ?: return ""
+        return if (isDir(sel)) sel else pathParent(sel)
+    }
+
+    /* ───────── project select / open / delete (multi) ───────── */
 
     fun selectFile(name: String) { projectSelected = setOf(name) }
     fun toggleFileSelect(name: String) {
@@ -225,7 +301,7 @@ class Workspace(private val scope: CoroutineScope) {
     }
 
     fun openFiles(names: Collection<String>) {
-        names.forEach { openFile(it) }
+        names.filterNot { isDir(it) }.forEach { openFile(it) }
         warnUnconnected()
     }
 
@@ -242,53 +318,99 @@ class Workspace(private val scope: CoroutineScope) {
     fun cancelDeleteFiles() { fileDeleteConfirm = null }
 
     private fun deleteFiles(names: Set<String>) {
-        names.forEach { name ->
-            val i = docs.indexOfFirst { it.fileName == name }
-            if (i >= 0) removeDoc(i) // also close the tab if open
-            Platform.deleteFlow(name)
+        names.forEach { path ->
+            // close its tab, or every tab under the folder
+            val folder = isDir(path)
+            while (true) {
+                val i = docs.indexOfFirst { if (folder) pathUnder(it.fileName, path) else it.fileName == path }
+                if (i < 0) break
+                removeDoc(i)
+            }
+            Platform.deleteFlowPath(path)
         }
         projectSelected = projectSelected - names
         refreshFiles()
     }
 
-    /* ───────── rename ───────── */
+    /* ───────── new folder ───────── */
+
+    fun requestNewFolder(parent: String = targetDir()) { newFolderParent = parent }
+    fun cancelNewFolder() { newFolderParent = null }
+
+    fun createFolder(rawName: String) {
+        val parent = newFolderParent ?: return
+        newFolderParent = null
+        val name = rawName.trim()
+        if (!isValidSegment(name)) return
+        val path = pathJoin(parent, name)
+        if (Platform.createFlowDir(path)) {
+            revealDir(path)
+            refreshFiles()
+            selectFile(path)
+        }
+    }
+
+    /* ───────── rename (file or folder) ───────── */
 
     fun requestRename(name: String) { renameTarget = name }
     fun cancelRename() { renameTarget = null }
 
+    // folders keep their name, files drop the .flow suffix
+    fun renameInitial(): String = renameTarget?.let { if (isDir(it)) pathName(it) else flowLabel(it) } ?: ""
+
     fun doRename(newBase: String) {
         val old = renameTarget ?: return
         renameTarget = null
-        val trimmed = newBase.trim()
-        if (trimmed.isEmpty()) return
-        val new = if (trimmed.endsWith(".flow")) trimmed else "$trimmed.flow"
+        val dir = isDir(old)
+        val typed = newBase.trim()
+        // a flow file keeps its suffix; folders and other files are renamed as typed
+        val name = if (!dir && old.endsWith(".flow") && !typed.endsWith(".flow")) "$typed.flow" else typed
+        if (!isValidSegment(name)) return
+        val new = pathJoin(pathParent(old), name)
         if (new == old) return
-        if (Platform.renameFlow(old, new)) {
-            docs.find { it.fileName == old }?.fileName = new // sync the open tab's file name
-            if (old in projectSelected) projectSelected = projectSelected - old + new
-            refreshFiles()
+        if (!Platform.renameFlowPath(old, new)) return
+        // re-point open tabs, expansion and selection
+        fun moved(path: String) = if (path == old) new else new + path.substring(old.length)
+        if (dir) {
+            docs.forEach { if (pathUnder(it.fileName, old)) it.fileName = moved(it.fileName) }
+            expandedDirs = expandedDirs.map { if (it.isNotEmpty() && pathUnder(it, old)) moved(it) else it }.toSet()
+        } else {
+            docs.find { it.fileName == old }?.fileName = new
         }
+        projectSelected = projectSelected.map { if (pathUnder(it, old)) moved(it) else it }.toSet()
+        refreshFiles()
     }
 
     /* ───────── open/close tabs ───────── */
 
-    fun openFile(name: String) {
+    // Only a readable .flow file opens; anything else reports an error instead.
+    fun openFile(name: String, reportError: Boolean = true) {
         val i = docs.indexOfFirst { it.fileName == name }
         if (i >= 0) { activeData = null; activeIndex = i; return }
+        val label = pathName(name)
+        if (!name.endsWith(".flow")) {
+            if (reportError) showError(t("openErrorNotFlow").replace("{name}", label), "openErrorTitle")
+            return
+        }
         val raw = Platform.readFlow(name)
-        val flow = raw?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() } ?: FlowFile()
+        val flow = raw?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() }
+        if (flow == null) {
+            if (reportError) showError(t("openErrorBroken").replace("{name}", label), "openErrorTitle")
+            return
+        }
         val doc = EditorState(scope, this, name).also { it.load(flow); it.showValidation = true }
         docs.add(doc)
         activeData = null
         activeIndex = docs.lastIndex
     }
 
-    // New component: starts empty (drag in/out boundaries from the palette).
-    // Not written to a file until saved; saving validates the in/out contract.
-    fun newComponent() {
-        val name = nextName("flow")
+    // New component in [dir] (default: the selected folder). Written to a file only on
+    // save, which validates the in/out contract.
+    fun newComponent(dir: String = targetDir()) {
+        val name = nextName(dir, "flow")
         val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
         docs.add(doc)
+        revealDir(dir)
         activeData = null
         activeIndex = docs.lastIndex
     }
@@ -351,18 +473,19 @@ class Workspace(private val scope: CoroutineScope) {
         if (activeIndex >= docs.size) activeIndex = (docs.size - 1).coerceAtLeast(0)
     }
 
-    private fun nextName(base: String): String {
+    private fun nextName(dir: String, base: String): String {
         val existing = (files + docs.map { it.fileName }).toSet()
         var n = 1
-        while ("$base-$n.flow" in existing) n++
-        return "$base-$n.flow"
+        while (pathJoin(dir, "$base-$n.flow") in existing) n++
+        return pathJoin(dir, "$base-$n.flow")
     }
 
     /* ───────── session ───────── */
 
     fun sessionJson(): String = json.encodeToString(
         Session(
-            docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, showProps, showMinimap, leftWidth, propsWidth, animSeconds,
+            docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, expandedDirs.toList().sorted(),
+            expandedSections.toList().sorted(), showProps, showMinimap, leftWidth, propsWidth, animSeconds,
             windowX, windowY, windowWidth, windowHeight, windowMaximized,
         )
     )
@@ -373,6 +496,9 @@ class Workspace(private val scope: CoroutineScope) {
             lang = s.lang
             showLeft = s.showLeft
             leftTab = s.leftTab
+            // an older session file has no such field; keep the root open
+            expandedDirs = s.expandedDirs.toSet() + ""
+            expandedSections = s.expandedSections.toSet()
             showProps = s.showProps
             showMinimap = s.showMinimap
             leftWidth = s.leftWidth.coerceIn(160f, 500f)
@@ -383,7 +509,7 @@ class Workspace(private val scope: CoroutineScope) {
             windowWidth = s.windowWidth
             windowHeight = s.windowHeight
             windowMaximized = s.windowMaximized
-            s.openFiles.filter { Platform.readFlow(it) != null }.forEach { openFile(it) }
+            s.openFiles.filter { Platform.readFlow(it) != null }.forEach { openFile(it, reportError = false) }
             activeIndex = s.activeIndex.coerceIn(0, (docs.size - 1).coerceAtLeast(0))
         }
         if (docs.isEmpty()) {

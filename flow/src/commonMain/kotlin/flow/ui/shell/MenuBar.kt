@@ -1,10 +1,8 @@
 package flow.ui.shell
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -13,17 +11,11 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
@@ -33,7 +25,6 @@ import flow.core.Workspace
 import flow.ui.common.AppLogo
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
-import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 
 // In-app top strip (themed title bar area): brand + run controls.
@@ -66,42 +57,8 @@ fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> U
             } else {
                 RunButton(ws.t("start"), enabled = active != null, bg = Palette.accent, textColor = Palette.holeBg) { active?.startRun() }
             }
-
-            // collapse/expand the properties panel
-            PropsToggle(ws.showProps) { ws.showProps = !ws.showProps }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
-    }
-}
-
-// Small side-panel icon toggle: an outlined rect with its right column highlighted
-// when the properties panel is open.
-@Composable
-private fun PropsToggle(open: Boolean, onClick: () -> Unit) {
-    val (src, hovered) = rememberHover()
-    val tint = when {
-        open -> Palette.text
-        hovered -> Palette.menuText
-        else -> Palette.dimText
-    }
-    Box(
-        Modifier.size(28.dp).hoverable(src).plainClick(onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Canvas(Modifier.size(16.dp)) {
-            val w = size.width
-            val h = size.height
-            val st = Stroke(width = w * 0.09f)
-            drawRoundRect(
-                tint, topLeft = Offset(w * 0.08f, h * 0.16f), size = Size(w * 0.84f, h * 0.68f),
-                cornerRadius = CornerRadius(w * 0.1f, w * 0.1f), style = st,
-            )
-            val divX = w * 0.62f
-            drawLine(tint, Offset(divX, h * 0.16f), Offset(divX, h * 0.84f), strokeWidth = w * 0.09f)
-            if (open) {
-                drawRect(tint.copy(alpha = 0.9f), topLeft = Offset(divX, h * 0.16f), size = Size(w * 0.30f, h * 0.68f))
-            }
-        }
     }
 }
 

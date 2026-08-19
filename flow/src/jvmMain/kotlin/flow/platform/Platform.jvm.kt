@@ -14,6 +14,9 @@ actual object Platform {
     private val sessionFile = File(baseDir, "session.json")
     private val hms = DateTimeFormatter.ofPattern("HH:mm:ss")
 
+    // 순회 최대 깊이 (심볼릭 링크 순환 방지)
+    private const val MAX_TREE_DEPTH = 12
+
     init {
         // 기존 ~/.dataflow-editor 데이터를 ~/.flow 로 1회 이전(복사)
         runCatching {
@@ -51,51 +54,72 @@ actual object Platform {
         return File(dir, name).absolutePath
     }
 
-    // 플로우 파일명 검증: 순수 파일명(.flow)만 허용하고 flowsDir 하위로 한정.
-    // 경로 분리자·상위 이동(..)·심볼릭 링크를 통한 디렉터리 탈출을 차단한다.
-    private fun resolveFlow(name: String): File? {
-        if (name.isEmpty() || !name.endsWith(".flow")) return null
-        if (name.contains('/') || name.contains('\\')) return null
-        if (name == "." || name == "..") return null
+    // flows 루트 기준 상대 경로('/' 구분)만 허용: 빈 세그먼트·상위 이동·심볼릭 링크 탈출 차단
+    private fun resolveRel(rel: String, requireFlow: Boolean): File? {
+        if (rel.isEmpty() || rel.contains('\\')) return null
+        if (requireFlow && !rel.endsWith(".flow")) return null
+        val parts = rel.split('/')
+        if (parts.any { it.isEmpty() || it == "." || it == ".." }) return null
         return runCatching {
-            val file = File(flowsDir, name)
-            val base = flowsDir.canonicalFile
-            if (file.canonicalFile.parentFile == base) file else null
+            val file = File(flowsDir, rel)
+            val base = flowsDir.canonicalFile.path + File.separator
+            if (file.canonicalFile.path.startsWith(base)) file else null
         }.getOrNull()
     }
 
-    actual fun listFlows(): List<String> {
+    private fun relPath(file: File): String =
+        file.toRelativeString(flowsDir).replace(File.separatorChar, '/')
+
+    // 깊이 제한 트리 순회, 숨김(.) 항목 제외
+    private fun walk(): Sequence<File> {
         ensureDirs()
-        return flowsDir.listFiles { f -> f.isFile && f.name.endsWith(".flow") }
-            ?.map { it.name }?.sorted() ?: emptyList()
+        return flowsDir.walkTopDown().maxDepth(MAX_TREE_DEPTH)
+            .onEnter { !it.name.startsWith(".") }
+            .filter { it != flowsDir && !it.name.startsWith(".") }
     }
 
+    actual fun listFlows(): List<String> =
+        walk().filter { it.isFile && it.name.endsWith(".flow") }.map { relPath(it) }.sorted().toList()
+
+    actual fun listProjectFiles(): List<String> =
+        walk().filter { it.isFile }.map { relPath(it) }.sorted().toList()
+
+    actual fun listFlowDirs(): List<String> =
+        walk().filter { it.isDirectory }.map { relPath(it) }.sorted().toList()
+
     actual fun readFlow(name: String): String? {
-        val file = resolveFlow(name) ?: return null
-        return runCatching { file.takeIf { it.exists() }?.readText() }.getOrNull()
+        val file = resolveRel(name, requireFlow = true) ?: return null
+        return runCatching { file.takeIf { it.isFile }?.readText() }.getOrNull()
     }
 
     actual fun writeFlow(name: String, json: String) {
-        val file = resolveFlow(name) ?: return
+        val file = resolveRel(name, requireFlow = true) ?: return
         runCatching {
-            ensureDirs()
+            file.parentFile?.mkdirs()
             file.writeText(json)
         }
     }
 
-    actual fun deleteFlow(name: String) {
-        val file = resolveFlow(name) ?: return
-        runCatching { file.delete() }
+    actual fun createFlowDir(path: String): Boolean {
+        val dir = resolveRel(path, requireFlow = false) ?: return false
+        if (dir.exists()) return false
+        return runCatching { dir.mkdirs() }.getOrDefault(false)
     }
 
-    actual fun renameFlow(oldName: String, newName: String): Boolean {
-        val o = resolveFlow(oldName) ?: return false
-        val n = resolveFlow(newName) ?: return false
+    actual fun deleteFlowPath(path: String) {
+        val file = resolveRel(path, requireFlow = false) ?: return
+        runCatching { if (file.isDirectory) file.deleteRecursively() else file.delete() }
+    }
+
+    actual fun renameFlowPath(oldPath: String, newPath: String): Boolean {
+        val o = resolveRel(oldPath, requireFlow = false) ?: return false
+        val n = resolveRel(newPath, requireFlow = false) ?: return false
         if (!o.exists() || n.exists()) return false
-        return runCatching { o.renameTo(n) }.getOrDefault(false)
+        return runCatching { n.parentFile?.mkdirs(); o.renameTo(n) }.getOrDefault(false)
     }
 
     actual fun flowsDirLabel(): String = flowsDir.absolutePath
+    actual fun flowsDirName(): String = flowsDir.name
 
     // ── arbitrary file access for the data editor ──
     actual fun pickFileRead(): String? {

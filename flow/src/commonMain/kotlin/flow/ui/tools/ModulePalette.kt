@@ -52,16 +52,16 @@ internal fun ModulePalette(ws: Workspace) {
     ) {
         // order: input/output -> modules -> components. Each category has its own
         // color; items under it share that color. Non-built-in items get an EXT mark.
-        Section(ws.t("ioSection"), Palette.catIo) {
+        Section(ws, "io", ws.t("ioSection"), Palette.catIo) {
             IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catIo, it.ins.size, it.outs.size) }
         }
-        Section(ws.t("moduleList"), Palette.catTransform) {
+        Section(ws, "modules", ws.t("moduleList"), Palette.catTransform) {
             REGISTRY.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catTransform, it.ins.size, it.outs.size) }
             ws.installedModules.forEach { m ->
                 PaletteCard(ws, m.id, m.name, Palette.catTransform, m.inputs.size, m.outputs.size, ext = true)
             }
         }
-        Section(ws.t("componentsSection"), Palette.catComponent) {
+        Section(ws, "components", ws.t("componentsSection"), Palette.catComponent) {
             if (ws.components.isEmpty()) {
                 Txt(ws.t("dragHint"), 11.sp, Palette.dimText, modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp))
             }
@@ -72,17 +72,17 @@ internal fun ModulePalette(ws: Workspace) {
     }
 }
 
-// Collapsible category section (click the header to expand/collapse). Starts collapsed.
+// Collapsible category section; the open/closed state is kept in the workspace.
 @Composable
-private fun Section(title: String, dot: Color? = null, content: @Composable () -> Unit) {
-    var expanded by remember(title) { mutableStateOf(false) }
+private fun Section(ws: Workspace, key: String, title: String, dot: Color? = null, content: @Composable () -> Unit) {
+    val expanded = ws.isSectionOpen(key)
     val (hoverSrc, hovered) = rememberHover()
     Column(Modifier.fillMaxWidth().padding(top = 4.dp)) {
         Row(
             Modifier.fillMaxWidth()
                 .hoverable(hoverSrc)
                 .background(if (hovered) Palette.hoverBg else Color.Transparent, RoundedCornerShape(5.dp))
-                .plainClick { expanded = !expanded }
+                .plainClick { ws.toggleSection(key) }
                 .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),

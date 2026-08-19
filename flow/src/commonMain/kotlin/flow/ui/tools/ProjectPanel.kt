@@ -1,6 +1,5 @@
 package flow.ui.tools
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -10,8 +9,11 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,42 +24,55 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import flow.core.Workspace
+import flow.util.pathParent
+import flow.ui.common.ActivityButton
+import flow.ui.common.ActivityRail
+import flow.ui.common.BlocksGlyph
+import flow.ui.common.ChevronGlyph
+import flow.ui.common.FolderGlyph
+import flow.ui.common.FolderPlusGlyph
+import flow.ui.common.KindBadge
+import flow.ui.common.RailSide
 import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
+import kotlin.math.roundToInt
 
-// VS Code-style left side: an activity bar (icon rail) + an optional panel.
-// Clicking an icon opens its panel; clicking the same icon again collapses the panel.
+private val ROW_INDENT = 13.dp // per tree level
+
+// Left side: the activity rail + the panel it opens. Pressing an open one collapses it.
 @Composable
 fun LeftToolWindow(ws: Workspace) {
     Row {
-        // activity bar
-        Column(
-            Modifier.width(44.dp).fillMaxHeight().background(Palette.tabBarBg),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            ActivityIcon(ws, "project") { tint -> FolderGlyph(tint) }
-            ActivityIcon(ws, "modules") { tint -> BlocksGlyph(tint) }
+        ActivityRail {
+            ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
+                FolderGlyph(tint)
+            }
+            ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
+                BlocksGlyph(tint)
+            }
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
         if (ws.showLeft) {
@@ -69,9 +84,7 @@ fun LeftToolWindow(ws: Workspace) {
             ) {
                 when (ws.leftTab) {
                     "modules" -> {
-                        Row(Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp)) {
-                            Txt(ws.t("tabModules").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-                        }
+                        PanelHeader(ws.t("tabModules"))
                         ModulePalette(ws)
                     }
                     else -> ProjectPanel(ws)
@@ -84,203 +97,230 @@ fun LeftToolWindow(ws: Workspace) {
     }
 }
 
-@Composable
-private fun ActivityIcon(ws: Workspace, tab: String, icon: @Composable (Color) -> Unit) {
-    val (hoverSrc, hovered) = rememberHover()
-    val active = ws.showLeft && ws.leftTab == tab
-    val tint = when {
-        active -> Palette.text
-        hovered -> Palette.menuText
-        else -> Palette.dimText
-    }
-    Box(
-        Modifier.fillMaxWidth().height(44.dp)
-            .hoverable(hoverSrc)
-            .plainClick { ws.clickActivity(tab) },
-    ) {
-        if (active) {
-            Box(Modifier.align(Alignment.CenterStart).width(2.dp).height(22.dp).background(Palette.accent))
-        }
-        Box(Modifier.align(Alignment.Center)) { icon(tint) }
-    }
-}
-
-// folder outline (project files)
-@Composable
-private fun FolderGlyph(tint: Color) {
-    Canvas(Modifier.size(20.dp)) {
-        val w = size.width
-        val h = size.height
-        val st = Stroke(width = w * 0.09f)
-        drawRoundRect(
-            tint, topLeft = Offset(w * 0.10f, h * 0.16f), size = Size(w * 0.36f, h * 0.18f),
-            cornerRadius = CornerRadius(w * 0.05f, w * 0.05f), style = st,
-        )
-        drawRoundRect(
-            tint, topLeft = Offset(w * 0.10f, h * 0.28f), size = Size(w * 0.80f, h * 0.52f),
-            cornerRadius = CornerRadius(w * 0.08f, w * 0.08f), style = st,
-        )
-    }
-}
-
-// blocks (palette), one square detached like the VS Code extensions icon
-@Composable
-private fun BlocksGlyph(tint: Color) {
-    Canvas(Modifier.size(20.dp)) {
-        val w = size.width
-        val s = Size(w * 0.34f, w * 0.34f)
-        val r = CornerRadius(w * 0.06f, w * 0.06f)
-        val st = Stroke(width = w * 0.09f)
-        drawRoundRect(tint, topLeft = Offset(w * 0.08f, w * 0.08f), size = s, cornerRadius = r, style = st)
-        drawRoundRect(tint, topLeft = Offset(w * 0.08f, w * 0.56f), size = s, cornerRadius = r, style = st)
-        drawRoundRect(tint, topLeft = Offset(w * 0.56f, w * 0.56f), size = s, cornerRadius = r, style = st)
-        drawRoundRect(tint, topLeft = Offset(w * 0.62f, w * 0.04f), size = s, cornerRadius = r, style = st)
-    }
-}
-
+// The flows folder as a tree: root row + expandable folders, add/rename/delete from the
+// header buttons or the right-click menu.
 @Composable
 private fun ProjectPanel(ws: Workspace) {
     Column(Modifier.fillMaxWidth()) {
-        // Header: new flow (+) / delete selection
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Txt(ws.t("tabProject").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-            Spacer(Modifier.weight(1f))
-            if (ws.projectSelected.size == 1) {
-                Txt(
-                    "✎", 14.sp, Palette.subText,
-                    modifier = Modifier.plainClick { ws.requestRename(ws.projectSelected.first()) }.padding(horizontal = 6.dp),
-                )
-            }
-            if (ws.projectSelected.isNotEmpty()) {
-                Txt(
-                    "🗑", 13.sp, Palette.errorSoft,
-                    modifier = Modifier.plainClick { ws.requestDeleteFiles(ws.projectSelected) }.padding(horizontal = 6.dp),
-                )
-            }
-            Txt(
-                "+", 15.sp, Palette.subText,
-                modifier = Modifier.plainClick { ws.newComponent() }.padding(horizontal = 6.dp),
-            )
+        PanelHeader(ws.t("tabProject")) {
+            HeaderIcon(onClick = { ws.requestNewFolder() }) { tint -> FolderPlusGlyph(tint, 15.dp) }
+            HeaderIcon(onClick = { ws.newComponent() }) { tint -> Txt("+", 15.sp, tint, weight = FontWeight.Bold) }
         }
         Column(
-            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 6.dp),
+            Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 8.dp),
         ) {
-            ws.files.forEach { name -> FileRow(ws, name) }
-            Txt(
-                ws.dirLabel, 10.sp, Palette.faintText, mono = true,
-                modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
-            )
+            RootRow(ws)
+            if (ws.isExpanded("")) {
+                ws.projectRows().forEach { row -> key(row.path) { ItemRow(ws, row) } }
+            }
         }
     }
 }
 
+// Same title row for every left panel, so switching tabs doesn't shift the title.
 @Composable
-private fun FileRow(ws: Workspace, name: String) {
+private fun PanelHeader(title: String, actions: @Composable RowScope.() -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().height(34.dp).padding(start = 10.dp, end = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Txt(title.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+        Spacer(Modifier.weight(1f))
+        actions()
+    }
+}
+
+@Composable
+private fun HeaderIcon(onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
     val (hoverSrc, hovered) = rememberHover()
-    val isOpen = ws.docs.any { it.fileName == name }
-    val isActive = ws.active?.fileName == name
-    val selected = name in ws.projectSelected
-    val isComp = ws.isComponentFile(name)
+    Box(
+        Modifier
+            .size(24.dp)
+            .hoverable(hoverSrc)
+            .background(if (hovered) Palette.hoverBg else Color.Transparent, RoundedCornerShape(5.dp))
+            .plainClick(onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        icon(if (hovered) Palette.text else Palette.subText)
+    }
+}
+
+// the project folder itself, with its full path greyed out beside the name
+@Composable
+private fun RootRow(ws: Workspace) {
+    val (hoverSrc, hovered) = rememberHover()
+    val expanded = ws.isExpanded("")
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .hoverable(hoverSrc)
+            .background(if (hovered) Palette.hoverBg else Color.Transparent)
+            .plainClick { ws.toggleExpand("") }
+            .padding(start = 6.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        ChevronGlyph(Palette.subText, expanded)
+        FolderGlyph(Palette.accentSoft, 14.dp, filled = true)
+        Txt(ws.rootLabel, 12.5.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1)
+        // full path of the folder being shown — greyed out, like IntelliJ's project root
+        Txt(ws.dirLabel, 10.sp, Palette.faintText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+private fun ItemRow(ws: Workspace, row: Workspace.Row) {
+    val (hoverSrc, hovered) = rememberHover()
+    val path = row.path
+    val selected = path in ws.projectSelected
+    val isOpen = ws.docs.any { it.fileName == path }
+    val isActive = ws.active?.fileName == path
+    val isFlow = row.name.endsWith(".flow")
+    val isComp = !row.isDir && ws.isComponentFile(path)
+    val expanded = row.isDir && ws.isExpanded(path)
     val bg = when {
         selected -> Palette.langActiveBg
         hovered -> Palette.hoverBg
         else -> Color.Transparent
     }
-    Box {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .hoverable(hoverSrc)
-                .background(bg, RoundedCornerShape(5.dp))
-                // click = select, Cmd/Win+click = toggle, double-click = open, right-click = context menu
-                .pointerInput(name) {
-                    var lastDown = 0L
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        down.consume()
-                        val mods = currentEvent.keyboardModifiers
-                        if (currentEvent.buttons.isSecondaryPressed) {
-                            if (name !in ws.projectSelected) ws.selectFile(name)
-                            ws.projectMenuFor = name
-                        } else if (mods.isCtrlPressed || mods.isMetaPressed) {
-                            ws.toggleFileSelect(name)
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .onGloballyPositioned { origin = it.positionInWindow() }
+            .hoverable(hoverSrc)
+            .background(bg)
+            // click = select, Cmd/Ctrl+click = toggle, double-click = open, right-click = menu
+            .pointerInput(path, row.isDir) {
+                var lastDown = 0L
+                awaitEachGesture {
+                    val down = awaitFirstDown()
+                    down.consume()
+                    val mods = currentEvent.keyboardModifiers
+                    if (currentEvent.buttons.isSecondaryPressed) {
+                        if (path !in ws.projectSelected) ws.selectFile(path)
+                        ws.openProjectMenu(path, origin + down.position)
+                    } else if (mods.isCtrlPressed || mods.isMetaPressed) {
+                        ws.toggleFileSelect(path)
+                    } else {
+                        val now = down.uptimeMillis
+                        if (now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
+                            if (row.isDir) ws.toggleExpand(path)
+                            else ws.openFiles(if (path in ws.projectSelected) ws.projectSelected else setOf(path))
+                            lastDown = 0L
                         } else {
-                            val now = down.uptimeMillis
-                            if (now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
-                                ws.openFiles(if (name in ws.projectSelected) ws.projectSelected else setOf(name))
-                                lastDown = 0L
-                            } else {
-                                ws.selectFile(name)
-                                lastDown = now
-                            }
+                            ws.selectFile(path)
+                            lastDown = now
                         }
                     }
                 }
-                .padding(horizontal = 6.dp, vertical = 5.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-        ) {
-            Txt(if (isComp) "◆" else "▪", 11.sp, if (isComp) Palette.catComponent else Palette.dimText, weight = FontWeight.Bold)
+            }
+            .padding(start = 6.dp + ROW_INDENT * (row.depth + 1), end = 8.dp, top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+    ) {
+        // folders toggle from their own chevron; files keep the indent
+        if (row.isDir) {
+            Box(
+                Modifier.size(12.dp).plainClick { ws.toggleExpand(path) },
+                contentAlignment = Alignment.Center,
+            ) { ChevronGlyph(Palette.subText, expanded) }
+            FolderGlyph(if (expanded) Palette.accentSoft else Palette.subText, 14.dp, filled = expanded)
+            Txt(row.name, 12.sp, if (selected) Palette.text else Palette.menuText, maxLines = 1, modifier = Modifier.weight(1f))
+        } else {
+            Spacer(Modifier.size(12.dp))
+            Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
+                if (isFlow) KindBadge("f", if (isComp) Palette.catComponent else Palette.dimText, 13.dp)
+                else Txt("\u25aa", 11.sp, Palette.faintestText, weight = FontWeight.Bold)
+            }
             Txt(
-                name.removeSuffix(".flow"), 12.sp,
-                if (isActive || isOpen) Palette.text else Palette.menuText,
+                if (isFlow) row.name.removeSuffix(".flow") else row.name, 12.sp,
+                when {
+                    !isFlow -> Palette.faintText // not a flow file: can't be opened
+                    isActive || isOpen -> Palette.text
+                    else -> Palette.menuText
+                },
                 weight = if (isActive) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1, modifier = Modifier.weight(1f),
             )
-            if (isComp) Txt("C", 9.sp, Palette.catComponent, mono = true, weight = FontWeight.Bold)
         }
-        if (ws.projectMenuFor == name) FileContextMenu(ws)
     }
 }
 
+// Right-click menu for the project tree. Drawn as a window-level overlay (see App) so it is
+// never clipped by the panel and closes on the next click anywhere.
 @Composable
-private fun FileContextMenu(ws: Workspace) {
-    Popup(
-        offset = IntOffset(12, 24),
-        onDismissRequest = { ws.projectMenuFor = null },
-        properties = PopupProperties(focusable = true),
-    ) {
-        Column(
-            Modifier
-                .widthIn(min = 140.dp)
-                .background(Palette.dropdownBg, RoundedCornerShape(8.dp))
-                .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(8.dp))
-                .padding(5.dp),
-        ) {
-            ContextItem(ws.t("open"), Palette.text) {
-                ws.openFiles(ws.projectSelected)
-                ws.projectMenuFor = null
-            }
-            if (ws.projectSelected.size == 1) {
-                ContextItem(ws.t("rename"), Palette.text) {
-                    val target = ws.projectSelected.first()
-                    ws.projectMenuFor = null
-                    ws.requestRename(target)
+fun ProjectContextMenu(ws: Workspace) {
+    val path = ws.projectMenuFor ?: return
+    val isDir = ws.isDir(path)
+    var showNew by remember(path) { mutableStateOf(false) }
+    Box(Modifier.fillMaxSize().plainClick { ws.closeProjectMenu() }) {
+        Row(Modifier.offset { IntOffset(ws.projectMenuPos.x.roundToInt(), ws.projectMenuPos.y.roundToInt()) }) {
+            MenuCard {
+                MenuItem(ws.t("menuNew"), Palette.text, submenu = true, highlighted = showNew) { showNew = !showNew }
+                MenuItem(ws.t("open"), Palette.text) {
+                    ws.closeProjectMenu()
+                    if (isDir) ws.revealDir(path) else ws.openFiles(ws.projectSelected)
+                }
+                MenuItem(ws.t("rename"), Palette.text) {
+                    ws.closeProjectMenu()
+                    ws.requestRename(path)
+                }
+                MenuItem(ws.t("delete"), Palette.errorSoft) {
+                    val target = if (path in ws.projectSelected) ws.projectSelected else setOf(path)
+                    ws.closeProjectMenu()
+                    ws.requestDeleteFiles(target)
                 }
             }
-            ContextItem(ws.t("delete"), Palette.errorSoft) {
-                val target = ws.projectSelected
-                ws.projectMenuFor = null
-                ws.requestDeleteFiles(target)
+            if (showNew) {
+                // new items land in the clicked folder, or the clicked file's folder
+                val dir = if (isDir) path else pathParent(path)
+                MenuCard {
+                    MenuItem(ws.t("addFolder"), Palette.text) {
+                        ws.closeProjectMenu()
+                        ws.requestNewFolder(dir)
+                    }
+                    MenuItem(ws.t("addFlow"), Palette.text) {
+                        ws.closeProjectMenu()
+                        ws.newComponent(dir)
+                    }
+                }
             }
         }
     }
 }
 
 @Composable
-private fun ContextItem(label: String, color: Color, onClick: () -> Unit) {
+private fun MenuCard(content: @Composable () -> Unit) {
+    Column(
+        Modifier
+            .widthIn(min = 150.dp)
+            .background(Palette.dropdownBg, RoundedCornerShape(8.dp))
+            .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(8.dp))
+            .padding(5.dp),
+        content = { content() },
+    )
+}
+
+@Composable
+private fun MenuItem(
+    label: String,
+    color: Color,
+    submenu: Boolean = false,
+    highlighted: Boolean = false,
+    onClick: () -> Unit,
+) {
     val (src, hovered) = rememberHover()
-    Box(
+    Row(
         Modifier
             .fillMaxWidth()
             .hoverable(src)
-            .background(if (hovered) Palette.dropdownHover else Color.Transparent, RoundedCornerShape(5.dp))
+            .background(if (hovered || highlighted) Palette.dropdownHover else Color.Transparent, RoundedCornerShape(5.dp))
             .plainClick(onClick)
             .padding(horizontal = 9.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Txt(label, 12.5.sp, color)
+        Txt(label, 12.5.sp, color, modifier = Modifier.weight(1f))
+        if (submenu) Txt("\u25b8", 11.sp, Palette.subText)
     }
 }

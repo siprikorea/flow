@@ -101,6 +101,10 @@ data class Session(
     val lang: String = "ko",
     val showLeft: Boolean = true,
     val leftTab: String = "project",
+    // project tree folders left open ("" = the root row itself)
+    val expandedDirs: List<String> = listOf(""),
+    // palette sections left open
+    val expandedSections: List<String> = emptyList(),
     val showProps: Boolean = true,
     val showMinimap: Boolean = true,
     val leftWidth: Float = 240f,

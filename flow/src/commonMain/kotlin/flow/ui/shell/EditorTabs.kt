@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
+import flow.util.flowLabel
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
@@ -45,7 +46,7 @@ fun EditorTabs(ws: Workspace) {
                 // lands there — stale state that can make the first click after a close misbehave.
                 key(doc) {
                     Tab(
-                        name = doc.fileName.removeSuffix(".flow"),
+                        name = flowLabel(doc.fileName),
                         active = i == ws.activeIndex && ws.activeData == null,
                         dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catComponent else Palette.dimText,
                         dirty = doc.dirty,

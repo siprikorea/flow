@@ -38,7 +38,7 @@ val IO_DEFS = listOf(
 fun findDef(type: String): ModuleDef? =
     REGISTRY.find { it.type == type } ?: IO_DEFS.find { it.type == type }
 
-// Component instance node type = "comp:<fileName>"
+// Component instance node type = "comp:<file>", where file is the flow's project-relative path
 fun isComp(type: String) = type.startsWith("comp:")
 fun compFile(type: String) = type.removePrefix("comp:")
 
@@ -73,5 +73,5 @@ fun FlowFile.asComponent(file: String): CompDef? {
     val cout = nodes.filter { it.type == "cout" }.sortedWith(compareBy({ it.y }, { it.x })).map { it.label }
     if (cin.isEmpty() && cout.isEmpty()) return null
     // project files are ".flow"; installed components are always ".json" — strip whichever applies
-    return CompDef(file, file.removeSuffix(".flow").removeSuffix(".json"), cin, cout)
+    return CompDef(file, file.substringAfterLast('/').removeSuffix(".flow").removeSuffix(".json"), cin, cout)
 }

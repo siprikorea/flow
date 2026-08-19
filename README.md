@@ -45,9 +45,24 @@ flow_editor/
 
 ## Layout (single editor screen, 100vh)
 1. **Menu bar** — logo, File/Edit/Window dropdowns, Start / Run Selection / Stop buttons, KO/EN toggle
-2. **Module list sidebar** — built-in modules + installed plugin cards (drag onto the canvas)
-3. **Canvas** — dotted grid background, nodes/edges/packets, minimap in the bottom-right
-4. **Properties panel** — selected node (edit name/ID/params/ports) or edge (from → to, delete)
+2. **Left activity rail** — Project / Extensions buttons; each opens its panel, and pressing the button of the panel already showing collapses it
+3. **Project panel** — the flows folder as a tree (see below)
+4. **Module palette** — built-in modules + installed plugin cards (drag onto the canvas)
+5. **Canvas** — dotted grid background, nodes/edges/packets, minimap in the bottom-right
+6. **Properties panel** — selected node (edit name/ID/params/ports) or edge (from → to, delete)
+7. **Right activity rail** — Settings / Properties buttons, same toggle behaviour as the left rail
+
+Both rails mark the cursor position with a faint wash on hover and keep the open one lit with an accent bar on the window edge.
+
+## Project panel (file tree)
+The panel shows `~/.flow/flows` as an IntelliJ-style tree: the root row carries the folder name with its full path greyed out beside it, and folders expand/collapse by their chevron (or a double-click). Which folders are open is remembered in the session.
+- **Select** — click; Cmd/Ctrl+click extends the selection
+- **Open** — double-click a flow file (a folder toggles instead)
+- **Add** — the header's `+` creates a flow and the folder icon creates a folder, both inside the selected folder
+- **Right-click menu** — New ▸ (Add Folder / Add Flow File), Open, Rename, Delete; New puts the item in the clicked folder, or in the clicked file's folder
+- **Delete** — deleting a folder removes everything under it (after a confirmation) and closes any of its open tabs
+- Every file in the folder is listed; anything that isn't a `.flow` file is greyed out and opening it reports an error instead of showing an empty canvas
+- Files are addressed by their path relative to the flows root (`sub/dir/a.flow`), which is what open tabs, the session, and `comp:` component references all store
 5. **Status bar** — interaction hints, module/connection counts, zoom controls, last auto-save time
 
 ## Behavior

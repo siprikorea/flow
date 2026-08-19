@@ -194,7 +194,7 @@ class EditorState(
         // don't mask the red validation borders on problem modules
         resetRun()
         running = false
-        validateComponent()?.let { ws.saveWarn = false; ws.saveError = it; return false }
+        validateComponent()?.let { ws.showError(it); return false }
         Platform.writeFlow(fileName, flowJson())
         persisted = true
         savedSig = flowJson()

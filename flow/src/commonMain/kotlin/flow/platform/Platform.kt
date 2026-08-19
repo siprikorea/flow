@@ -23,13 +23,17 @@ expect object Platform {
     fun uninstallComponent(id: String)
     fun pickJar(): String? // JAR file picker dialog
 
-    // flow files in the project folder (*.flow)
-    fun listFlows(): List<String>
+    // Project folder tree; paths are relative to the flows root ("sub/a.flow", "sub").
+    fun listFlows(): List<String>            // *.flow anywhere under the root, recursive
+    fun listProjectFiles(): List<String>     // every file under the root (the tree shows them all)
+    fun listFlowDirs(): List<String>         // folders anywhere under the root, recursive
     fun readFlow(name: String): String?
-    fun writeFlow(name: String, json: String)
-    fun deleteFlow(name: String)
-    fun renameFlow(oldName: String, newName: String): Boolean
-    fun flowsDirLabel(): String
+    fun writeFlow(name: String, json: String)  // creates missing parent folders
+    fun createFlowDir(path: String): Boolean
+    fun deleteFlowPath(path: String)         // file, or folder with everything under it
+    fun renameFlowPath(oldPath: String, newPath: String): Boolean // file or folder
+    fun flowsDirLabel(): String              // absolute path
+    fun flowsDirName(): String               // root folder name
 
     // arbitrary file access for the data editor
     fun pickFileRead(): String?               // open dialog -> path
