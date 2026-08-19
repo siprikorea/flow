@@ -126,7 +126,7 @@ fun main() {
             Window(
                 onCloseRequest = { ws.showSettings = false },
                 title = ws.t("settingsTitle"),
-                state = rememberWindowState(width = 480.dp, height = 460.dp, position = centeredOver(windowState, 480.dp, 460.dp)),
+                state = rememberWindowState(width = 760.dp, height = 520.dp, position = centeredOver(windowState, 760.dp, 520.dp)),
                 icon = iconPainter,
             ) {
                 SettingsScreen(ws)

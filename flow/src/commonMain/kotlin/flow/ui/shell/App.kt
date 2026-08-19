@@ -1,6 +1,7 @@
 package flow.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -49,6 +50,7 @@ import flow.ui.data.DataEditor
 import flow.ui.common.DtxField
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
+import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 import flow.ui.tools.LeftToolWindow
 import flow.ui.tools.ProjectContextMenu
@@ -394,57 +396,130 @@ private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUn
     }
 }
 
-// Dedicated settings screen (logo menu > Settings) — opens in its own window, same as ExtensionsScreen
+// Settings, laid out like IntelliJ's: searchable category list on the left, the selected
+// category's options on the right, Cancel / Apply / OK at the bottom. Values are edited as a
+// draft and only written to the workspace on Apply/OK.
 @Composable
 fun SettingsScreen(ws: Workspace) {
-    Box(Modifier.fillMaxSize().background(Palette.appBg)) {
-        Column(Modifier.fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth().height(48.dp).background(Palette.panelBg).padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Txt(ws.t("settingsTitle"), 15.sp, Palette.text, weight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-                Box(
-                    Modifier.border(1.dp, Palette.buttonBorder, RoundedCornerShape(6.dp))
-                        .plainClick { ws.showSettings = false }
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                ) { Txt(ws.t("done"), 12.sp, Palette.menuText) }
-            }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Txt(ws.t("language").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
-                SettingChoice("한국어", ws.lang == "ko") { ws.lang = "ko" }
-                SettingChoice("English", ws.lang == "en") { ws.lang = "en" }
+    var lang by remember { mutableStateOf(ws.lang) }
+    var anim by remember { mutableStateOf(ws.animSeconds) }
+    var category by remember { mutableStateOf("appearance") }
+    var query by remember { mutableStateOf("") }
 
-                Spacer(Modifier.height(10.dp))
-                Txt(ws.t("animTime").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold)
-                val unit = ws.t("secUnit")
-                listOf(0.25f, 0.5f, 1f).forEach { v ->
-                    val num = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
-                    val label = "$num$unit" + if (v == 1f) " (${ws.t("default")})" else ""
-                    SettingChoice(label, ws.animSeconds == v) { ws.animSeconds = v }
+    val categories = listOf(
+        "appearance" to ws.t("setAppearance"),
+        "run" to ws.t("setRun"),
+        "project" to ws.t("setProject"),
+    )
+    val shown = categories.filter { query.isBlank() || it.second.contains(query, ignoreCase = true) }
+    val current = shown.find { it.first == category } ?: shown.firstOrNull()
+
+    fun apply() {
+        ws.lang = lang
+        ws.animSeconds = anim
+    }
+
+    Column(Modifier.fillMaxSize().background(Palette.appBg)) {
+        Row(Modifier.fillMaxWidth().weight(1f)) {
+            Column(Modifier.width(210.dp).fillMaxHeight().background(Palette.panelBg).padding(8.dp)) {
+                DtxField(query, { query = it })
+                Spacer(Modifier.height(8.dp))
+                shown.forEach { (key, label) ->
+                    CategoryRow(label, selected = current?.first == key) { category = key }
                 }
             }
+            Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
+            Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 22.dp, vertical = 18.dp)) {
+                Txt(current?.second ?: "", 14.sp, Palette.text, weight = FontWeight.SemiBold)
+                Spacer(Modifier.height(4.dp))
+                Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
+                Spacer(Modifier.height(16.dp))
+                when (current?.first) {
+                    "appearance" -> SettingRow(ws.t("language")) {
+                        Segmented(listOf("ko" to "한국어", "en" to "English"), lang) { lang = it }
+                    }
+                    "run" -> SettingRow(ws.t("animTime")) {
+                        val unit = ws.t("secUnit")
+                        Segmented(
+                            listOf(0.25f, 0.5f, 1f).map { v ->
+                                val num = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
+                                v.toString() to "$num$unit"
+                            },
+                            anim.toString(),
+                        ) { anim = it.toFloat() }
+                    }
+                    "project" -> SettingRow(ws.t("projectFolder")) {
+                        Txt(ws.dirLabel, 11.5.sp, Palette.menuText, mono = true, maxLines = 1)
+                    }
+                }
+            }
+        }
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
+        Row(
+            Modifier.fillMaxWidth().background(Palette.panelBg).padding(horizontal = 16.dp, vertical = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Spacer(Modifier.weight(1f))
+            DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.showSettings = false }
+            DialogButton(ws.t("apply"), Palette.buttonBorder, Palette.menuText) { apply() }
+            DialogButton(ws.t("ok"), Palette.accent, Palette.holeBg, filled = true) { apply(); ws.showSettings = false }
         }
     }
 }
 
 @Composable
-private fun SettingChoice(label: String, selected: Boolean, onSelect: () -> Unit) {
-    Row(
-        Modifier
-            .width(280.dp)
-            .background(if (selected) Palette.langActiveBg else Palette.dropdownBg, RoundedCornerShape(7.dp))
-            .border(1.dp, if (selected) Palette.accent else Palette.border, RoundedCornerShape(7.dp))
-            .plainClick(onSelect)
-            .padding(horizontal = 12.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
+private fun CategoryRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+    val (src, hovered) = rememberHover()
+    val bg = when {
+        selected -> Palette.langActiveBg
+        hovered -> Palette.hoverBg
+        else -> androidx.compose.ui.graphics.Color.Transparent
+    }
+    Box(
+        Modifier.fillMaxWidth().hoverable(src).background(bg, RoundedCornerShape(5.dp))
+            .plainClick(onSelect).padding(horizontal = 9.dp, vertical = 6.dp),
     ) {
-        Box(Modifier.width(18.dp)) {
-            if (selected) Txt("●", 11.sp, Palette.accent) else Txt("○", 11.sp, Palette.dimText)
-        }
         Txt(label, 12.5.sp, if (selected) Palette.text else Palette.menuText)
+    }
+}
+
+// label column + control, like IntelliJ's option rows
+@Composable
+private fun SettingRow(label: String, control: @Composable () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Txt(label, 12.5.sp, Palette.subText, modifier = Modifier.width(140.dp))
+        control()
+    }
+}
+
+// segmented choice: one lit cell inside a bordered strip
+@Composable
+private fun Segmented(options: List<Pair<String, String>>, selected: String, onSelect: (String) -> Unit) {
+    Row(
+        Modifier.border(1.dp, Palette.border, RoundedCornerShape(6.dp)).padding(2.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        options.forEach { (value, label) ->
+            val on = value == selected
+            val (src, hovered) = rememberHover()
+            Box(
+                Modifier
+                    .hoverable(src)
+                    .background(
+                        when {
+                            on -> Palette.accent
+                            hovered -> Palette.hoverBg
+                            else -> androidx.compose.ui.graphics.Color.Transparent
+                        },
+                        RoundedCornerShape(4.dp),
+                    )
+                    .plainClick { onSelect(value) }
+                    .padding(horizontal = 12.dp, vertical = 5.dp),
+            ) {
+                Txt(label, 12.sp, if (on) Palette.holeBg else Palette.menuText, weight = if (on) FontWeight.Medium else FontWeight.Normal)
+            }
+        }
     }
 }
 

@@ -2,8 +2,6 @@ package flow.ui.tools
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.gestures.awaitEachGesture
-import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +31,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.isSecondaryPressed
@@ -150,12 +149,25 @@ private fun HeaderIcon(onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
 private fun RootRow(ws: Workspace) {
     val (hoverSrc, hovered) = rememberHover()
     val expanded = ws.isExpanded("")
+    var origin by remember { mutableStateOf(Offset.Zero) }
     Row(
         Modifier
             .fillMaxWidth()
+            .onGloballyPositioned { origin = it.positionInWindow() }
             .hoverable(hoverSrc)
             .background(if (hovered) Palette.hoverBg else Color.Transparent)
-            .plainClick { ws.toggleExpand("") }
+            .pointerInput(Unit) {
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.type != PointerEventType.Press) continue
+                        val change = event.changes.first()
+                        change.consume()
+                        if (event.buttons.isSecondaryPressed) ws.openProjectMenu("", origin + change.position)
+                        else ws.toggleExpand("")
+                    }
+                }
+            }
             .padding(start = 6.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
@@ -192,25 +204,29 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
             .background(bg)
             // click = select, Cmd/Ctrl+click = toggle, double-click = open, right-click = menu
             .pointerInput(path, row.isDir) {
-                var lastDown = 0L
-                awaitEachGesture {
-                    val down = awaitFirstDown()
-                    down.consume()
-                    val mods = currentEvent.keyboardModifiers
-                    if (currentEvent.buttons.isSecondaryPressed) {
-                        if (path !in ws.projectSelected) ws.selectFile(path)
-                        ws.openProjectMenu(path, origin + down.position)
-                    } else if (mods.isCtrlPressed || mods.isMetaPressed) {
-                        ws.toggleFileSelect(path)
-                    } else {
-                        val now = down.uptimeMillis
-                        if (now - lastDown <= viewConfiguration.doubleTapTimeoutMillis) {
-                            if (row.isDir) ws.toggleExpand(path)
-                            else ws.openFiles(if (path in ws.projectSelected) ws.projectSelected else setOf(path))
-                            lastDown = 0L
+                var lastPress = 0L
+                awaitPointerEventScope {
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        if (event.type != PointerEventType.Press) continue
+                        val change = event.changes.first()
+                        change.consume()
+                        val mods = event.keyboardModifiers
+                        if (event.buttons.isSecondaryPressed) {
+                            if (path !in ws.projectSelected) ws.selectFile(path)
+                            ws.openProjectMenu(path, origin + change.position)
+                        } else if (mods.isCtrlPressed || mods.isMetaPressed) {
+                            ws.toggleFileSelect(path)
                         } else {
-                            ws.selectFile(path)
-                            lastDown = now
+                            val now = change.uptimeMillis
+                            if (now - lastPress <= viewConfiguration.doubleTapTimeoutMillis) {
+                                if (row.isDir) ws.toggleExpand(path)
+                                else ws.openFiles(if (path in ws.projectSelected) ws.projectSelected else setOf(path))
+                                lastPress = 0L
+                            } else {
+                                ws.selectFile(path)
+                                lastPress = now
+                            }
                         }
                     }
                 }
@@ -252,24 +268,32 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
 @Composable
 fun ProjectContextMenu(ws: Workspace) {
     val path = ws.projectMenuFor ?: return
-    val isDir = ws.isDir(path)
+    val isRoot = path.isEmpty()
+    val isDir = isRoot || ws.isDir(path)
     var showNew by remember(path) { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().plainClick { ws.closeProjectMenu() }) {
         Row(Modifier.offset { IntOffset(ws.projectMenuPos.x.roundToInt(), ws.projectMenuPos.y.roundToInt()) }) {
             MenuCard {
                 MenuItem(ws.t("menuNew"), Palette.text, submenu = true, highlighted = showNew) { showNew = !showNew }
-                MenuItem(ws.t("open"), Palette.text) {
-                    ws.closeProjectMenu()
-                    if (isDir) ws.revealDir(path) else ws.openFiles(ws.projectSelected)
-                }
-                MenuItem(ws.t("rename"), Palette.text) {
-                    ws.closeProjectMenu()
-                    ws.requestRename(path)
-                }
-                MenuItem(ws.t("delete"), Palette.errorSoft) {
-                    val target = if (path in ws.projectSelected) ws.projectSelected else setOf(path)
-                    ws.closeProjectMenu()
-                    ws.requestDeleteFiles(target)
+                if (isRoot) {
+                    MenuItem(ws.t("refresh"), Palette.text) {
+                        ws.closeProjectMenu()
+                        ws.refreshFiles()
+                    }
+                } else {
+                    MenuItem(ws.t("open"), Palette.text) {
+                        ws.closeProjectMenu()
+                        if (isDir) ws.revealDir(path) else ws.openFiles(ws.projectSelected)
+                    }
+                    MenuItem(ws.t("rename"), Palette.text) {
+                        ws.closeProjectMenu()
+                        ws.requestRename(path)
+                    }
+                    MenuItem(ws.t("delete"), Palette.errorSoft) {
+                        val target = if (path in ws.projectSelected) ws.projectSelected else setOf(path)
+                        ws.closeProjectMenu()
+                        ws.requestDeleteFiles(target)
+                    }
                 }
             }
             if (showNew) {
@@ -294,10 +318,10 @@ fun ProjectContextMenu(ws: Workspace) {
 private fun MenuCard(content: @Composable () -> Unit) {
     Column(
         Modifier
-            .widthIn(min = 150.dp)
-            .background(Palette.dropdownBg, RoundedCornerShape(8.dp))
-            .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(8.dp))
-            .padding(5.dp),
+            .widthIn(min = 126.dp)
+            .background(Palette.dropdownBg, RoundedCornerShape(6.dp))
+            .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(6.dp))
+            .padding(3.dp),
         content = { content() },
     )
 }
@@ -315,12 +339,12 @@ private fun MenuItem(
         Modifier
             .fillMaxWidth()
             .hoverable(src)
-            .background(if (hovered || highlighted) Palette.dropdownHover else Color.Transparent, RoundedCornerShape(5.dp))
+            .background(if (hovered || highlighted) Palette.dropdownHover else Color.Transparent, RoundedCornerShape(4.dp))
             .plainClick(onClick)
-            .padding(horizontal = 9.dp, vertical = 6.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Txt(label, 12.5.sp, color, modifier = Modifier.weight(1f))
-        if (submenu) Txt("\u25b8", 11.sp, Palette.subText)
+        Txt(label, 12.sp, color, modifier = Modifier.weight(1f))
+        if (submenu) Txt("\u25b8", 10.sp, Palette.subText)
     }
 }
