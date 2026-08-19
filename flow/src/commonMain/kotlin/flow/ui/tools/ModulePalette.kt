@@ -50,15 +50,14 @@ internal fun ModulePalette(ws: Workspace) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        // order: input/output -> modules -> components. Each category has its own
-        // color; items under it share that color. Non-built-in items get an EXT mark.
+        // order: input/output -> modules -> components; items share their category color
         Section(ws, "io", ws.t("ioSection"), Palette.catIo) {
             IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catIo, it.ins.size, it.outs.size) }
         }
         Section(ws, "modules", ws.t("moduleList"), Palette.catTransform) {
             REGISTRY.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catTransform, it.ins.size, it.outs.size) }
             ws.installedModules.forEach { m ->
-                PaletteCard(ws, m.id, m.name, Palette.catTransform, m.inputs.size, m.outputs.size, ext = true)
+                PaletteCard(ws, m.id, m.name, Palette.catTransform, m.inputs.size, m.outputs.size)
             }
         }
         Section(ws, "components", ws.t("componentsSection"), Palette.catComponent) {
@@ -66,7 +65,7 @@ internal fun ModulePalette(ws: Workspace) {
                 Txt(ws.t("dragHint"), 11.sp, Palette.dimText, modifier = Modifier.padding(horizontal = 2.dp, vertical = 4.dp))
             }
             ws.components.forEach { c: CompDef ->
-                PaletteCard(ws, "comp:${c.file}", c.name, Palette.catComponent, c.ins.size, c.outs.size, ext = c.installed)
+                PaletteCard(ws, "comp:${c.file}", c.name, Palette.catComponent, c.ins.size, c.outs.size)
             }
         }
     }
@@ -110,7 +109,6 @@ private fun PaletteCard(
     badgeColor: Color, // category color (same for all items in the category)
     ins: Int,
     outs: Int,
-    ext: Boolean = false, // not built-in (installed) -> shown with an EXT mark
 ) {
     val (hoverSrc, hovered) = rememberHover()
     var origin by remember { mutableStateOf(Offset.Zero) }
@@ -147,11 +145,6 @@ private fun PaletteCard(
     ) {
         KindBadge(letter, badgeColor, boxSize = 14.dp)
         Txt(label, 12.5.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
-        if (ext) {
-            Box(
-                Modifier.border(1.dp, Palette.catPlugin.copy(alpha = 0.55f), RoundedCornerShape(3.dp)).padding(horizontal = 4.dp, vertical = 1.dp)
-            ) { Txt("EXT", 9.sp, Palette.catPlugin, weight = FontWeight.Bold) }
-        }
         Txt("$ins→$outs", 10.5.sp, Palette.dimText, mono = true)
     }
 }
