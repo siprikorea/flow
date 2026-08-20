@@ -6,6 +6,7 @@ import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +18,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -318,7 +318,8 @@ fun ProjectContextMenu(ws: Workspace) {
 private fun MenuCard(content: @Composable () -> Unit) {
     Column(
         Modifier
-            .widthIn(min = 126.dp)
+            // as wide as its longest item, no more
+            .width(IntrinsicSize.Max)
             .background(Palette.dropdownBg, RoundedCornerShape(6.dp))
             .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(6.dp))
             .padding(3.dp),
@@ -345,6 +346,9 @@ private fun MenuItem(
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Txt(label, 12.sp, color, modifier = Modifier.weight(1f))
-        if (submenu) Txt("\u25b8", 10.sp, Palette.subText)
+        if (submenu) {
+            Spacer(Modifier.width(10.dp))
+            Txt("\u25b8", 10.sp, Palette.subText)
+        }
     }
 }
