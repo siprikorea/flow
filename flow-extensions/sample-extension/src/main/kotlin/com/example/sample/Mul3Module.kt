@@ -1,5 +1,6 @@
 package com.example.sample
 
+import flow.extension.ExtensionOption
 import flow.extension.ModuleExtension
 
 /** Module extension: multiplies the numeric input by 3. */
@@ -8,6 +9,7 @@ class Mul3Module : ModuleExtension {
     override val displayName = "×3"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
+    override val options = emptyList<ExtensionOption>()
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val x = inputs["in"]?.decodeToString()?.toDoubleOrNull() ?: 0.0

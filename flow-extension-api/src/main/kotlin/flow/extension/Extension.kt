@@ -35,8 +35,8 @@ interface ModuleExtension {
     /** Output port ids (the full/default set — see [outputsFor] for option-dependent ports). */
     val outputs: List<String>
 
-    /** Predefined options shown in the property panel (name → value). Empty by default. */
-    val options: List<ExtensionOption> get() = emptyList()
+    /** Predefined options shown in the property panel (name → value). */
+    val options: List<ExtensionOption>
 
     /**
      * Input port ids for the given option values, when a module's ports depend on an option
