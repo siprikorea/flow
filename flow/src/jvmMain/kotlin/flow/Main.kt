@@ -22,6 +22,7 @@ import androidx.compose.ui.window.WindowPlacement
 import flow.ui.shell.App
 import flow.ui.shell.ExtensionsScreen
 import flow.ui.shell.SettingsScreen
+import flow.ui.shell.closeOnEscape
 import flow.ui.shell.handleKey
 import java.awt.Taskbar
 import java.awt.Toolkit
@@ -116,6 +117,7 @@ fun main() {
                 title = ws.t("manageTitle"),
                 state = rememberWindowState(width = 780.dp, height = 560.dp, position = centeredOver(windowState, 780.dp, 560.dp)),
                 icon = iconPainter,
+                onKeyEvent = { closeOnEscape(it) { ws.showManage = false } },
             ) {
                 ExtensionsScreen(ws)
             }
@@ -128,6 +130,7 @@ fun main() {
                 title = ws.t("settingsTitle"),
                 state = rememberWindowState(width = 760.dp, height = 520.dp, position = centeredOver(windowState, 760.dp, 520.dp)),
                 icon = iconPainter,
+                onKeyEvent = { closeOnEscape(it) { ws.showSettings = false } },
             ) {
                 SettingsScreen(ws)
             }

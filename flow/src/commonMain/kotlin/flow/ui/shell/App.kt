@@ -587,6 +587,13 @@ private fun Segmented(options: List<Pair<String, String>>, selected: String, onS
     }
 }
 
+// Esc closes a secondary window (Settings / Extensions)
+fun closeOnEscape(ev: KeyEvent, close: () -> Unit): Boolean {
+    if (ev.type != KeyEventType.KeyDown || ev.key != Key.Escape) return false
+    close()
+    return true
+}
+
 fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     val active = ws.active
     if (ev.type == KeyEventType.KeyUp) {
@@ -595,12 +602,20 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     }
     if (ev.type != KeyEventType.KeyDown) return false
     if (ev.key == Key.Escape) {
-        // only closes an Input/Output data-editor tab; the canvas (document) tab never closes on Esc
-        val dataTab = ws.activeData
-        if (dataTab != null) { ws.closeDataTab(dataTab); return true }
-        active?.wire = null
-        ws.menu = null
-        ws.closeProjectMenu()
+        // whatever is on top takes Esc: a dialog cancels, then a menu closes, then the editor
+        when {
+            ws.saveError != null -> ws.saveError = null
+            ws.installConfirm != null -> ws.cancelInstall()
+            ws.newFolderParent != null -> ws.cancelNewFolder()
+            ws.renameTarget != null -> ws.cancelRename()
+            ws.fileDeleteConfirm != null -> ws.cancelDeleteFiles()
+            ws.closeConfirm != null -> ws.cancelClose()
+            ws.projectMenuFor != null -> ws.closeProjectMenu()
+            ws.menu != null -> ws.menu = null
+            // only closes an Input/Output data-editor tab; the canvas (document) tab never does
+            ws.activeData != null -> ws.activeData?.let { ws.closeDataTab(it) }
+            else -> active?.wire = null
+        }
         return true
     }
     // project tool window bindings (Settings > Keymap). Rename/delete act on the tree only while
