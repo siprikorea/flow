@@ -50,8 +50,22 @@ class KeyFactoryExtension : ModuleExtension {
 
     private fun isPbkdf2(algorithm: String) = algorithm.startsWith("PBKDF2")
 
+    private fun isSecret(algorithm: String) = isPbkdf2(algorithm) || algorithm == "DES" || algorithm == "DESede"
+
     override fun inputsFor(options: Map<String, String>): List<String> =
         if (isPbkdf2(algorithmOf(options))) listOf("password", "salt") else listOf("key")
+
+    // keySize/iterations only mean something for PBKDF2, keyType only for the asymmetric factories
+    override fun optionsFor(values: Map<String, String>): List<ExtensionOption> {
+        val algorithm = algorithmOf(values)
+        return options.filter {
+            when (it.name) {
+                "iterations", "keySize" -> isPbkdf2(algorithm)
+                "keyType" -> !isSecret(algorithm)
+                else -> true
+            }
+        }
+    }
 
     // failures (empty salt, key material that doesn't match the algorithm, a wrong keyType for the
     // encoding) propagate — the host surfaces the exception message as visible output

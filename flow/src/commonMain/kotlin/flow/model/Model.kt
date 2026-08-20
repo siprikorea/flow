@@ -105,6 +105,8 @@ data class Session(
     val expandedDirs: List<String> = listOf(""),
     // palette sections left open
     val expandedSections: List<String> = emptyList(),
+    // action id -> shortcut id ("meta+n"); missing actions use the default binding
+    val keymap: Map<String, String> = emptyMap(),
     val showProps: Boolean = true,
     val showMinimap: Boolean = true,
     val leftWidth: Float = 240f,

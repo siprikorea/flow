@@ -93,6 +93,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     state.menu = null
+                    state.ws.projectFocused = false
                     // drag on empty canvas = rubber-band select, click = select/deselect an edge
                     val startWorld = state.screenToWorld(down.position)
                     var moved = false

@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
+import flow.model.OptDef
 import flow.model.Node
 import flow.model.Session
 import flow.model.asComponent
@@ -99,6 +100,30 @@ class Workspace(private val scope: CoroutineScope) {
         saveError = message
     }
 
+    // true while the project tree is the panel the user last clicked in — the scope its
+    // shortcuts (rename/delete) act on
+    var projectFocused by mutableStateOf(false)
+
+    // action id -> shortcut, editable in Settings > Keymap
+    var keymap by mutableStateOf(DEFAULT_KEYMAP)
+
+    fun shortcut(action: String): Shortcut? = keymap[action]
+    fun shortcutLabel(action: String): String = keymap[action]?.label(Platform.metaKeyLabel()) ?: ""
+    fun setShortcut(action: String, shortcut: Shortcut) {
+        // a shortcut belongs to one action: drop it from whichever action held it
+        keymap = keymap.filterValues { it != shortcut } + (action to shortcut)
+    }
+    fun resetKeymap() { keymap = DEFAULT_KEYMAP }
+
+    // a modal is up: shortcuts belong to it, not to the tool windows
+    val dialogOpen: Boolean
+        get() = renameTarget != null || newFolderParent != null || fileDeleteConfirm != null ||
+            closeConfirm != null || installConfirm != null || saveError != null
+    fun actionFor(ev: androidx.compose.ui.input.key.KeyEvent): String? {
+        val pressed = Shortcut.of(ev) ?: return null
+        return keymap.entries.find { it.value == pressed }?.key
+    }
+
     // project tree multi-selection, by path
     var projectSelected by mutableStateOf(setOf<String>())
     // item whose context menu is open, and where it was opened (window px)
@@ -187,6 +212,10 @@ class Workspace(private val scope: CoroutineScope) {
     }
 
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }
+
+    // options a module shows for the values a node currently holds
+    fun moduleOptions(type: String, values: Map<String, String>): List<OptDef> =
+        Platform.moduleOptionsFor(type, values) ?: moduleInfo(type)?.options ?: emptyList()
 
     /* ───────── install ───────── */
 
@@ -485,7 +514,8 @@ class Workspace(private val scope: CoroutineScope) {
     fun sessionJson(): String = json.encodeToString(
         Session(
             docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, expandedDirs.toList().sorted(),
-            expandedSections.toList().sorted(), showProps, showMinimap, leftWidth, propsWidth, animSeconds,
+            expandedSections.toList().sorted(), keymap.mapValues { it.value.id() },
+            showProps, showMinimap, leftWidth, propsWidth, animSeconds,
             windowX, windowY, windowWidth, windowHeight, windowMaximized,
         )
     )
@@ -499,6 +529,10 @@ class Workspace(private val scope: CoroutineScope) {
             // an older session file has no such field; keep the root open
             expandedDirs = s.expandedDirs.toSet() + ""
             expandedSections = s.expandedSections.toSet()
+            // unknown/unparseable bindings fall back to the default for that action
+            keymap = DEFAULT_KEYMAP + s.keymap.mapNotNull { (action, id) ->
+                Shortcut.parse(id)?.let { action to it }
+            }.toMap()
             showProps = s.showProps
             showMinimap = s.showMinimap
             leftWidth = s.leftWidth.coerceIn(160f, 500f)

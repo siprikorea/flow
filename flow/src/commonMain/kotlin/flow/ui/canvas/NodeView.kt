@@ -149,6 +149,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 var lastDown = 0L
                 awaitEachGesture {
                     val down = awaitFirstDown()
+                    state.ws.projectFocused = false
                     down.consume() // consume so the canvas can't clear the selection
                     val mods = currentEvent.keyboardModifiers
                     if (mods.isCtrlPressed || mods.isMetaPressed) state.toggleNode(node.id) // Cmd/Win = add to selection

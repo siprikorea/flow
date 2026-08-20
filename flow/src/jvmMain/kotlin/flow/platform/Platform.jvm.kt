@@ -2,6 +2,7 @@ package flow.platform
 
 import flow.model.InstallResult
 import flow.model.ModuleInfo
+import flow.model.OptDef
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -37,6 +38,7 @@ actual object Platform {
         ExtensionLoader.process(id, inputs, options)
     actual fun moduleInputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.inputsFor(id, options)
     actual fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.outputsFor(id, options)
+    actual fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>? = ExtensionLoader.optionsFor(id, values)
     actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
     actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
     actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)
@@ -203,4 +205,7 @@ actual object Platform {
     }
 
     actual fun currentTimeHms(): String = LocalTime.now().format(hms)
+
+    private val isMac = System.getProperty("os.name").lowercase().contains("mac")
+    actual fun metaKeyLabel(): String = if (isMac) "\u2318" else "Win+"
 }

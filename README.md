@@ -59,7 +59,8 @@ The panel shows `~/.flow/flows` as an IntelliJ-style tree: the root row carries 
 - **Select** — click; Cmd/Ctrl+click extends the selection
 - **Open** — double-click a flow file (a folder toggles instead)
 - **Add** — the header's `+` creates a flow and the folder icon creates a folder, both inside the selected folder
-- **Right-click menu** — New ▸ (Add Folder / Add Flow File), Open, Rename, Delete; New puts the item in the clicked folder, or in the clicked file's folder
+- **Right-click menu** — New ▸ (Flow / Directory), Open, Rename, Delete, and Refresh on the root row; New puts the item in the clicked folder, or in the clicked file's folder
+- **Shortcuts** — the menu shows each item's binding; ⌘N / ⌘⇧N create a flow or folder, F2 renames and Delete deletes the tree selection (rename and delete apply while the tree is the panel last clicked in, so Delete still clears a canvas selection). All four are rebindable in Settings ▸ Keymap
 - **Delete** — deleting a folder removes everything under it (after a confirmation) and closes any of its open tabs
 - Every file in the folder is listed; anything that isn't a `.flow` file is greyed out and opening it reports an error instead of showing an empty canvas
 - Files are addressed by their path relative to the flows root (`sub/dir/a.flow`), which is what open tabs, the session, and `comp:` component references all store
@@ -109,7 +110,7 @@ Components are read from `~/.flow/flows` (by name) or a file path. The engine ev
 
 ## Extensions
 
-Extensions provide **modules only** — components are built inside the Flow tool and added there. A module extension is identified by a **package-format id**, declares input/output ids, and may declare typed options (text / number / select) shown in the property panel. Its ports carry **bytes**. The `flow-extension-api` module defines the contract:
+Extensions provide **modules only** — components are built inside the Flow tool and added there. A module extension is identified by a **package-format id**, declares input/output ids, and may declare typed options (text / number / select) shown in the property panel. Its ports carry **bytes**. Both the ports and the options on show can depend on the current option values (`inputsFor` / `outputsFor` / `optionsFor`) — `flow.keyfactory` swaps its ports between `password`+`salt` and `key`, and hides the options its algorithm doesn't use. The `flow-extension-api` module defines the contract:
 
 - **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code (a JAR), registered under `META-INF/services/flow.extension.ModuleExtension`.
 

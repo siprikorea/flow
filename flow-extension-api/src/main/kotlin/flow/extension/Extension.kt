@@ -50,6 +50,14 @@ interface ModuleExtension {
     fun outputsFor(options: Map<String, String>): List<String> = outputs
 
     /**
+     * Options to show for the given option values, when one option decides whether others apply
+     * (e.g. an iteration count that only a key-derivation algorithm uses). Defaults to the fixed
+     * [options]. The host shows exactly this list in the property panel; values of options that
+     * are not currently shown are kept, so they come back when the deciding option does.
+     */
+    fun optionsFor(values: Map<String, String>): List<ExtensionOption> = options
+
+    /**
      * Process the port data. Values on ports are raw bytes:
      * input-port-id → bytes, plus the current option values, producing output-port-id → bytes.
      */

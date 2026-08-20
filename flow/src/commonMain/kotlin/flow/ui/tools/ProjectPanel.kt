@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import flow.core.Action
 import flow.core.Workspace
 import flow.util.pathParent
 import flow.ui.common.ActivityButton
@@ -164,6 +165,7 @@ private fun RootRow(ws: Workspace) {
                         if (event.type != PointerEventType.Press) continue
                         val change = event.changes.first()
                         change.consume()
+                        ws.projectFocused = true
                         if (event.buttons.isSecondaryPressed) ws.openProjectMenu("", origin + change.position)
                         else ws.toggleExpand("")
                     }
@@ -212,6 +214,7 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
                         if (event.type != PointerEventType.Press) continue
                         val change = event.changes.first()
                         change.consume()
+                        ws.projectFocused = true
                         val mods = event.keyboardModifiers
                         if (event.buttons.isSecondaryPressed) {
                             if (path !in ws.projectSelected) ws.selectFile(path)
@@ -275,22 +278,22 @@ fun ProjectContextMenu(ws: Workspace) {
     Box(Modifier.fillMaxSize().plainClick { ws.closeProjectMenu() }) {
         Row(Modifier.offset { IntOffset(ws.projectMenuPos.x.roundToInt(), ws.projectMenuPos.y.roundToInt()) }) {
             MenuCard {
-                MenuItem(ws.t("menuNew"), Palette.text, submenu = true, highlighted = showNew) { showNew = !showNew }
+                MenuItem(ws.t("menuNew"), submenu = true, highlighted = showNew) { showNew = !showNew }
                 if (isRoot) {
-                    MenuItem(ws.t("refresh"), Palette.text) {
+                    MenuItem(ws.t("refresh")) {
                         ws.closeProjectMenu()
                         ws.refreshFiles()
                     }
                 } else {
-                    MenuItem(ws.t("open"), Palette.text) {
+                    MenuItem(ws.t("open")) {
                         ws.closeProjectMenu()
                         if (isDir) ws.revealDir(path) else ws.openFiles(ws.projectSelected)
                     }
-                    MenuItem(ws.t("rename"), Palette.text) {
+                    MenuItem(ws.t("rename"), shortcut = ws.shortcutLabel(Action.RENAME)) {
                         ws.closeProjectMenu()
                         ws.requestRename(path)
                     }
-                    MenuItem(ws.t("delete"), Palette.errorSoft) {
+                    MenuItem(ws.t("delete"), shortcut = ws.shortcutLabel(Action.DELETE)) {
                         val target = if (path in ws.projectSelected) ws.projectSelected else setOf(path)
                         ws.closeProjectMenu()
                         ws.requestDeleteFiles(target)
@@ -301,13 +304,13 @@ fun ProjectContextMenu(ws: Workspace) {
                 // new items land in the clicked folder, or the clicked file's folder
                 val dir = if (isDir) path else pathParent(path)
                 MenuCard {
-                    MenuItem(ws.t("addFolder"), Palette.text) {
-                        ws.closeProjectMenu()
-                        ws.requestNewFolder(dir)
-                    }
-                    MenuItem(ws.t("addFlow"), Palette.text) {
+                    MenuItem(ws.t("addFlow"), shortcut = ws.shortcutLabel(Action.NEW_FLOW)) {
                         ws.closeProjectMenu()
                         ws.newComponent(dir)
+                    }
+                    MenuItem(ws.t("addFolder"), shortcut = ws.shortcutLabel(Action.NEW_FOLDER)) {
+                        ws.closeProjectMenu()
+                        ws.requestNewFolder(dir)
                     }
                 }
             }
@@ -321,7 +324,7 @@ private fun MenuCard(content: @Composable () -> Unit) {
         Modifier
             // as wide as its longest item, but never cramped
             .width(IntrinsicSize.Max)
-            .widthIn(min = 116.dp)
+            .widthIn(min = 168.dp)
             .background(Palette.dropdownBg, RoundedCornerShape(6.dp))
             .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(6.dp))
             .padding(3.dp),
@@ -332,7 +335,7 @@ private fun MenuCard(content: @Composable () -> Unit) {
 @Composable
 private fun MenuItem(
     label: String,
-    color: Color,
+    shortcut: String = "",
     submenu: Boolean = false,
     highlighted: Boolean = false,
     onClick: () -> Unit,
@@ -347,10 +350,9 @@ private fun MenuItem(
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Txt(label, 12.sp, color, modifier = Modifier.weight(1f))
-        if (submenu) {
-            Spacer(Modifier.width(10.dp))
-            Txt("\u25b8", 10.sp, Palette.subText)
-        }
+        Txt(label, 12.sp, Palette.text, modifier = Modifier.weight(1f))
+        Spacer(Modifier.width(16.dp))
+        if (shortcut.isNotEmpty()) Txt(shortcut, 11.sp, Palette.dimText)
+        if (submenu) Txt("\u25b6", 9.sp, Palette.subText)
     }
 }

@@ -168,7 +168,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
     val options = when {
         comp -> emptyList()
         def != null -> def.options
-        else -> state.ws.moduleInfo(node.type)?.options ?: emptyList()
+        else -> state.ws.moduleOptions(node.type, node.params)
     }
     if (options.isNotEmpty()) {
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

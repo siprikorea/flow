@@ -37,7 +37,9 @@ internal object ExtensionLoader {
         URLClassLoader(jars.map { it.toURI().toURL() }.toTypedArray(), apiClassLoader)
 
     // extension option specs -> the model's typed option specs (for palette/props)
-    private fun optDefs(ext: ModuleExtension): List<OptDef> = ext.options.map {
+    private fun optDefs(ext: ModuleExtension): List<OptDef> = optDefs(ext.options)
+
+    private fun optDefs(options: List<flow.extension.ExtensionOption>): List<OptDef> = options.map {
         OptDef(it.name, when (it.type) {
             flow.extension.OptionType.NUMBER -> OptType.NUMBER
             flow.extension.OptionType.SELECT -> OptType.SELECT
@@ -91,6 +93,8 @@ internal object ExtensionLoader {
     // result differently from an empty port list, which is legitimate for a no-input generator)
     fun inputsFor(id: String, options: Map<String, String>): List<String>? = loadedModules()[id]?.ext?.inputsFor(options)
     fun outputsFor(id: String, options: Map<String, String>): List<String>? = loadedModules()[id]?.ext?.outputsFor(options)
+    fun optionsFor(id: String, values: Map<String, String>): List<OptDef>? =
+        loadedModules()[id]?.ext?.let { optDefs(it.optionsFor(values)) }
 
     /* ───────── installed components (per folder) ───────── */
 

@@ -2,6 +2,7 @@ package flow.platform
 
 import flow.model.InstallResult
 import flow.model.ModuleInfo
+import flow.model.OptDef
 
 expect object Platform {
     // ── installed modules/components (each folder isolated by a classloader = sandbox) ──
@@ -11,6 +12,8 @@ expect object Platform {
     // don't depend on options, in which case this just returns the module's fixed inputs/outputs.
     fun moduleInputsFor(id: String, options: Map<String, String>): List<String>?
     fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>?
+    // options to show for the given values (a module may hide options another option makes moot)
+    fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>?
     fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?
     // run a component in its own folder sandbox (bundled dependency modules)
@@ -54,4 +57,7 @@ expect object Platform {
     fun saveSession(json: String)
 
     fun currentTimeHms(): String
+
+    // how the meta modifier is written in shortcuts: "⌘" on macOS, "Win+" elsewhere
+    fun metaKeyLabel(): String
 }

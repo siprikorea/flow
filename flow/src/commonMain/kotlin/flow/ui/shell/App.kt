@@ -1,6 +1,7 @@
 package flow.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEvent
 import androidx.compose.ui.input.key.KeyEventType
@@ -34,12 +37,16 @@ import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isMetaPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import flow.core.Action
+import flow.core.DEFAULT_KEYMAP
 import flow.core.DragModule
+import flow.core.Shortcut
 import flow.core.Workspace
 import flow.model.findDef
 import flow.model.isComp
@@ -403,11 +410,15 @@ private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUn
 fun SettingsScreen(ws: Workspace) {
     var lang by remember { mutableStateOf(ws.lang) }
     var anim by remember { mutableStateOf(ws.animSeconds) }
+    var keymap by remember { mutableStateOf(ws.keymap) }
+    var recording by remember { mutableStateOf<String?>(null) } // action waiting for a key press
     var category by remember { mutableStateOf("appearance") }
     var query by remember { mutableStateOf("") }
+    val recorder = remember { FocusRequester() }
 
     val categories = listOf(
         "appearance" to ws.t("setAppearance"),
+        "keymap" to ws.t("setKeymap"),
         "run" to ws.t("setRun"),
         "project" to ws.t("setProject"),
     )
@@ -417,9 +428,26 @@ fun SettingsScreen(ws: Workspace) {
     fun apply() {
         ws.lang = lang
         ws.animSeconds = anim
+        ws.keymap = keymap
     }
 
-    Column(Modifier.fillMaxSize().background(Palette.appBg)) {
+    // while recording, the next key press becomes the binding (Esc cancels)
+    LaunchedEffect(recording) { if (recording != null) recorder.requestFocus() }
+
+    Column(
+        Modifier.fillMaxSize().background(Palette.appBg)
+            .focusRequester(recorder)
+            .focusable()
+            .onPreviewKeyEvent { ev ->
+                val action = recording ?: return@onPreviewKeyEvent false
+                if (ev.type != KeyEventType.KeyDown) return@onPreviewKeyEvent true
+                val pressed = Shortcut.of(ev) ?: return@onPreviewKeyEvent true // bare modifier: keep waiting
+                if (pressed.key == "escape") { recording = null; return@onPreviewKeyEvent true }
+                keymap = keymap.filterValues { it != pressed } + (action to pressed)
+                recording = null
+                true
+            },
+    ) {
         Row(Modifier.fillMaxWidth().weight(1f)) {
             Column(Modifier.width(210.dp).fillMaxHeight().background(Palette.panelBg).padding(8.dp)) {
                 DtxField(query, { query = it })
@@ -448,6 +476,22 @@ fun SettingsScreen(ws: Workspace) {
                             anim.toString(),
                         ) { anim = it.toFloat() }
                     }
+                    "keymap" -> Column {
+                        Action.ALL.forEach { action ->
+                            SettingRow(ws.t(action)) {
+                                ShortcutField(
+                                    label = keymap[action]?.label(Platform.metaKeyLabel()) ?: "",
+                                    recording = recording == action,
+                                    hint = ws.t("pressKey"),
+                                ) { recording = action }
+                            }
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        DialogButton(ws.t("restoreDefaults"), Palette.buttonBorder, Palette.menuText) {
+                            keymap = DEFAULT_KEYMAP
+                            recording = null
+                        }
+                    }
                     "project" -> SettingRow(ws.t("projectFolder")) {
                         Txt(ws.dirLabel, 11.5.sp, Palette.menuText, mono = true, maxLines = 1)
                     }
@@ -465,6 +509,26 @@ fun SettingsScreen(ws: Workspace) {
             DialogButton(ws.t("apply"), Palette.buttonBorder, Palette.menuText) { apply() }
             DialogButton(ws.t("ok"), Palette.accent, Palette.holeBg, filled = true) { apply(); ws.showSettings = false }
         }
+    }
+}
+
+// Click to record: shows the current binding, then waits for the next key press.
+@Composable
+private fun ShortcutField(label: String, recording: Boolean, hint: String, onClick: () -> Unit) {
+    val (src, hovered) = rememberHover()
+    Box(
+        Modifier
+            .width(180.dp)
+            .hoverable(src)
+            .background(if (recording) Palette.langActiveBg else Palette.holeBg, RoundedCornerShape(6.dp))
+            .border(1.dp, if (recording || hovered) Palette.accent else Palette.border, RoundedCornerShape(6.dp))
+            .plainClick(onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Txt(
+            if (recording) hint else label.ifEmpty { "—" }, 12.sp,
+            if (recording) Palette.accentHover else Palette.text,
+        )
     }
 }
 
@@ -539,8 +603,23 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
         ws.closeProjectMenu()
         return true
     }
+    // project tool window bindings (Settings > Keymap). Rename/delete act on the tree only while
+    // it is the panel the user last clicked in, so Delete still clears a canvas selection.
+    if (!ws.dialogOpen) {
+        when (ws.actionFor(ev)) {
+            Action.NEW_FLOW -> { ws.newComponent(); return true }
+            Action.NEW_FOLDER -> { ws.requestNewFolder(); return true }
+            Action.RENAME -> if (ws.projectFocused) {
+                ws.projectSelected.singleOrNull()?.let { ws.requestRename(it) }
+                return true
+            }
+            Action.DELETE -> if (ws.projectFocused && ws.projectSelected.isNotEmpty()) {
+                ws.requestDeleteFiles(ws.projectSelected)
+                return true
+            }
+        }
+    }
     val ctrl = ev.isCtrlPressed || ev.isMetaPressed
-    if (ctrl && ev.key == Key.N) { ws.newComponent(); return true }
     if (ctrl && ev.key == Key.S) { ws.saveActive(); return true }
     if (ctrl && ev.key == Key.W) {
         ws.activeData?.let { ws.closeDataTab(it) } ?: ws.requestClose(ws.activeIndex)
