@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -318,8 +319,9 @@ fun ProjectContextMenu(ws: Workspace) {
 private fun MenuCard(content: @Composable () -> Unit) {
     Column(
         Modifier
-            // as wide as its longest item, no more
+            // as wide as its longest item, but never cramped
             .width(IntrinsicSize.Max)
+            .widthIn(min = 116.dp)
             .background(Palette.dropdownBg, RoundedCornerShape(6.dp))
             .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(6.dp))
             .padding(3.dp),
@@ -342,7 +344,7 @@ private fun MenuItem(
             .hoverable(src)
             .background(if (hovered || highlighted) Palette.dropdownHover else Color.Transparent, RoundedCornerShape(4.dp))
             .plainClick(onClick)
-            .padding(horizontal = 8.dp, vertical = 3.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Txt(label, 12.sp, color, modifier = Modifier.weight(1f))
