@@ -609,6 +609,7 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
         when (ws.actionFor(ev)) {
             Action.NEW_FLOW -> { ws.newComponent(); return true }
             Action.NEW_FOLDER -> { ws.requestNewFolder(); return true }
+            Action.SETTINGS -> { ws.showSettings = true; return true }
             Action.RENAME -> if (ws.projectFocused) {
                 ws.projectSelected.singleOrNull()?.let { ws.requestRename(it) }
                 return true

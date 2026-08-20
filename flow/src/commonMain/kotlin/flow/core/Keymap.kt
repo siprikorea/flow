@@ -14,8 +14,9 @@ object Action {
     const val NEW_FOLDER = "newFolder"
     const val RENAME = "rename"
     const val DELETE = "delete"
+    const val SETTINGS = "settings"
 
-    val ALL = listOf(NEW_FLOW, NEW_FOLDER, RENAME, DELETE)
+    val ALL = listOf(NEW_FLOW, NEW_FOLDER, RENAME, DELETE, SETTINGS)
 }
 
 // A key plus its modifiers. `key` is one of KEY_NAMES' values; "meta" is Command on macOS and
@@ -65,8 +66,9 @@ data class Shortcut(
         }
 
         private fun displayKey(key: String) = when (key) {
-            "delete" -> "Delete"
-            "backspace" -> "Backspace"
+            "delete" -> "\u2326"    // ⌦
+            "backspace" -> "\u232b" // ⌫
+            "comma" -> ","
             "enter" -> "Enter"
             "escape" -> "Esc"
             "space" -> "Space"
@@ -80,6 +82,7 @@ val DEFAULT_KEYMAP = mapOf(
     Action.NEW_FOLDER to Shortcut("n", meta = true, shift = true),
     Action.RENAME to Shortcut("f2"),
     Action.DELETE to Shortcut("delete"),
+    Action.SETTINGS to Shortcut("comma", meta = true),
 )
 
 // The keys a shortcut can use: letters, digits, function keys and the few named ones.
@@ -108,7 +111,8 @@ private val KEY_NAMES: Map<Key, String> = buildMap {
     putAll(
         listOf(
             Key.Delete to "delete", Key.Backspace to "backspace", Key.Enter to "enter",
-            Key.Escape to "escape", Key.Spacebar to "space",
+            Key.Escape to "escape", Key.Spacebar to "space", Key.Comma to "comma",
+            Key.Period to "period", Key.Slash to "slash", Key.Semicolon to "semicolon",
         )
     )
 }
