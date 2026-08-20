@@ -81,7 +81,7 @@ val DEFAULT_KEYMAP = mapOf(
     Action.NEW_FLOW to Shortcut("n", meta = true),
     Action.NEW_FOLDER to Shortcut("n", meta = true, shift = true),
     Action.RENAME to Shortcut("f2"),
-    Action.DELETE to Shortcut("delete"),
+    Action.DELETE to Shortcut("backspace"),
     Action.SETTINGS to Shortcut("comma", meta = true),
 )
 
