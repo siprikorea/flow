@@ -31,6 +31,8 @@ import kotlinx.serialization.json.Json
  */
 object McpServer {
     private const val PROTOCOL_VERSION = "2024-11-05"
+    // marks a byte-valued port on the way out and on the way back in
+    private const val HEX_PREFIX = "hex:"
     private const val SERVER_NAME = "flow"
     private const val SERVER_VERSION = "1.0.0"
 
@@ -87,6 +89,9 @@ object McpServer {
     private fun toolName(prefix: String, raw: String): String =
         prefix + "_" + raw.map { if (it.isLetterOrDigit() || it == '_' || it == '-') it else '_' }.joinToString("")
 
+    private fun portDescription(port: String) =
+        "input port '$port': text, or bytes as '${HEX_PREFIX}EB F6 …' (the form binary output comes back in)"
+
     private class Tool(val name: String, val description: String, val schema: JsonObject, val call: (JsonObject) -> String)
 
     // Rebuilt per request so flows saved while the server runs show up without a restart.
@@ -107,14 +112,14 @@ object McpServer {
             out += Tool(
                 name = name,
                 description = "Run the Flow $where '${comp.name}' (${comp.ins.joinToString(", ")} → ${comp.outs.joinToString(", ")})",
-                schema = objectSchema(comp.ins.map { StringField(it, "input port '$it'") }),
+                schema = objectSchema(comp.ins.map { StringField(it, portDescription(it)) }),
                 call = { args -> runComponentTool(target, args) },
             )
         }
 
         Platform.installedModuleInfos().forEach { module ->
             val name = unique(toolName("module", module.id))
-            val fields = module.inputs.map { StringField(it, "input port '$it'") } +
+            val fields = module.inputs.map { StringField(it, portDescription(it)) } +
                 module.options.map { opt ->
                     StringField(
                         opt.name,
@@ -154,7 +159,7 @@ object McpServer {
     }
 
     private fun runComponentTool(target: RunnableComponent, args: JsonObject): String {
-        val inputs = target.comp.ins.associateWith { port -> argText(args, port).encodeToByteArray() }
+        val inputs = target.comp.ins.associateWith { port -> argBytes(args, port) }
         val (result, errors) = runComponent(target, inputs)
         val body = target.comp.outs.joinToString("\n") { "$it = ${render(result[it])}" }
         if (errors.isEmpty()) return body
@@ -164,16 +169,32 @@ object McpServer {
     private fun runModuleTool(id: String, ports: List<String>, optionNames: List<String>, args: JsonObject): String {
         val options = optionNames.mapNotNull { name -> args[name]?.let { name to argText(args, name) } }.toMap()
         val inputs = (Platform.moduleInputsFor(id, options) ?: ports)
-            .associateWith { port -> args[port]?.let { argText(args, port).encodeToByteArray() } }
+            .associateWith { port -> args[port]?.let { argBytes(args, port) } }
         val result = Platform.moduleProcess(id, inputs, options)
         val outs = Platform.moduleOutputsFor(id, options) ?: result.keys.toList()
         return outs.joinToString("\n") { "$it = ${render(result[it])}" }
     }
 
-    // arguments arrive as JSON values; ports carry text, so anything non-string is written out plainly
+    // arguments arrive as JSON values; anything non-string is written out plainly
     private fun argText(args: JsonObject, key: String): String {
         val value = args[key] ?: return ""
         return (value as? JsonPrimitive)?.content ?: value.toString()
+    }
+
+    /**
+     * Port bytes for one argument: plain text, unless it carries the [HEX_PREFIX] that binary
+     * output is rendered with — which is what lets one tool's output feed the next one's input.
+     * Both "hex:EB F6" and "hex:EBF6" are accepted; anything else under the prefix is an error
+     * rather than a silent fallback to text.
+     */
+    private fun argBytes(args: JsonObject, key: String): ByteArray {
+        val text = argText(args, key)
+        if (!text.startsWith(HEX_PREFIX)) return text.encodeToByteArray()
+        val digits = text.removePrefix(HEX_PREFIX).filterNot { it.isWhitespace() }
+        require(digits.length % 2 == 0 && digits.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {
+            "'$key' is not valid hex: give whole byte pairs after '$HEX_PREFIX', e.g. ${HEX_PREFIX}EB F6"
+        }
+        return ByteArray(digits.length / 2) { i -> digits.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
     }
 
     /* ───────── schema + result helpers ───────── */
@@ -226,7 +247,7 @@ object McpServer {
         val text = bytes.decodeToString()
         val roundTrips = text.encodeToByteArray().contentEquals(bytes)
         val printable = text.none { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' }
-        return if (roundTrips && printable) text else "hex:" + bytesToHex(bytes)
+        return if (roundTrips && printable) text else HEX_PREFIX + bytesToHex(bytes)
     }
 
     /* ───────── JSON-RPC envelopes ───────── */

@@ -145,7 +145,9 @@ JSON-RPC 2.0 stdio plumbing is implemented in the repo.
 as an MCP tool, so a client such as Claude Desktop or Claude Code can list and run them.
 Components become `flow_<name>` with one argument per input port; modules become
 `module_<id>` with one argument per input port plus their options. Output ports come back as
-`port = value` text, binary values as `hex:…`.
+`port = value` text, binary values as `hex:EB F6 …`. An input argument accepts that same form
+(spaced or not), so one tool's binary output feeds straight into the next one's input; text under
+the prefix that isn't whole hex byte pairs is reported as an error rather than taken literally.
 
 A client needs a plain command, and gradle's own output would corrupt the protocol stream, so
 generate a launcher that has the classpath baked in:
