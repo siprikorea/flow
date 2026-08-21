@@ -160,6 +160,22 @@ The equivalent entry for a `mcpServers` config block is
 flow saved while the server runs shows up without a restart. Only protocol messages go to stdout;
 logs go to stderr.
 
+### Claude Desktop extension (.mcpb)
+For Claude Desktop the server can ship as an extension bundle instead of a config entry:
+
+```bash
+./gradlew :flow:mcpbBundle          # stages flow/build/mcpb (manifest + jars + built-in modules)
+./gradlew :flow:mcpbBundleVerify    # drives the staged server over stdio, checks it lists tools
+npx -y @anthropic-ai/mcpb pack flow/build/mcpb flow/build/flow.mcpb
+```
+
+Install the resulting `.mcpb` from **Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension…**.
+The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carries the built-in module
+jars but reads flows from `~/.flow/flows` as usual. Claude Desktop bundles a Node runtime but no JVM,
+so the launcher resolves a JDK 17+ from `JAVA_HOME`, then `/usr/libexec/java_home`, then `PATH` — one
+has to be installed on the machine. Only the jars the MCP path actually loads are staged (no Compose
+or Skiko), which keeps the bundle near 3MB.
+
 ### Calling an MCP tool from a flow
 The `flow.mcp` module ("MCP Tool") runs an MCP server as a child process and calls one of its
 tools. `command` is the server command line, `tool` the tool to call, `argument` the argument the

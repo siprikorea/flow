@@ -1,0 +1,28 @@
+{
+  "manifest_version": "0.2",
+  "name": "flow",
+  "display_name": "Flow",
+  "version": "1.0.0",
+  "description": "Runs Flow components and modules as MCP tools",
+  "long_description": "Serves every flow saved under ~/.flow/flows and every Flow module (hash, MAC, cipher, key generation, signature, base64, …) as an MCP tool. Flows saved while Claude Desktop is running show up without a restart.",
+  "author": {
+    "name": "박찬봉"
+  },
+  "icon": "icon.png",
+  "server": {
+    "type": "binary",
+    "entry_point": "server/flow-mcp",
+    "mcp_config": {
+      "command": "/bin/sh",
+      "args": [
+        "${__dirname}/server/flow-mcp"
+      ],
+      "env": {}
+    }
+  },
+  "compatibility": {
+    "platforms": ["darwin", "linux"]
+  },
+  "keywords": ["flow", "pipeline", "crypto"],
+  "license": "MIT"
+}

@@ -126,3 +126,53 @@ tasks.register<JavaExec>("cli") {
     classpath = files(compilation.output.allOutputs, compilation.runtimeDependencyFiles)
     mainClass.set("flow.cli.CliKt")
 }
+
+// Claude Desktop extension bundle (MCPB). Stages build/mcpb with the manifest, the server jars and
+// the built-in module jars; `npx @anthropic-ai/mcpb pack` zips that directory into a .mcpb file
+// installable from Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension….
+//
+// The MCP/CLI path never touches Compose or Skiko, so only these dependency jars ship — keeping the
+// UI stack out takes the bundle from ~40MB to ~4MB. A new runtime dependency on that path needs its
+// prefix added here (mcpbBundleVerify below catches a miss).
+val mcpbServerJars = listOf("kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-extension-api")
+
+val mcpbBundle = tasks.register<Copy>("mcpbBundle") {
+    group = "application"
+    description = "Stage build/mcpb, a Claude Desktop extension bundle for the MCP server"
+    val compilation = kotlin.jvm().compilations.getByName("main")
+    val deps = compilation.runtimeDependencyFiles.filter { f ->
+        mcpbServerJars.any { f.name.startsWith(it) }
+    }
+
+    into(layout.buildDirectory.dir("mcpb"))
+    from("mcpb/manifest.json")
+    from("appicon.png") { rename { "icon.png" } }
+    from("mcpb/flow-mcp") { into("server"); filePermissions { unix("0755") } }
+    from(tasks.named("jvmJar")) { into("server/lib") }
+    from(deps) { into("server/lib") }
+    from(prepareBuiltinModules.map { it.destinationDir }) { into("server/resources/modules") }
+}
+
+// Smoke test: drive the staged bundle over stdio the way Claude Desktop does and require the tool
+// list back, so a bundle that is missing a jar fails here instead of in the client.
+tasks.register("mcpbBundleVerify") {
+    group = "verification"
+    description = "Run the staged bundle's server and check it lists tools"
+    dependsOn(mcpbBundle)
+    val script = layout.buildDirectory.file("mcpb/server/flow-mcp")
+    doLast {
+        val proc = ProcessBuilder("/bin/sh", script.get().asFile.absolutePath)
+            .redirectErrorStream(false).start()
+        proc.outputStream.bufferedWriter().use {
+            it.write("""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""" + "\n")
+            it.write("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""" + "\n")
+        }
+        val out = proc.inputStream.bufferedReader().readText()
+        val err = proc.errorStream.bufferedReader().readText()
+        proc.waitFor()
+        check(out.contains("\"tools\"") && out.contains("module_flow_hash")) {
+            "bundle server did not list its tools\nstdout: $out\nstderr: $err"
+        }
+        logger.lifecycle("mcpb bundle OK — ${Regex("\"name\":\"(module|flow)_").findAll(out).count()} tools")
+    }
+}
