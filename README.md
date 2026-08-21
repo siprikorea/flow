@@ -130,9 +130,42 @@ Use the **Flow (logo) menu → Install Extension…** to pick a JAR, or **Instal
 ```bash
 ./gradlew :flow-extensions:base64-extension:jar
 ./gradlew :flow:cli --args="--install /abs/path/base64-extension.jar"   # add --force to overwrite
+./gradlew :flow:cli --args="--mcp"                                     # MCP server on stdio
 ```
 
-Modules: `flow-extension-api` (contract), `flow` (editor + CLI + install/registry), `flow-extensions/base64-extension` (`flow.base64`, with an encode/decode option) and `flow-extensions/sample-extension` (`com.example.mul3`, `com.example.upper`).
+Modules: `flow-extension-api` (contract), `flow` (editor + CLI + install/registry), `flow-extensions/base64-extension` (`flow.base64`, with an encode/decode option), `flow-extensions/mcp-extension` (`flow.mcp`, calls a tool on an external MCP server) and `flow-extensions/sample-extension` (`com.example.mul3`, `com.example.upper`).
+
+## MCP
+
+Flow speaks the Model Context Protocol in both directions, with no extra dependencies — the
+JSON-RPC 2.0 stdio plumbing is implemented in the repo.
+
+### Flow as an MCP server
+`cli --mcp` serves every component (project flows and installed ones) and every installed module
+as an MCP tool, so a client such as Claude Desktop or Claude Code can list and run them.
+Components become `flow_<name>` with one argument per input port; modules become
+`module_<id>` with one argument per input port plus their options. Output ports come back as
+`port = value` text, binary values as `hex:…`.
+
+A client needs a plain command, and gradle's own output would corrupt the protocol stream, so
+generate a launcher that has the classpath baked in:
+
+```bash
+./gradlew :flow:mcpLauncher      # writes flow/build/flow-mcp
+claude mcp add flow -- /abs/path/to/flow/build/flow-mcp
+```
+
+The equivalent entry for a `mcpServers` config block is
+`{"flow": {"command": "/abs/path/to/flow/build/flow-mcp"}}`. Tools are rebuilt per request, so a
+flow saved while the server runs shows up without a restart. Only protocol messages go to stdout;
+logs go to stderr.
+
+### Calling an MCP tool from a flow
+The `flow.mcp` module ("MCP Tool") runs an MCP server as a child process and calls one of its
+tools. `command` is the server command line, `tool` the tool to call, `argument` the argument the
+`in` port feeds (default `input`), and `arguments` any further arguments as a JSON object; the
+tool's text content lands on `out`. Leaving `tool` blank lists the server's tools instead — the
+module drops its `in` port and the argument options in that mode.
 
 ## Notes
 The numeric specs — grid snapping, port placement, bezier curves, simulation timings — come from the original HTML design prototype. This repository is a Compose Multiplatform reimplementation of that spec.

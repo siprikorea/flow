@@ -1,36 +1,9 @@
 package flow.cli
 
-import flow.engine.FlowEngine
-import flow.model.FlowFile
+import flow.mcp.McpServer
 import flow.model.asComponent
 import flow.platform.Platform
-import kotlinx.serialization.json.Json
-import java.io.File
 import kotlin.system.exitProcess
-
-private val json = Json { ignoreUnknownKeys = true }
-
-// load a flow by name (project/installed component) or by file path.
-// project flow files are ".flow"; installed components are always ".json" (see ExtensionLoader) —
-// try both when no extension was given.
-private fun loadFlow(ref: String): FlowFile? {
-    val names = if (ref.endsWith(".flow") || ref.endsWith(".json")) listOf(ref) else listOf("$ref.flow", "$ref.json")
-    val raw = File(ref).takeIf { it.isFile }?.readText()
-        ?: names.firstNotNullOfOrNull { name -> File(name).takeIf { it.isFile }?.readText() }
-        ?: names.firstNotNullOfOrNull { name -> Platform.readFlow(name) }
-        ?: names.firstNotNullOfOrNull { name -> Platform.readInstalledComponent(name) }
-        ?: return null
-    return runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull()
-}
-
-private fun engine(): FlowEngine {
-    val moduleIds = Platform.installedModuleInfos().map { it.id }.toSet()
-    return FlowEngine(
-        loadFlow = ::loadFlow,
-        moduleIds = moduleIds,
-        moduleProcess = { id, inputs, options -> Platform.moduleProcess(id, inputs, options) },
-    )
-}
 
 private fun usage(): Nothing {
     System.err.println(
@@ -42,6 +15,7 @@ private fun usage(): Nothing {
           cli <component> --in <port>=<value> ... per-port input
           cli --list                              list components (project + installed)
           cli --install <extension.jar> [--force]    install an extension JAR
+          cli --mcp                               run as an MCP server on stdio
         """.trimIndent(),
     )
     exitProcess(2)
@@ -62,9 +36,12 @@ fun main(args: Array<String>) {
             println("Installed: ${r.installed.joinToString(", ").ifBlank { "(no extensions)" }}")
             return
         }
+        "--mcp" -> {
+            McpServer.run()
+            return
+        }
         "--list" -> {
-            (Platform.listFlows().mapNotNull { loadFlow(it)?.asComponent(it) } +
-                Platform.listInstalledComponents().mapNotNull { loadFlow(it)?.asComponent(it) })
+            listComponents().map { it.comp }
                 .distinctBy { it.name }
                 .forEach { println("${it.name}  (${it.ins.joinToString(",")} → ${it.outs.joinToString(",")})") }
             if (Platform.installedModuleInfos().isNotEmpty()) {
@@ -77,10 +54,7 @@ fun main(args: Array<String>) {
 
     val ref = args[0]
     // installed components run in their own folder sandbox; project/file flows use global modules
-    val installedName = if (ref.endsWith(".json")) ref else "$ref.json"
-    val isInstalled = File(ref).takeIf { it.isFile } == null &&
-        Platform.readFlow(installedName) == null &&
-        Platform.readInstalledComponent(installedName) != null
+    val isInstalled = isInstalledComponent(ref)
 
     val flow = loadFlow(ref) ?: run {
         System.err.println("Component not found: $ref")
@@ -113,13 +87,7 @@ fun main(args: Array<String>) {
 
     // the engine speaks bytes; the CLI's own boundary (args in, stdout out) is plain UTF-8 text
     val byteInputs = inputs.mapValues { it.value.encodeToByteArray() }
-    val result: Map<String, ByteArray?>
-    if (isInstalled) {
-        result = Platform.runComponent(ref.removeSuffix(".json"), byteInputs) // sandbox
-    } else {
-        val eng = engine()
-        result = eng.run(flow, byteInputs) // global modules
-        eng.errors.forEach { (nodeId, msg) -> System.err.println("⚠ $nodeId: $msg") }
-    }
+    val (result, errors) = runComponent(RunnableComponent(ref, comp, isInstalled), byteInputs)
+    errors.forEach { (nodeId, msg) -> System.err.println("⚠ $nodeId: $msg") }
     comp.outs.forEach { out -> println("$out = ${result[out]?.decodeToString() ?: ""}") }
 }
