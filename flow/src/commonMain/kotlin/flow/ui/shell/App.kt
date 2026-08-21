@@ -1,6 +1,7 @@
 package flow.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.border
@@ -18,6 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.ExperimentalComposeUiApi
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -51,6 +55,7 @@ import flow.core.Workspace
 import flow.model.findDef
 import flow.model.isComp
 import flow.platform.Platform
+import flow.platform.droppedFilePath
 import flow.util.flowLabel
 import flow.ui.canvas.CanvasView
 import flow.ui.data.DataEditor
@@ -66,9 +71,19 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlin.math.roundToInt
 
-@OptIn(FlowPreview::class)
+@OptIn(FlowPreview::class, ExperimentalComposeUiApi::class)
 @Composable
 fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)? = null) {
+    // external .flow file dropped onto the editor window: copy it into the project and open it
+    val editorDropTarget = remember(ws) {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val path = droppedFilePath(event) ?: return false
+                ws.importFlow(path)
+                return true
+            }
+        }
+    }
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
             MenuBar(ws, leadingInset, onTitleDoubleClick)
@@ -76,7 +91,10 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
                 LeftToolWindow(ws) // activity bar always visible; panel folds via ws.showLeft
                 Column(Modifier.weight(1f).fillMaxHeight()) {
                     EditorTabs(ws)
-                    Box(Modifier.weight(1f).fillMaxWidth()) {
+                    Box(
+                        Modifier.weight(1f).fillMaxWidth()
+                            .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = editorDropTarget),
+                    ) {
                         val dataTab = ws.activeData
                         val active = ws.active
                         when {

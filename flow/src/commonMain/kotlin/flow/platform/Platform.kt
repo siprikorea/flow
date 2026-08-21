@@ -25,6 +25,10 @@ expect object Platform {
     fun uninstallModule(id: String)
     fun uninstallComponent(id: String)
     fun pickJar(): String? // JAR file picker dialog
+    fun pickFlowFile(): String? // Open dialog restricted to *.flow -> absolute path (File > Open)
+    // Read a .flow file anywhere on disk by its absolute path (File > Open / drag-and-drop of a
+    // file the project sandbox wouldn't otherwise resolve). Null if missing or not a .flow file.
+    fun readExternalFlow(path: String): String?
 
     // Project folder tree; paths are relative to the flows root ("sub/a.flow", "sub").
     fun listFlows(): List<String>            // *.flow anywhere under the root, recursive

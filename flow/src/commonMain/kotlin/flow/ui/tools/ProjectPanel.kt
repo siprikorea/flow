@@ -2,6 +2,7 @@ package flow.ui.tools
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.draganddrop.dragAndDropTarget
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -29,7 +30,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draganddrop.DragAndDropEvent
+import androidx.compose.ui.draganddrop.DragAndDropTarget
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.PointerEventType
@@ -45,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Action
 import flow.core.Workspace
+import flow.platform.droppedFilePath
 import flow.util.pathParent
 import flow.ui.common.ActivityButton
 import flow.ui.common.ActivityRail
@@ -146,18 +151,34 @@ private fun HeaderIcon(onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
     }
 }
 
+// an OS file dropped on a project folder row (or the root) copies a .flow file into it
+@Composable
+private fun rememberFolderDropTarget(ws: Workspace, dir: String): DragAndDropTarget =
+    remember(ws, dir) {
+        object : DragAndDropTarget {
+            override fun onDrop(event: DragAndDropEvent): Boolean {
+                val path = droppedFilePath(event) ?: return false
+                ws.copyFlowIntoFolder(path, dir)
+                return true
+            }
+        }
+    }
+
 // the project folder itself, with its full path greyed out beside the name
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun RootRow(ws: Workspace) {
     val (hoverSrc, hovered) = rememberHover()
     val expanded = ws.isExpanded("")
     var origin by remember { mutableStateOf(Offset.Zero) }
+    val dropTarget = rememberFolderDropTarget(ws, "")
     Row(
         Modifier
             .fillMaxWidth()
             .onGloballyPositioned { origin = it.positionInWindow() }
             .hoverable(hoverSrc)
             .background(if (hovered) Palette.hoverBg else Color.Transparent)
+            .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = dropTarget)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
                     while (true) {
@@ -183,6 +204,7 @@ private fun RootRow(ws: Workspace) {
     }
 }
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun ItemRow(ws: Workspace, row: Workspace.Row) {
     val (hoverSrc, hovered) = rememberHover()
@@ -199,12 +221,15 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
         else -> Color.Transparent
     }
     var origin by remember { mutableStateOf(Offset.Zero) }
+    // a dropped .flow file copies into this folder; file rows aren't a drop target
+    val dropTarget = if (row.isDir) rememberFolderDropTarget(ws, path) else null
     Row(
         Modifier
             .fillMaxWidth()
             .onGloballyPositioned { origin = it.positionInWindow() }
             .hoverable(hoverSrc)
             .background(bg)
+            .let { m -> if (dropTarget != null) m.dragAndDropTarget(shouldStartDragAndDrop = { true }, target = dropTarget) else m }
             // click = select, Cmd/Ctrl+click = toggle, double-click = open, right-click = menu
             .pointerInput(path, row.isDir) {
                 var lastPress = 0L

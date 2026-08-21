@@ -56,6 +56,20 @@ actual object Platform {
         return File(dir, name).absolutePath
     }
 
+    actual fun pickFlowFile(): String? {
+        val dlg = FileDialog(null as Frame?, "Open Flow File", FileDialog.LOAD)
+        dlg.setFilenameFilter { _, name -> name.endsWith(".flow") }
+        dlg.isVisible = true
+        val dir = dlg.directory ?: return null
+        val name = dlg.file ?: return null
+        return File(dir, name).absolutePath
+    }
+
+    actual fun readExternalFlow(path: String): String? {
+        if (!path.endsWith(".flow")) return null
+        return runCatching { File(path).takeIf { it.isFile }?.readText() }.getOrNull()
+    }
+
     // flows 루트 기준 상대 경로('/' 구분)만 허용: 빈 세그먼트·상위 이동·심볼릭 링크 탈출 차단
     private fun resolveRel(rel: String, requireFlow: Boolean): File? {
         if (rel.isEmpty() || rel.contains('\\')) return null

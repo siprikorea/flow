@@ -433,6 +433,43 @@ class Workspace(private val scope: CoroutineScope) {
         activeIndex = docs.lastIndex
     }
 
+    // Copy an external .flow file (from a File > Open dialog or an OS drag-and-drop) into the
+    // project under [dir], keeping its original name when free, else suffixed like a new flow's
+    // ("name-1.flow", "name-2.flow", ...). Returns the new project-relative path, or null if
+    // [path] isn't a readable, valid flow file (an error dialog is shown in that case).
+    private fun copyFlowIn(path: String, dir: String): String? {
+        val label = Platform.fileName(path)
+        if (!path.endsWith(".flow")) {
+            showError(t("openErrorNotFlow").replace("{name}", label), "openErrorTitle")
+            return null
+        }
+        val raw = Platform.readExternalFlow(path)
+        if (raw == null || runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() == null) {
+            showError(t("openErrorBroken").replace("{name}", label), "openErrorTitle")
+            return null
+        }
+        val base = label.removeSuffix(".flow")
+        val preferred = pathJoin(dir, "$base.flow")
+        val existing = (files + docs.map { it.fileName }).toSet()
+        val dest = if (preferred !in existing) preferred else nextName(dir, base)
+        Platform.writeFlow(dest, raw)
+        refreshFiles()
+        revealDir(dir)
+        return dest
+    }
+
+    // File > Open, or a .flow file dropped onto the editor window: copy it into the project,
+    // then open it.
+    fun importFlow(path: String, dir: String = targetDir()) {
+        copyFlowIn(path, dir)?.let { openFile(it) }
+    }
+
+    // A .flow file dropped onto a project folder (or the root row): copy it in, but leave the
+    // editor's open tabs alone.
+    fun copyFlowIntoFolder(path: String, dir: String) {
+        copyFlowIn(path, dir)
+    }
+
     // New component in [dir] (default: the selected folder). Written to a file only on
     // save, which validates the in/out contract.
     fun newComponent(dir: String = targetDir()) {

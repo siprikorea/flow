@@ -24,6 +24,7 @@ import flow.ui.shell.ExtensionsScreen
 import flow.ui.shell.SettingsScreen
 import flow.ui.shell.closeOnEscape
 import flow.ui.shell.handleKey
+import flow.platform.Platform
 import java.awt.Taskbar
 import java.awt.Toolkit
 import kotlinx.coroutines.flow.debounce
@@ -180,6 +181,7 @@ private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
     MenuBar {
         Menu(ws.t("menuFile")) {
             Item(ws.t("newComponent")) { ws.newComponent() }
+            Item(ws.t("openFile")) { Platform.pickFlowFile()?.let { ws.importFlow(it) } }
             Item(ws.t("save")) { ws.saveActive() }
             Item(ws.t("closeTab")) { ws.requestClose(ws.activeIndex) }
             Separator()
