@@ -334,6 +334,9 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
         state.edges.any { it.to.node == node.id && it.to.port == name }
     else
         state.edges.any { it.from.node == node.id && it.from.port == name }
+    // After an open/save validation the node border already reddens, but that only says the node
+    // has a problem — marking the port itself is what tells the user which one is still to wire.
+    val flagged = state.showValidation && !connected
 
     Box(
         Modifier
@@ -342,7 +345,15 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
             .hoverable(hoverSrc)
             // solid (opaque) fill so edges/grid never show behind the circle
             .background(if (hovered) Palette.accent else Palette.nodeHeaderBg, CircleShape)
-            .border(2.5.dp, if (connected) Palette.accent else Palette.portBorder, CircleShape)
+            .border(
+                2.5.dp,
+                when {
+                    connected -> Palette.accent
+                    flagged -> Palette.error
+                    else -> Palette.portBorder
+                },
+                CircleShape,
+            )
             .pointerHoverIcon(PointerIcon.Crosshair)
             .pointerInput(node.id, kind, name) {
                 awaitEachGesture {
@@ -372,7 +383,7 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
             .padding(horizontal = 12.dp)
     ) {
         Txt(
-            name, 10.sp, Palette.subText, mono = true,
+            name, 10.sp, if (flagged) Palette.errorSoft else Palette.subText, mono = true,
             modifier = Modifier.align(if (kind == "in") Alignment.CenterStart else Alignment.CenterEnd),
         )
     }
