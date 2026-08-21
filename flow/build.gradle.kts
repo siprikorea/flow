@@ -168,13 +168,27 @@ tasks.register("mcpbBundleVerify") {
         proc.outputStream.bufferedWriter().use {
             it.write("""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""" + "\n")
             it.write("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""" + "\n")
+            // the tool list is fixed, so it alone would pass even with no module jars staged —
+            // calling list_modules is what actually loads them
+            it.write("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_modules","arguments":{}}}""" + "\n")
         }
         val out = proc.inputStream.bufferedReader().readText()
         val err = proc.errorStream.bufferedReader().readText()
         proc.waitFor()
-        check(out.contains("\"tools\"") && out.contains("module_flow_hash")) {
+        check(out.contains("\"tools\"")) {
             "bundle server did not list its tools\nstdout: $out\nstderr: $err"
         }
-        logger.lifecycle("mcpb bundle OK — ${Regex("\"name\":\"(module|flow)_").findAll(out).count()} tools")
+        // The tool set is fixed, so every one of them must be here — a miss means the bundle is
+        // short a jar and would fail in the client instead.
+        val expected = listOf("list_modules", "list_flows", "read_flow", "validate_flow", "write_flow")
+        val missing = expected.filterNot { out.contains("\"name\":\"$it\"") }
+        check(missing.isEmpty()) {
+            "bundle server is missing tool(s): ${missing.joinToString(", ")}\nstdout: $out\nstderr: $err"
+        }
+        check(out.contains("flow.hash")) {
+            "list_modules returned no built-in modules — the staged module jars did not load" +
+                "\nstdout: $out\nstderr: $err"
+        }
+        logger.lifecycle("mcpb bundle OK — ${expected.size} tools, modules load")
     }
 }

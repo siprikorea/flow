@@ -3,8 +3,8 @@
   "name": "flow",
   "display_name": "Flow",
   "version": "1.0.0",
-  "description": "Runs Flow components and modules as MCP tools",
-  "long_description": "Serves every flow saved under ~/.flow/flows and every Flow module (hash, MAC, cipher, key generation, signature, base64, …) as an MCP tool. Flows saved while Claude Desktop is running show up without a restart.",
+  "description": "Builds and edits Flow files from a description",
+  "long_description": "Lets Claude author the flows under ~/.flow/flows: describe what a flow should do and it is drafted from the installed Flow modules (hash, MAC, cipher, key generation, signature, base64, …) — wired up, laid out on the canvas, and saved as a .flow file. Existing flows can be read back for review, so bad wiring can be found and reconnected, then written out again. Modules and flows added while Claude Desktop is running are picked up without a restart.",
   "author": {
     "name": "박찬봉"
   },

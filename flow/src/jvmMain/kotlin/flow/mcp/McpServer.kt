@@ -1,11 +1,13 @@
 package flow.mcp
 
-import flow.cli.RunnableComponent
 import flow.cli.listComponents
-import flow.cli.runComponent
+import flow.cli.loadFlow
+import flow.cli.runnerJson
+import flow.model.FlowFile
+import flow.model.IO_DEFS
 import flow.model.OptType
+import flow.model.asComponent
 import flow.platform.Platform
-import flow.util.bytesToHex
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -23,20 +25,27 @@ import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.Json
 
 /**
- * MCP server over stdio: exposes every component and installed module as a tool, so an MCP client
- * (Claude Desktop/Code, …) can list them and run them.
+ * MCP server over stdio: lets an MCP client (Claude Desktop/Code, …) author Flow files — see what
+ * modules are available, draft a flow from a description, then read one back, review its wiring and
+ * write the edit out again.
+ *
+ * The four tools are deliberately the whole surface: everything mechanical about the file format
+ * (port lists, edge ids, node sizes, and coordinates when they aren't given) is worked out here, so
+ * a client only ever describes what the flow does and how its modules connect. Running flows is the
+ * app's job, not this server's.
  *
  * Speaks JSON-RPC 2.0, one message per line, implementing initialize / tools/list / tools/call /
  * ping. Only protocol messages go to stdout — anything else is written to stderr.
  */
 object McpServer {
     private const val PROTOCOL_VERSION = "2024-11-05"
-    // marks a byte-valued port on the way out and on the way back in
-    private const val HEX_PREFIX = "hex:"
     private const val SERVER_NAME = "flow"
     private const val SERVER_VERSION = "1.0.0"
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
+    // flow files on disk are pretty-printed (the editor writes them that way), and a spec read back
+    // to an MCP client is far easier to edit indented than as one line
+    private val prettyJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = true }
 
     fun run() {
         System.err.println("[flow-mcp] listening on stdio")
@@ -85,60 +94,55 @@ object McpServer {
 
     /* ───────── tools ───────── */
 
-    // A tool name must be [a-zA-Z0-9_-]; component and module names are not that restricted.
-    private fun toolName(prefix: String, raw: String): String =
-        prefix + "_" + raw.map { if (it.isLetterOrDigit() || it == '_' || it == '-') it else '_' }.joinToString("")
-
-    private fun portDescription(port: String) =
-        "input port '$port': text, or bytes as '${HEX_PREFIX}EB F6 …' (the form binary output comes back in)"
-
     private class Tool(val name: String, val description: String, val schema: JsonObject, val call: (JsonObject) -> String)
 
-    // Rebuilt per request so flows saved while the server runs show up without a restart.
-    private fun tools(): List<Tool> {
-        val out = mutableListOf<Tool>()
-        val taken = mutableSetOf<String>()
-        fun unique(name: String): String {
-            if (taken.add(name)) return name
-            var n = 2
-            while (!taken.add("$name$n")) n++
-            return "$name$n"
-        }
-
-        listComponents().forEach { target ->
-            val comp = target.comp
-            val name = unique(toolName("flow", comp.name))
-            val where = if (target.installed) "installed component" else "project flow"
-            out += Tool(
-                name = name,
-                description = "Run the Flow $where '${comp.name}' (${comp.ins.joinToString(", ")} → ${comp.outs.joinToString(", ")})",
-                schema = objectSchema(comp.ins.map { StringField(it, portDescription(it)) }),
-                call = { args -> runComponentTool(target, args) },
-            )
-        }
-
-        Platform.installedModuleInfos().forEach { module ->
-            val name = unique(toolName("module", module.id))
-            val fields = module.inputs.map { StringField(it, portDescription(it)) } +
-                module.options.map { opt ->
-                    StringField(
-                        opt.name,
-                        "option '${opt.name}'" + if (opt.default.isNotEmpty()) " (default: ${opt.default})" else "",
-                        enum = opt.choices.takeIf { opt.type == OptType.SELECT },
-                        number = opt.type == OptType.NUMBER,
-                        required = false,
-                    )
-                }
-            out += Tool(
-                name = name,
-                description = "Run the Flow module '${module.name}' (${module.id}): " +
-                    "${module.inputs.joinToString(", ")} → ${module.outputs.joinToString(", ")}",
-                schema = objectSchema(fields),
-                call = { args -> runModuleTool(module.id, module.inputs, module.options.map { it.name }, args) },
-            )
-        }
-        return out
-    }
+    // Rebuilt per request so flows and modules added while the server runs are seen without a restart.
+    private fun tools(): List<Tool> = listOf(
+        Tool(
+            name = "list_modules",
+            description = "List every building block a flow can contain: the cin/cout boundary nodes, each " +
+                "installed module with its ports and options, and each existing flow usable as a " +
+                "sub-component. Call this before write_flow to get exact type names and option values.",
+            schema = objectSchema(emptyList()),
+            call = { listModules() },
+        ),
+        Tool(
+            name = "list_flows",
+            description = "List the flow files in the Flow project (~/.flow/flows) with their input/output " +
+                "ports — use it to find the flow to read or edit.",
+            schema = objectSchema(emptyList()),
+            call = { listFlows() },
+        ),
+        Tool(
+            name = "read_flow",
+            description = "Read a flow as the same {nodes, edges} spec write_flow accepts, together with a " +
+                "'problems' list naming any wiring faults (unconnected ports, an input fed twice, a cycle, " +
+                "a missing boundary). Use it to review a flow, fix the spec, and write it back with " +
+                "overwrite=true. Coordinates come back too — keep them to preserve the arrangement, or " +
+                "change them to tidy the layout.",
+            schema = objectSchema(listOf(StringField("path", "project-relative path, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
+            call = { args -> readFlowSpec(argText(args, "path")) },
+        ),
+        Tool(
+            name = "validate_flow",
+            description = "Verify a saved flow and report every fault found: a module that is not " +
+                "installed, an option set to a value it does not accept, ports that no longer match the " +
+                "node's options, an edge to a port that isn't there, an input fed twice or not at all, a " +
+                "loop in the wiring, a missing cin/cout. Returns 'no problems found' when it is sound.",
+            schema = objectSchema(listOf(StringField("path", "project-relative path, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
+            call = { args -> validateFlowTool(argText(args, "path")) },
+        ),
+        Tool(
+            name = "write_flow",
+            description = "Create or edit a .flow file from a high-level spec: name the nodes and how they " +
+                "wire together, and port lists, edge ids and node sizes are worked out here. Set x/y on a " +
+                "node to place it exactly; leave them off and the graph is laid out left-to-right. Include " +
+                "a 'cin' node per input and a 'cout' per output — their labels become the flow's port " +
+                "names. Any wiring faults in the result are reported back rather than hidden.",
+            schema = writeFlowSchema(),
+            call = { args -> writeFlow(args) },
+        ),
+    )
 
     private fun toolList(): JsonArray = buildJsonArray {
         tools().forEach { tool ->
@@ -158,21 +162,173 @@ object McpServer {
             .getOrElse { e -> toolError(e.message ?: e::class.simpleName ?: "error") }
     }
 
-    private fun runComponentTool(target: RunnableComponent, args: JsonObject): String {
-        val inputs = target.comp.ins.associateWith { port -> argBytes(args, port) }
-        val (result, errors) = runComponent(target, inputs)
-        val body = target.comp.outs.joinToString("\n") { "$it = ${render(result[it])}" }
-        if (errors.isEmpty()) return body
-        return body + "\n" + errors.entries.joinToString("\n") { (node, message) -> "! $node: $message" }
+    /* ───────── authoring: list / read / write ───────── */
+
+    private fun listModules(): String {
+        val out = StringBuilder()
+        out.append("── boundary nodes (a flow needs these to run as a component) ──\n")
+        IO_DEFS.forEach { def ->
+            val role = if (def.type == "cin") "one component input" else "one component output"
+            out.append("${def.type}  $role; its label is the port name  ")
+                .append("(${def.ins.joinToString(",").ifEmpty { "-" }} → ${def.outs.joinToString(",").ifEmpty { "-" }})\n")
+        }
+
+        out.append("\n── modules ──\n")
+        Platform.installedModuleInfos().forEach { m ->
+            out.append("${m.id}  '${m.name}'  ")
+                .append("${m.inputs.joinToString(",").ifEmpty { "-" }} → ${m.outputs.joinToString(",").ifEmpty { "-" }}\n")
+            m.options.forEach { opt ->
+                out.append("    ${opt.name}: ${opt.type.name.lowercase()}")
+                if (opt.default.isNotEmpty()) out.append(" (default: ${opt.default})")
+                if (opt.type == OptType.SELECT && opt.choices.isNotEmpty()) {
+                    out.append(" [${opt.choices.joinToString(", ")}]")
+                }
+                out.append("\n")
+            }
+        }
+
+        val comps = listComponents().filterNot { it.installed }
+        if (comps.isNotEmpty()) {
+            out.append("\n── existing flows, usable as a sub-component node ──\n")
+            comps.forEach { t ->
+                out.append("comp:${t.ref}  '${t.comp.name}'  ")
+                    .append("${t.comp.ins.joinToString(",").ifEmpty { "-" }} → ${t.comp.outs.joinToString(",").ifEmpty { "-" }}\n")
+            }
+        }
+        return out.toString().trimEnd()
     }
 
-    private fun runModuleTool(id: String, ports: List<String>, optionNames: List<String>, args: JsonObject): String {
-        val options = optionNames.mapNotNull { name -> args[name]?.let { name to argText(args, name) } }.toMap()
-        val inputs = (Platform.moduleInputsFor(id, options) ?: ports)
-            .associateWith { port -> args[port]?.let { argBytes(args, port) } }
-        val result = Platform.moduleProcess(id, inputs, options)
-        val outs = Platform.moduleOutputsFor(id, options) ?: result.keys.toList()
-        return outs.joinToString("\n") { "$it = ${render(result[it])}" }
+    private fun listFlows(): String {
+        val files = Platform.listFlows()
+        if (files.isEmpty()) return "(no flow files yet)"
+        return files.joinToString("\n") { file ->
+            val flow = loadFlow(file)
+            val summary = when {
+                flow == null -> "unreadable"
+                else -> flow.asComponent(file)
+                    ?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
+                    ?: "${flow.nodes.size} node(s), no cin/cout yet"
+            }
+            "$file  ($summary)"
+        }
+    }
+
+    // project-relative flow paths may arrive without their ".flow" suffix — put it back
+    private fun normalizeFlowPath(path: String): String {
+        val p = path.trim()
+        require(p.isNotEmpty()) { "set 'path' to a flow file, e.g. 'sub/a.flow'" }
+        require(!p.startsWith("/")) { "'path' is relative to the project folder, not absolute: $p" }
+        return if (p.endsWith(".flow")) p else "$p.flow"
+    }
+
+    private fun loadForEdit(path: String): Pair<String, FlowFile> {
+        val name = normalizeFlowPath(path)
+        val raw = Platform.readFlow(name) ?: error("flow file not found: $name")
+        val flow = runCatching { runnerJson.decodeFromString<FlowFile>(raw) }
+            .getOrElse { e -> error("$name is not valid flow JSON: ${e.message}") }
+        return name to flow
+    }
+
+    private fun validateFlowTool(path: String): String {
+        val (name, flow) = loadForEdit(path)
+        val problems = validateFlow(flow)
+        val head = "$name — ${flow.nodes.size} nodes, ${flow.edges.size} edges"
+        if (problems.isEmpty()) return "$head\nno problems found"
+        return "$head\n${problems.size} problem(s):\n" + problems.joinToString("\n") { "- $it" }
+    }
+
+    /** A flow rendered back into the write_flow spec, so read → edit → write round-trips. */
+    private fun readFlowSpec(path: String): String {
+        val (name, flow) = loadForEdit(path)
+        val spec = buildJsonObject {
+            put("path", name)
+            putJsonArray("nodes") {
+                flow.nodes.forEach { n ->
+                    addJsonObject {
+                        put("id", n.id)
+                        put("type", n.type)
+                        put("label", n.label)
+                        put("x", n.x)
+                        put("y", n.y)
+                        if (n.params.isNotEmpty()) {
+                            putJsonObject("params") { n.params.forEach { (k, v) -> put(k, v) } }
+                        }
+                    }
+                }
+            }
+            putJsonArray("edges") {
+                flow.edges.forEach { e ->
+                    addJsonObject {
+                        put("from", "${e.from.node}.${e.from.port}")
+                        put("to", "${e.to.node}.${e.to.port}")
+                    }
+                }
+            }
+            // surfaced on read so reviewing a flow is the same call as fetching it to edit
+            putJsonArray("problems") { validateFlow(flow).forEach { add(it) } }
+        }
+        return prettyJson.encodeToString(JsonObject.serializer(), spec)
+    }
+
+    private fun writeFlow(args: JsonObject): String {
+        val name = normalizeFlowPath(argText(args, "path"))
+        val overwrite = (args["overwrite"] as? JsonPrimitive)?.content?.toBoolean() ?: false
+        if (!overwrite && Platform.readFlow(name) != null) {
+            error("$name already exists — read_flow it first, then pass overwrite=true to replace it")
+        }
+
+        val nodes = argArray(args, "nodes").mapIndexed { i, element ->
+            val o = element as? JsonObject ?: error("nodes[$i] is not an object")
+            val id = (o["id"] as? JsonPrimitive)?.content?.trim().orEmpty()
+            require(id.isNotEmpty()) { "nodes[$i] has no 'id'" }
+            val type = (o["type"] as? JsonPrimitive)?.content?.trim().orEmpty()
+            require(type.isNotEmpty()) { "node '$id' has no 'type'" }
+            NodeSpec(
+                id = id,
+                type = type,
+                label = (o["label"] as? JsonPrimitive)?.content,
+                params = (o["params"] as? JsonObject).orEmpty()
+                    .mapValues { (_, v) -> (v as? JsonPrimitive)?.content ?: v.toString() },
+                x = (o["x"] as? JsonPrimitive)?.content?.toFloatOrNull(),
+                y = (o["y"] as? JsonPrimitive)?.content?.toFloatOrNull(),
+            )
+        }
+        val edges = argArray(args, "edges").mapIndexed { i, element ->
+            val o = element as? JsonObject ?: error("edges[$i] is not an object")
+            val from = (o["from"] as? JsonPrimitive)?.content.orEmpty()
+            val to = (o["to"] as? JsonPrimitive)?.content.orEmpty()
+            require(from.isNotBlank() && to.isNotBlank()) { "edges[$i] needs both 'from' and 'to'" }
+            EdgeSpec(from, to)
+        }
+
+        val flow = buildFlow(nodes, edges)
+        Platform.writeFlow(name, prettyJson.encodeToString(FlowFile.serializer(), flow))
+
+        val summary = flow.asComponent(name)
+            ?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
+            ?: "no boundary ports yet"
+        val head = "saved $name (${flow.nodes.size} nodes, ${flow.edges.size} edges; $summary)"
+        // the file is written either way — these are faults to fix, not reasons to refuse the save
+        val problems = flowProblems(flow)
+        return if (problems.isEmpty()) head else head + "\n" + problems.joinToString("\n") { "problem: $it" }
+    }
+
+    /**
+     * A JSON array argument. Some clients send a nested array/object as a JSON *string*, so a
+     * string that parses as an array is accepted too rather than failing on a formatting detail.
+     */
+    private fun argArray(args: JsonObject, key: String): List<JsonElement> {
+        return when (val value = args[key]) {
+            null -> emptyList()
+            is JsonArray -> value
+            is JsonPrimitive -> {
+                val text = value.content.trim()
+                if (text.isEmpty()) return emptyList()
+                runCatching { json.parseToJsonElement(text) as JsonArray }
+                    .getOrElse { error("'$key' must be a JSON array") }
+            }
+            else -> error("'$key' must be a JSON array")
+        }
     }
 
     // arguments arrive as JSON values; anything non-string is written out plainly
@@ -181,44 +337,101 @@ object McpServer {
         return (value as? JsonPrimitive)?.content ?: value.toString()
     }
 
-    /**
-     * Port bytes for one argument: plain text, unless it carries the [HEX_PREFIX] that binary
-     * output is rendered with — which is what lets one tool's output feed the next one's input.
-     * Both "hex:EB F6" and "hex:EBF6" are accepted; anything else under the prefix is an error
-     * rather than a silent fallback to text.
-     */
-    private fun argBytes(args: JsonObject, key: String): ByteArray {
-        val text = argText(args, key)
-        if (!text.startsWith(HEX_PREFIX)) return text.encodeToByteArray()
-        val digits = text.removePrefix(HEX_PREFIX).filterNot { it.isWhitespace() }
-        require(digits.length % 2 == 0 && digits.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {
-            "'$key' is not valid hex: give whole byte pairs after '$HEX_PREFIX', e.g. ${HEX_PREFIX}EB F6"
-        }
-        return ByteArray(digits.length / 2) { i -> digits.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
-    }
-
     /* ───────── schema + result helpers ───────── */
 
-    private class StringField(
-        val name: String,
-        val description: String,
-        val enum: List<String>? = null,
-        val number: Boolean = false,
-        val required: Boolean = true,
-    )
+    private class StringField(val name: String, val description: String)
 
+    /**
+     * write_flow's schema, written out rather than built from [StringField] because it is the one
+     * tool taking arrays of objects — the shape that lets a client describe a whole flow in a
+     * single call instead of assembling raw file JSON.
+     */
+    private fun writeFlowSchema(): JsonObject = buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            putJsonObject("path") {
+                put("type", "string")
+                put("description", "project-relative path to write, e.g. 'sub/a.flow' ('.flow' may be omitted)")
+            }
+            putJsonObject("nodes") {
+                put("type", "array")
+                put(
+                    "description",
+                    "the nodes to place. Coordinates are optional — leave them off and the graph is " +
+                        "laid out automatically; pass the x/y from read_flow to keep an existing arrangement.",
+                )
+                putJsonObject("items") {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("id") {
+                            put("type", "string")
+                            put("description", "unique name for this node, used to wire it in 'edges' (e.g. 'hash1')")
+                        }
+                        putJsonObject("type") {
+                            put("type", "string")
+                            put("description", "'cin', 'cout', a module id like 'flow.hash', or 'comp:<flow path>' — see list_modules")
+                        }
+                        putJsonObject("label") {
+                            put("type", "string")
+                            put("description", "display name; on a cin/cout node this is the component's port name, so name it meaningfully")
+                        }
+                        putJsonObject("params") {
+                            put("type", "object")
+                            put("description", "module option values, e.g. {\"algo\":\"SHA-256\"}; omitted options take their default")
+                        }
+                        putJsonObject("x") {
+                            put("type", "number")
+                            put(
+                                "description",
+                                "canvas x in dp, snapped to a 20 grid. Set x and y together to place the " +
+                                    "node yourself — a readable graph runs left to right with about 280 " +
+                                    "between columns and 150 between rows. Leave both off to have this " +
+                                    "node placed automatically.",
+                            )
+                        }
+                        putJsonObject("y") { put("type", "number"); put("description", "canvas y in dp, snapped to a 20 grid; see 'x'") }
+                    }
+                    putJsonArray("required") { add("id"); add("type") }
+                }
+            }
+            putJsonObject("edges") {
+                put("type", "array")
+                put("description", "how the nodes are wired, output end to input end")
+                putJsonObject("items") {
+                    put("type", "object")
+                    putJsonObject("properties") {
+                        putJsonObject("from") {
+                            put("type", "string")
+                            put("description", "source as 'node.port', or just 'node' when it has a single output")
+                        }
+                        putJsonObject("to") {
+                            put("type", "string")
+                            put("description", "target as 'node.port', or just 'node' when it has a single input")
+                        }
+                    }
+                    putJsonArray("required") { add("from"); add("to") }
+                }
+            }
+            putJsonObject("overwrite") {
+                put("type", "boolean")
+                put("description", "replace the file if it already exists (default false, so a new flow never clobbers one)")
+            }
+        }
+        putJsonArray("required") { add("path"); add("nodes") }
+    }
+
+    // schema for the tools whose arguments are just required strings (write_flow has its own)
     private fun objectSchema(fields: List<StringField>): JsonObject = buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
             fields.forEach { field ->
                 putJsonObject(field.name) {
-                    put("type", if (field.number) "number" else "string")
+                    put("type", "string")
                     put("description", field.description)
-                    field.enum?.let { choices -> putJsonArray("enum") { choices.forEach { add(it) } } }
                 }
             }
         }
-        putJsonArray("required") { fields.filter { it.required }.forEach { add(it.name) } }
+        putJsonArray("required") { fields.forEach { add(it.name) } }
     }
 
     private fun toolText(text: String): JsonObject = buildJsonObject {
@@ -239,15 +452,6 @@ object McpServer {
             }
         }
         put("isError", true)
-    }
-
-    // port bytes as text when they are text, else hex — an MCP client only carries text here
-    private fun render(bytes: ByteArray?): String {
-        if (bytes == null || bytes.isEmpty()) return ""
-        val text = bytes.decodeToString()
-        val roundTrips = text.encodeToByteArray().contentEquals(bytes)
-        val printable = text.none { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' }
-        return if (roundTrips && printable) text else HEX_PREFIX + bytesToHex(bytes)
     }
 
     /* ───────── JSON-RPC envelopes ───────── */
