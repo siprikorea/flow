@@ -114,6 +114,14 @@ Extensions provide **modules only** — components are built inside the Flow too
 
 - **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code (a JAR), registered under `META-INF/services/flow.extension.ModuleExtension`.
 
+Built-in modules cover the JCA facilities plus a few utilities: `flow.hash`, `flow.mac`,
+`flow.signature`, `flow.cipher` (symmetric algorithms, and RSA with PKCS#1 or OAEP padding),
+`flow.keygen`, `flow.keypairgen`, `flow.keyfactory` (PBKDF2 derivation, and PKCS#8 / X.509 /
+certificate keys as DER or PEM), `flow.keystore` (PKCS#12 and JKS stores → private key,
+certificate, public key), `flow.securerandom`, `flow.base64` (standard or URL-safe alphabet, with
+or without padding), `flow.slice` (a byte range and the remainder — how a prepended IV is taken
+off a ciphertext), `flow.merge`, `flow.split`, `flow.sleep` and `flow.mcp`.
+
 First-party (built-in) extensions live under `flow-extensions/` using `flow.*` package ids; `flow-extensions/sample-extension` is a third-party example under `com.example.*`.
 
 ### Storage & sandbox (installed, read-only)

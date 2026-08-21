@@ -9,6 +9,7 @@ import androidx.compose.ui.unit.IntSize
 import flow.model.Edge
 import flow.model.FlowFile
 import flow.model.Node
+import flow.model.OptType
 import flow.model.Port
 import flow.model.PortRef
 import flow.engine.FlowEngine
@@ -399,7 +400,15 @@ class EditorState(
     // directly; this is the only thing that changes them, driven entirely by the option value.
     fun setModuleOption(nodeId: String, optName: String, value: String) {
         val node = nodeById(nodeId) ?: return
-        val newParams = node.params + (optName to value)
+        var newParams = node.params + (optName to value)
+        // one option can change which options apply and what they offer, so a stored choice can
+        // become invalid (e.g. a symmetric padding once the algorithm turns to RSA) — put those
+        // back on the new option's default
+        ws.moduleOptions(node.type, newParams).forEach { opt ->
+            if (opt.type == OptType.SELECT && opt.choices.isNotEmpty() && newParams[opt.name] !in opt.choices) {
+                newParams = newParams + (opt.name to opt.choices.firstOrNull { it == opt.default }.orEmpty().ifEmpty { opt.choices.first() })
+            }
+        }
         val newInNames = Platform.moduleInputsFor(node.type, newParams)
         val newOutNames = Platform.moduleOutputsFor(node.type, newParams)
         if (newInNames == null || newOutNames == null) {

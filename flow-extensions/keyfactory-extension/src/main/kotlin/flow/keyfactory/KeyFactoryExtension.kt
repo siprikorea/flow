@@ -3,9 +3,6 @@ package flow.keyfactory
 import flow.extension.ExtensionOption
 import flow.extension.ModuleExtension
 import flow.extension.OptionType
-import java.security.KeyFactory
-import java.security.spec.PKCS8EncodedKeySpec
-import java.security.spec.X509EncodedKeySpec
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.DESKeySpec
 import javax.crypto.spec.DESedeKeySpec
@@ -18,8 +15,10 @@ import javax.crypto.spec.PBEKeySpec
  * - PBKDF2WithHmac*: derives a secret key from "password" and "salt" (SecretKeyFactory)
  * - DES / DESede: turns raw "key" bytes into a parity-adjusted secret key (SecretKeyFactory)
  * - RSA / DSA / EC / DiffieHellman / XDH / EdDSA and the named curves: re-derives an encoded
- *   "key" through KeyFactory, which also validates it — X.509 in/out for a public key,
- *   PKCS#8 for a private one, the encodings flow.keypairgen produces and flow.signature expects
+ *   "key" through KeyFactory, which also validates it — X.509 for a public key, PKCS#8 for a
+ *   private one, either as DER or PEM, and a certificate also serves as a public key. "out"
+ *   always carries the DER encoding, the form flow.cipher and flow.signature expect.
+ *   PKCS#12 and JKS key stores are loaded by flow.keystore, which feeds this or those directly
  *
  * "out" always carries the key's encoded form.
  */
@@ -87,9 +86,8 @@ class KeyFactoryExtension : ModuleExtension {
             }
             else -> {
                 val key = inputs["key"] ?: return mapOf("out" to null)
-                val factory = KeyFactory.getInstance(algorithm)
-                if (options["keyType"] == "public") factory.generatePublic(X509EncodedKeySpec(key)).encoded
-                else factory.generatePrivate(PKCS8EncodedKeySpec(key)).encoded
+                if (options["keyType"] == "public") KeyMaterial.publicKey(key, algorithm).encoded
+                else KeyMaterial.privateKey(key, algorithm).encoded
             }
         }
         return mapOf("out" to out)
