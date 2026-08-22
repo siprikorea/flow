@@ -80,7 +80,10 @@ class FlowEngine(
                 node.outputs.associate { it.name to subOut[it.name] }
             }
             node.outputs.isEmpty() -> emptyMap() // sink
-            else -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to inVals.values.firstOrNull()) // default: identity
+            // Every other type names a module, and reaching here means it is not installed. Passing
+            // the input through would look like a successful run while quietly skipping the work —
+            // a flow missing its hash module would report the plaintext as the digest.
+            else -> error("module '${node.type}' is not installed")
         }
     }
 

@@ -358,13 +358,8 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
 private fun ExtensionsSettings(ws: Workspace) {
     LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
-                Platform.pickJar()?.let { ws.installJarFlow(it) }
-            }
-            DialogButton(ws.t("installLocalFlow"), Palette.runFromBorder, Palette.accentHover) {
-                Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
-            }
+        DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
+            Platform.pickJar()?.let { ws.installJarFlow(it) }
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -376,13 +371,11 @@ private fun ExtensionsSettings(ws: Workspace) {
         val offeredIds = offered.map { it.id }.toSet()
         // installed from a file rather than the registry: it still has to be removable
         val strays = ws.installedModules.filterNot { it.id in offeredIds }
-        val components = ws.components.filter { it.installed }
 
         when {
             ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
             ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-            offered.isEmpty() && strays.isEmpty() && components.isEmpty() ->
-                Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
+            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
         }
         ws.registryError?.takeIf { offered.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
 
@@ -394,10 +387,27 @@ private fun ExtensionsSettings(ws: Workspace) {
                     onUninstall = { ws.uninstallModule(m.id) },
                 )
             }
-            components.forEach { c ->
+        }
+    }
+}
+
+// Flows installed as components — a separate category because they come from the user's own files
+// rather than the registry, and are removed rather than updated.
+@Composable
+private fun FlowsSettings(ws: Workspace) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        DialogButton(ws.t("installLocalFlow"), Palette.accent, Palette.holeBg, filled = true) {
+            Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
+        }
+        Txt(ws.t("installedComponents").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+        val installed = ws.components.filter { it.installed }
+        if (installed.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            installed.forEach { c ->
                 val id = c.file.removeSuffix(".json")
                 ExtensionRow(
-                    ws, title = c.name, id = id, version = null, note = ws.t("installedFlowNote"),
+                    ws, title = c.name, id = id, version = null,
+                    note = "${c.ins.joinToString(",")} → ${c.outs.joinToString(",")}",
                     onUninstall = { ws.uninstallComponent(id) },
                 )
             }
@@ -498,6 +508,7 @@ fun SettingsScreen(ws: Workspace) {
         "appearance" to ws.t("setAppearance"),
         "keymap" to ws.t("setKeymap"),
         "extensions" to ws.t("manageTitle"),
+        "flows" to ws.t("setFlows"),
     )
     val shown = categories.filter { query.isBlank() || it.second.contains(query, ignoreCase = true) }
     val current = shown.find { it.first == category } ?: shown.firstOrNull()
@@ -586,6 +597,7 @@ fun SettingsScreen(ws: Workspace) {
                         }
                     }
                     "extensions" -> ExtensionsSettings(ws)
+                    "flows" -> FlowsSettings(ws)
                 }
             }
         }
