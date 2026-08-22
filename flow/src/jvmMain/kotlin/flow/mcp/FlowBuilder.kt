@@ -135,8 +135,12 @@ private fun endpoint(raw: String, outgoing: Boolean, ports: Map<String, TypePort
 }
 
 /**
- * Left-to-right placement by longest path from a source, the same arrangement the editor's Auto
- * Layout produces, so a flow drafted without coordinates still opens looking deliberate.
+ * Left-to-right placement, so a flow drafted without coordinates still opens looking deliberate.
+ *
+ * A node's column is its longest path from a source, as in the editor's Auto Layout. Its row is
+ * then centred on the inputs feeding it, which is what keeps the wires short when different
+ * sources feed different stages — stacking every source in one column and every consumer at the
+ * top, as the editor does, leaves long diagonals across the canvas instead.
  *
  * A caller that wants to arrange the graph itself sets x/y per node and those win — either axis on
  * its own, so a node can be nudged sideways while keeping its computed row.
@@ -156,18 +160,36 @@ private fun layout(nodes: List<NodeSpec>, edges: List<Edge>): Map<String, Pair<F
         }
         if (!changed) return@repeat
     }
-    val cursorY = mutableMapOf<Int, Float>()
-    return nodes.associate { spec ->
-        val d = depth[spec.id] ?: 0
-        // a node placed by the caller must not consume the auto column's next row, or the
-        // nodes after it inherit a gap where nothing was ever put
-        val autoY = if (spec.y == null) {
-            val next = cursorY.getOrElse(d) { MARGIN }
-            cursorY[d] = next + NODE_H + ROW_GAP
-            next
-        } else spec.y
-        spec.id to (snap(spec.x ?: (MARGIN + d * COLUMN_STEP)) to snap(autoY))
+
+    val feeders = edges.groupBy({ it.to.node }, { it.from.node })
+    val placed = mutableMapOf<String, Pair<Float, Float>>()
+
+    // columns in order, so a node's feeders (always a shallower column) are placed before it
+    nodes.groupBy { depth[it.id] ?: 0 }.toSortedMap().forEach { (d, column) ->
+        var stacked = MARGIN
+        val wanted = column.map { spec ->
+            val from = feeders[spec.id].orEmpty().mapNotNull { placed[it] }
+            // a source has nothing to centre on, so it just takes the next row down
+            val y = spec.y ?: from.map { it.second }.takeIf { it.isNotEmpty() }?.average()?.toFloat()
+                ?: stacked.also { stacked += NODE_H + ROW_GAP }
+            // pinning only some nodes must not leave an auto one left of what feeds it, which
+            // would draw the wire backwards
+            val x = spec.x ?: maxOf(
+                MARGIN + d * COLUMN_STEP,
+                (from.maxOfOrNull { it.first } ?: Float.NEGATIVE_INFINITY) + COLUMN_STEP,
+            )
+            Triple(spec, x, y)
+        }
+        // two nodes can want the same row; push the later ones down, leaving pinned nodes put
+        var floor = Float.NEGATIVE_INFINITY
+        wanted.sortedBy { it.third }.forEach { (spec, x, y) ->
+            val settled = if (spec.y != null) y else maxOf(y, floor)
+            placed[spec.id] = snap(x) to snap(settled)
+            floor = settled + NODE_H + ROW_GAP
+        }
     }
+
+    return placed
 }
 
 /**
