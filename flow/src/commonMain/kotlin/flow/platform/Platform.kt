@@ -66,6 +66,10 @@ expect object Platform {
     fun loadSession(): String?
     fun saveSession(json: String)
 
+    // user preferences, kept in their own file so they survive independently of a workspace
+    fun loadSettings(): String?
+    fun saveSettings(json: String)
+
     fun currentTimeHms(): String
 
     // how the meta modifier is written in shortcuts: "⌘" on macOS, "Win+" elsewhere

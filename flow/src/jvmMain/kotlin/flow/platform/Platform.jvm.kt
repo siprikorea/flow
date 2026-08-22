@@ -13,6 +13,7 @@ actual object Platform {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
     private val flowsDir = File(baseDir, "flows")
     private val sessionFile = File(baseDir, "session.json")
+    private val settingsFile = File(baseDir, "settings.json")
     private val hms = DateTimeFormatter.ofPattern("HH:mm:ss")
 
     // 순회 최대 깊이 (심볼릭 링크 순환 방지)
@@ -252,6 +253,16 @@ actual object Platform {
         runCatching {
             baseDir.mkdirs()
             sessionFile.writeText(json)
+        }
+    }
+
+    actual fun loadSettings(): String? =
+        runCatching { settingsFile.takeIf { it.exists() }?.readText() }.getOrNull()
+
+    actual fun saveSettings(json: String) {
+        runCatching {
+            baseDir.mkdirs()
+            settingsFile.writeText(json)
         }
     }
 

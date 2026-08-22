@@ -11,6 +11,7 @@ import flow.model.ModuleInfo
 import flow.model.OptDef
 import flow.model.Node
 import flow.model.Session
+import flow.model.Settings
 import flow.model.asComponent
 import flow.platform.Platform
 import flow.ui.theme.Theme
@@ -574,32 +575,53 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun sessionJson(): String = json.encodeToString(
         Session(
-            docs.map { it.fileName }, activeIndex, lang, theme, showLeft, leftTab, expandedDirs.toList().sorted(),
-            expandedSections.toList().sorted(), keymap.mapValues { it.value.id() },
-            showProps, showMinimap, leftWidth, propsWidth, animSeconds,
-            windowX, windowY, windowWidth, windowHeight, windowMaximized,
+            openFiles = docs.map { it.fileName },
+            activeIndex = activeIndex,
+            showLeft = showLeft,
+            leftTab = leftTab,
+            expandedDirs = expandedDirs.toList().sorted(),
+            expandedSections = expandedSections.toList().sorted(),
+            showProps = showProps,
+            showMinimap = showMinimap,
+            leftWidth = leftWidth,
+            propsWidth = propsWidth,
+            windowX = windowX,
+            windowY = windowY,
+            windowWidth = windowWidth,
+            windowHeight = windowHeight,
+            windowMaximized = windowMaximized,
         )
+    )
+
+    fun settingsJson(): String = json.encodeToString(
+        Settings(lang, theme, keymap.mapValues { it.value.id() }, animSeconds)
     )
 
     private fun loadSession() {
         val s = Platform.loadSession()?.let { runCatching { json.decodeFromString<Session>(it) }.getOrNull() }
+        // settings.json is authoritative; a session written before the split still carries them, so
+        // it stands in once and is then superseded the next time settings are saved
+        val saved = Platform.loadSettings()?.let { runCatching { json.decodeFromString<Settings>(it) }.getOrNull() }
+            ?: s?.let { Settings(it.lang ?: "ko", it.theme ?: Theme.SYSTEM, it.keymap, it.animSeconds ?: 1f) }
+        if (saved != null) {
+            lang = saved.lang
+            theme = saved.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
+            animSeconds = saved.animSeconds.coerceIn(0.05f, 10f)
+            // unknown/unparseable bindings fall back to the default for that action
+            keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
+                Shortcut.parse(id)?.let { action to it }
+            }.toMap()
+        }
         if (s != null) {
-            lang = s.lang
-            theme = s.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
             showLeft = s.showLeft
             leftTab = s.leftTab
             // an older session file has no such field; keep the root open
             expandedDirs = s.expandedDirs.toSet() + ""
             expandedSections = s.expandedSections.toSet()
-            // unknown/unparseable bindings fall back to the default for that action
-            keymap = DEFAULT_KEYMAP + s.keymap.mapNotNull { (action, id) ->
-                Shortcut.parse(id)?.let { action to it }
-            }.toMap()
             showProps = s.showProps
             showMinimap = s.showMinimap
             leftWidth = s.leftWidth.coerceIn(160f, 500f)
             propsWidth = s.propsWidth.coerceIn(200f, 560f)
-            animSeconds = s.animSeconds.coerceIn(0.05f, 10f)
             windowX = s.windowX
             windowY = s.windowY
             windowWidth = s.windowWidth

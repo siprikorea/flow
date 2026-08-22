@@ -130,6 +130,14 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
             .debounce(350)
             .collect { Platform.saveSession(it) }
     }
+
+    // Preferences live in their own file, so they are watched separately — a settings change is
+    // not a reason to rewrite the workspace, or the other way round.
+    LaunchedEffect(Unit) {
+        snapshotFlow { ws.settingsJson() }
+            .debounce(350)
+            .collect { Platform.saveSettings(it) }
+    }
 }
 
 @Composable

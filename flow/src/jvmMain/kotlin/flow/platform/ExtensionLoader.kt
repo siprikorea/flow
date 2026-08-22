@@ -12,23 +12,51 @@ import java.io.File
 import java.net.URLClassLoader
 import java.util.ServiceLoader
 
-// Install store (per folder): modules/<id>/*.jar, components/<id>/component.json (+ dependency module jars).
-// Modules and components load/run via their own isolated URLClassLoader (sandbox) so dependency modules don't clash.
+// Install store: everything installed lives under extensions/<id>/, holding either the module's
+// jar(s) or a component.json plus the module jars that component depends on. Each loads and runs
+// through its own isolated URLClassLoader (sandbox) so one install's dependencies never clash with
+// another's.
+//
+// A component folder carries jars too, so "is this a module or a component" is decided by the
+// presence of component.json — without that check a component's bundled dependency would register
+// itself as an installed module.
 //
 // Two module roots: `builtinModulesDir` ships inside the app install (Compose's bundled app-resources
 // dir, exposed at runtime via the compose.application.resources.dir system property) and is never
-// written to or deleted by this loader; `modulesDir` under the user's home is where user-installed
-// (third-party) extensions live and is the only root install/uninstall ever touch.
+// written to or deleted by this loader; `extensionsDir` under the user's home is where user-installed
+// extensions live and is the only root install/uninstall ever touch.
 internal object ExtensionLoader {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
-    private val modulesDir = File(baseDir, "modules")
-    private val componentsDir = File(baseDir, "components")
+    private val extensionsDir = File(baseDir, "extensions")
     private val builtinModulesDir = System.getProperty("compose.application.resources.dir")
         ?.let { File(it, "modules") }?.takeIf { it.isDirectory }
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val apiClassLoader = ModuleExtension::class.java.classLoader
 
-    private fun ensureDirs() { modulesDir.mkdirs(); componentsDir.mkdirs() }
+    private const val COMPONENT_FILE = "component.json"
+
+    init {
+        // one-time move of the previous split store; a name already taken in the merged dir is
+        // left alone rather than overwritten, so nothing installed is silently replaced
+        runCatching {
+            if (!extensionsDir.exists()) {
+                extensionsDir.mkdirs()
+                listOf(File(baseDir, "modules"), File(baseDir, "components")).forEach { old ->
+                    old.listFiles { f: File -> f.isDirectory }?.forEach { dir ->
+                        val target = File(extensionsDir, dir.name)
+                        if (!target.exists()) dir.renameTo(target)
+                    }
+                    // delete() only succeeds on an empty directory, so anything left behind by a
+                    // name clash keeps its old home rather than being thrown away
+                    old.delete()
+                }
+            }
+        }
+    }
+
+    private fun ensureDirs() { extensionsDir.mkdirs() }
+
+    private fun isComponentDir(dir: File) = File(dir, COMPONENT_FILE).exists()
 
     private fun jarsIn(dir: File): Array<File> =
         dir.listFiles { f -> f.isFile && f.name.endsWith(".jar") } ?: emptyArray()
@@ -61,6 +89,8 @@ internal object ExtensionLoader {
     private fun scanModuleRoot(root: File?, builtin: Boolean): Map<String, LoadedModule> {
         val map = LinkedHashMap<String, LoadedModule>()
         root?.listFiles { f -> f.isDirectory }?.forEach { dir ->
+            // a component's bundled dependency jars are not installed modules
+            if (isComponentDir(dir)) return@forEach
             val jars = jarsIn(dir)
             if (jars.isEmpty()) return@forEach
             val cl = isolatedLoader(jars)
@@ -78,7 +108,7 @@ internal object ExtensionLoader {
         ensureDirs()
         val map = LinkedHashMap<String, LoadedModule>()
         map.putAll(scanModuleRoot(builtinModulesDir, builtin = true))
-        map.putAll(scanModuleRoot(modulesDir, builtin = false))
+        map.putAll(scanModuleRoot(extensionsDir, builtin = false))
         moduleCache = map
         return map
     }
@@ -100,19 +130,19 @@ internal object ExtensionLoader {
 
     fun listComponents(): List<String> {
         ensureDirs()
-        return componentsDir.listFiles { f -> f.isDirectory && File(f, "component.json").exists() }
+        return extensionsDir.listFiles { f -> f.isDirectory && isComponentDir(f) }
             ?.map { "${it.name}.json" }?.sorted() ?: emptyList()
     }
 
     fun readComponent(name: String): String? {
         val id = name.removeSuffix(".json")
-        return runCatching { File(componentsDir, "$id/component.json").takeIf { it.exists() }?.readText() }.getOrNull()
+        return runCatching { File(extensionsDir, "$id/$COMPONENT_FILE").takeIf { it.exists() }?.readText() }.getOrNull()
     }
 
     // run a component in its own folder sandbox (only bundled dependency modules; independent of global modules)
     fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> {
-        val dir = File(componentsDir, id)
-        val compFile = File(dir, "component.json")
+        val dir = File(extensionsDir, id)
+        val compFile = File(dir, COMPONENT_FILE)
         if (!compFile.exists()) return emptyMap()
         val flow = runCatching { json.decodeFromString<FlowFile>(compFile.readText()) }.getOrNull() ?: return emptyMap()
 
@@ -138,13 +168,13 @@ internal object ExtensionLoader {
 
     fun uninstallModule(id: String) {
         if (!safeId(id)) return
-        runCatching { File(modulesDir, id).deleteRecursively() }
+        runCatching { File(extensionsDir, id).deleteRecursively() }
         moduleCache = null
     }
 
     fun uninstallComponent(id: String) {
         if (!safeId(id)) return
-        runCatching { File(componentsDir, id).deleteRecursively() }
+        runCatching { File(extensionsDir, id).deleteRecursively() }
     }
 
     /* ───────── install ───────── */
@@ -161,11 +191,11 @@ internal object ExtensionLoader {
         val builtinConflicts = mods.filter { loadedModules()[it.id]?.builtin == true }.map { it.id }
         if (builtinConflicts.isNotEmpty()) return InstallResult(conflicts = builtinConflicts)
 
-        val conflicts = mods.filter { File(modulesDir, it.id).exists() }.map { it.id }
+        val conflicts = mods.filter { File(extensionsDir, it.id).exists() }.map { it.id }
         if (conflicts.isNotEmpty() && !overwrite) return InstallResult(conflicts = conflicts)
 
         mods.forEach { m ->
-            val d = File(modulesDir, m.id).also { it.deleteRecursively(); it.mkdirs() }
+            val d = File(extensionsDir, m.id).also { it.deleteRecursively(); it.mkdirs() }
             runCatching { jar.copyTo(File(d, "${m.id}.jar"), overwrite = true) }
         }
         moduleCache = null
@@ -175,11 +205,11 @@ internal object ExtensionLoader {
     // Install an editor component: create the folder + component.json, bundle referenced installed-module jars (sandbox)
     fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult {
         ensureDirs()
-        val d = File(componentsDir, id)
+        val d = File(extensionsDir, id)
         if (d.exists() && !overwrite) return InstallResult(conflicts = listOf(id))
         return runCatching {
             d.deleteRecursively(); d.mkdirs()
-            File(d, "component.json").writeText(flowJson)
+            File(d, COMPONENT_FILE).writeText(flowJson)
             val flow = json.decodeFromString<FlowFile>(flowJson)
             val mods = loadedModules()
             flow.nodes.map { it.type }.distinct().forEach { t ->

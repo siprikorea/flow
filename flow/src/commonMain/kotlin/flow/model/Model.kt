@@ -93,31 +93,44 @@ data class FlowFile(
     val seq: Int = 1,
 )
 
-// Session format: open tabs + global UI state (IntelliJ-style workspace restore)
+// What Settings edits, kept apart from the session: these are the user's preferences and outlive
+// any particular set of open tabs or window bounds. Stored in settings.json.
+@Serializable
+data class Settings(
+    val lang: String = "ko",
+    // system | dark | light; "system" follows the OS setting (see flow.ui.theme.Theme)
+    val theme: String = "system",
+    // action id -> shortcut id ("meta+n"); missing actions use the default binding
+    val keymap: Map<String, String> = emptyMap(),
+    val animSeconds: Float = 1f,
+)
+
+// Session format: open tabs + the UI state that goes with them (IntelliJ-style workspace restore).
+// The `lang`/`theme`/`keymap`/`animSeconds` fields are the pre-settings.json layout, read once so an
+// existing session can be split, and never written again.
 @Serializable
 data class Session(
     val openFiles: List<String> = emptyList(),
     val activeIndex: Int = 0,
-    val lang: String = "ko",
-    // system | dark | light; "system" follows the OS setting (see flow.ui.theme.Theme)
-    val theme: String = "system",
     val showLeft: Boolean = true,
     val leftTab: String = "project",
     // project tree folders left open ("" = the root row itself)
     val expandedDirs: List<String> = listOf(""),
     // palette sections left open
     val expandedSections: List<String> = emptyList(),
-    // action id -> shortcut id ("meta+n"); missing actions use the default binding
-    val keymap: Map<String, String> = emptyMap(),
     val showProps: Boolean = true,
     val showMinimap: Boolean = true,
     val leftWidth: Float = 240f,
     val propsWidth: Float = 268f,
-    val animSeconds: Float = 1f,
     // main window bounds (dp); null x/y/width/height = no saved bounds yet, use the default layout
     val windowX: Float? = null,
     val windowY: Float? = null,
     val windowWidth: Float? = null,
     val windowHeight: Float? = null,
     val windowMaximized: Boolean = false,
+    // ── legacy, migrated into settings.json on first run ──
+    val lang: String? = null,
+    val theme: String? = null,
+    val keymap: Map<String, String> = emptyMap(),
+    val animSeconds: Float? = null,
 )
