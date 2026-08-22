@@ -73,7 +73,7 @@ The panel shows `~/.flow/flows` as an IntelliJ-style tree: the root row carries 
 - **Select / delete**: click nodes or edges to select, Delete/Backspace to remove, Escape to cancel a wire or close a menu
 - **Pan / zoom**: Space + drag to pan, wheel to zoom about the cursor (0.3–2.5)
 - **Undo / Redo**: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (snapshot stack, up to 60)
-- **Run simulation**: starts from source nodes (no incoming edges) → run a node (900ms) → activate outgoing edges (850ms, packet animation) → next node. A node with input ports but no incoming connection becomes `error`. "Run Selection" starts directly from the selected node (input check skipped). The run ends automatically once no timers remain
+- **Run simulation**: starts from source nodes (no incoming edges) → run a node → activate outgoing edges (packet animation) → next node. Every node gets the same step, from the animation-time setting: what a module does with its own options is the module's business, so the host never paces a particular one. A node with input ports but no incoming connection becomes `error`. "Run Selection" starts directly from the selected node (input check skipped). The run ends automatically once no timers remain
 - **A failing node stops its branch**: the node is marked red and nothing downstream of it runs, since its output was never produced. Branches that do not depend on it carry on and produce their results, and only the node that actually failed reports an error — the ones waiting on it are simply never reached
 - **Auto-layout** (Edit menu): BFS depth-based column layout (x = 60 + depth·280)
 - **Localization**: KO/EN toggle for the whole UI, selected language is persisted

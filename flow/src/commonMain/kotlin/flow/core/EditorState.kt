@@ -535,20 +535,17 @@ class EditorState(
         if (incoming.any { nodeById(it.from.node)?.status != "done" }) return
         // The engine has already run (startRun waits for it), so this node's outcome is known
         // before any of it is animated. Failing here rather than after the step keeps a node from
-        // miming work it never did — a sleep node would otherwise spin for its whole configured
-        // delay, up to ten minutes, before admitting it could not run at all.
+        // miming a step of work it never did.
         if (nodeErrors.containsKey(id)) {
             setStatus(id, "error")
             return
         }
         setStatus(id, "running")
-        // per-step animation duration in ms (from the seconds setting; larger = slower)
+        // per-step animation duration in ms (from the seconds setting; larger = slower). Every
+        // node gets the same step: what a module does with its own options is the module's
+        // business, and naming particular ids here made the host carry one extension's behaviour.
         val stepMs = (ws.animSeconds.coerceIn(0.05f, 10f) * 1000).toLong()
-        // the sleep module runs for its configured delay; others use the step time
-        val runMs = if (node.type == "sleep" || node.type == "timeout" || node.type == "flow.sleep") {
-            node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
-        } else stepMs
-        later(runMs) {
+        later(stepMs) {
             setStatus(id, "done")
             edges.filter { it.from.node == id }.forEach { e ->
                 setEdgeActive(e.id, true)
