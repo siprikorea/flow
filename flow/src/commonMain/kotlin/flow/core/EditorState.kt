@@ -22,6 +22,9 @@ import flow.platform.Platform
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -492,22 +495,6 @@ class EditorState(
         edges = edges.map { if (it.id == id) it.copy(active = active) else it }
     }
 
-    // Runs [block] once the engine pass has finished, so nodeErrors is settled before the
-    // animation starts walking the graph. Registered like any other sim timer, so Stop cancels it.
-    private fun afterCompute(block: () -> Unit) {
-        val job = scope.launch {
-            computeJob?.join()
-            block()
-        }
-        simJobs.add(job)
-        job.invokeOnCompletion {
-            simJobs.remove(job)
-            // a run that stops on its first node schedules no timers at all, so this has to clear
-            // the running flag itself or the Stop button would stay lit with nothing to stop
-            if (running && simJobs.isEmpty()) running = false
-        }
-    }
-
     private fun later(ms: Long, block: () -> Unit) {
         val job = scope.launch {
             delay(ms)
@@ -521,6 +508,10 @@ class EditorState(
         }
     }
 
+    // node id -> error (or null) as the engine finishes each one. The animation waits on its own
+    // node rather than the whole pass, so a slow module holds up only what comes after it.
+    private val settled = MutableStateFlow<Map<String, String?>>(emptyMap())
+
     private fun runNode(id: String) {
         val node = nodeById(id) ?: return
         if (node.status == "running" || node.status == "done") return
@@ -533,19 +524,20 @@ class EditorState(
         // wait until every input is ready: each incoming edge's source node must be done.
         // (re-triggered as each edge completes, so a merge starts only once all arrive)
         if (incoming.any { nodeById(it.from.node)?.status != "done" }) return
-        // The engine has already run (startRun waits for it), so this node's outcome is known
-        // before any of it is animated. Failing here rather than after the step keeps a node from
-        // miming a step of work it never did.
-        if (nodeErrors.containsKey(id)) {
-            setStatus(id, "error")
-            return
-        }
         setStatus(id, "running")
         // per-step animation duration in ms (from the seconds setting; larger = slower). Every
         // node gets the same step: what a module does with its own options is the module's
         // business, and naming particular ids here made the host carry one extension's behaviour.
         val stepMs = (ws.animSeconds.coerceIn(0.05f, 10f) * 1000).toLong()
-        later(stepMs) {
+        val job = scope.launch {
+            // stay on "running" until the engine has actually finished this node, so a module that
+            // takes real time is shown taking it, then hold the step so the animation stays legible
+            val error = settled.first { id in it }[id]
+            if (error != null) {
+                setStatus(id, "error")
+                return@launch
+            }
+            delay(stepMs)
             setStatus(id, "done")
             edges.filter { it.from.node == id }.forEach { e ->
                 setEdgeActive(e.id, true)
@@ -554,6 +546,11 @@ class EditorState(
                     runNode(e.to.node)
                 }
             }
+        }
+        simJobs.add(job)
+        job.invokeOnCompletion {
+            simJobs.remove(job)
+            if (running && simJobs.isEmpty()) running = false
         }
     }
 
@@ -573,9 +570,7 @@ class EditorState(
         // start from source nodes (no incoming edges); otherwise the first node
         val sources = nodes.filter { n -> edges.none { it.to.node == n.id } }
         val starts = sources.ifEmpty { listOf(nodes.first()) }
-        // the animation waits for the engine, so every node's success or failure is already known
-        // by the time the animation reaches it
-        afterCompute { starts.forEach { runNode(it.id) } }
+        later(0) { starts.forEach { runNode(it.id) } }
     }
 
     // Run the flow engine over the current graph and store cout outputs (transient).
@@ -585,6 +580,7 @@ class EditorState(
     // can't tear the computation; a newer call cancels whatever the previous one had in flight.
     private fun computeOutputs() {
         computeJob?.cancel()
+        settled.value = emptyMap()
         val flow = FlowFile(1, nodes, edges, seq)
         val cins = nodes.filter { it.type == "cin" }
         val coutIds = nodes.filter { it.type == "cout" }.map { it.id }
@@ -608,9 +604,18 @@ class EditorState(
                 moduleIds = runCatching { Platform.installedModuleInfos().map { it.id }.toSet() }.getOrDefault(emptySet()),
                 // let a module's exception propagate — the engine attributes it to the failing node
                 moduleProcess = { id, ins, params -> Platform.moduleProcess(id, ins, params) },
+                onNodeSettled = { nid, err -> settled.update { it + (nid to err) } },
             )
             // key by cout node id (not label) so two outputs never share a value
-            val result = runCatching { engine.runByNode(flow, inputs) }.getOrDefault(emptyMap())
+            val outcome = runCatching { engine.runByNode(flow, inputs) }
+            val result = outcome.getOrDefault(emptyMap())
+            // If the pass died before reaching some node, nothing would ever settle it and the
+            // animation waiting on it would sit at "running" for good. Settle the remainder as
+            // failed: the run did not produce their values, whatever the reason.
+            val reason = outcome.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "error" }
+            settled.update { done ->
+                done + flow.nodes.filter { it.id !in done }.associate { it.id to (reason ?: "run did not complete") }
+            }
             withContext(Dispatchers.Main) {
                 nodeErrors = engine.errors
                 runOutputs = coutIds.associateWith { id -> result[id] ?: ByteArray(0) }
@@ -626,7 +631,7 @@ class EditorState(
         computeOutputs()
         // a node with input ports but no incoming connection fails here too (marked red),
         // just like a full run — it can't run without its input
-        afterCompute { runNode(nodeId) }
+        later(0) { runNode(nodeId) }
     }
 
     fun stopRun() {

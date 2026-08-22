@@ -211,7 +211,9 @@ class Workspace(private val scope: CoroutineScope) {
     fun refreshFiles() {
         files = Platform.listProjectFiles()
         folders = Platform.listFlowDirs()
-        installedModules = Platform.installedModuleInfos()
+        // sorted here rather than in each place that lists them: the install store hands them back
+        // in whatever order the filesystem walked, which shuffles as extensions come and go
+        installedModules = Platform.installedModuleInfos().sortedBy { it.name.lowercase() }
         // project components (flows/) + installed components (components/, read-only)
         val local = files.filter { it.endsWith(".flow") }.mapNotNull { name ->
             val raw = Platform.readFlow(name) ?: return@mapNotNull null
@@ -223,7 +225,7 @@ class Workspace(private val scope: CoroutineScope) {
             val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return@mapNotNull null
             flow.asComponent(name)?.copy(installed = true)
         }
-        components = local + installed
+        components = (local + installed).sortedBy { it.name.lowercase() }
     }
 
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }

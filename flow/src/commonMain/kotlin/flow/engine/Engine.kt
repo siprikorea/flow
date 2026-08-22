@@ -19,6 +19,10 @@ class FlowEngine(
     private val loadFlow: (String) -> FlowFile?,
     private val moduleIds: Set<String> = emptySet(),
     private val moduleProcess: (String, Map<String, ByteArray?>, Map<String, String>) -> Map<String, ByteArray?> = { _, _, _ -> emptyMap() },
+    // Called as each node finishes, with its error or null — on the evaluating thread, in
+    // topological order. The canvas animation follows this so a node that really is working (a
+    // sleep, a big file) is shown working, instead of the whole run waiting for the total.
+    private val onNodeSettled: (String, String?) -> Unit = { _, _ -> },
 ) {
     // node id -> error message, from the most recent evaluate() call (run/runByNode)
     private val _errors = LinkedHashMap<String, String>()
@@ -39,6 +43,7 @@ class FlowEngine(
             val upstream = flow.edges.filter { it.to.node == nid }.map { it.from.node }
             if (upstream.any { it in blocked }) {
                 blocked += nid
+                onNodeSettled(nid, null) // never ran; the branch already stopped upstream
                 continue
             }
             val inVals: Map<String, ByteArray?> = node.inputs.associate { port ->
@@ -52,6 +57,7 @@ class FlowEngine(
                 node.outputs.associate { it.name to null }
             }
             result.forEach { (p, v) -> outVals[nid to p] = v }
+            onNodeSettled(nid, _errors[nid])
         }
         return outVals
     }
