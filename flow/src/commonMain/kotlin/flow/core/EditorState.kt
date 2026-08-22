@@ -492,6 +492,22 @@ class EditorState(
         edges = edges.map { if (it.id == id) it.copy(active = active) else it }
     }
 
+    // Runs [block] once the engine pass has finished, so nodeErrors is settled before the
+    // animation starts walking the graph. Registered like any other sim timer, so Stop cancels it.
+    private fun afterCompute(block: () -> Unit) {
+        val job = scope.launch {
+            computeJob?.join()
+            block()
+        }
+        simJobs.add(job)
+        job.invokeOnCompletion {
+            simJobs.remove(job)
+            // a run that stops on its first node schedules no timers at all, so this has to clear
+            // the running flag itself or the Stop button would stay lit with nothing to stop
+            if (running && simJobs.isEmpty()) running = false
+        }
+    }
+
     private fun later(ms: Long, block: () -> Unit) {
         val job = scope.launch {
             delay(ms)
@@ -525,6 +541,14 @@ class EditorState(
             node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
         } else stepMs
         later(runMs) {
+            // The engine has already computed this node by now (startRun waits for it). A node it
+            // could not run stops here: it shows the error and nothing downstream is animated,
+            // matching what actually happened to the data. Nodes waiting on this one never see
+            // their inputs go "done", so they stay put without needing to be told.
+            if (nodeErrors.containsKey(id)) {
+                setStatus(id, "error")
+                return@later
+            }
             setStatus(id, "done")
             edges.filter { it.from.node == id }.forEach { e ->
                 setEdgeActive(e.id, true)
@@ -552,7 +576,9 @@ class EditorState(
         // start from source nodes (no incoming edges); otherwise the first node
         val sources = nodes.filter { n -> edges.none { it.to.node == n.id } }
         val starts = sources.ifEmpty { listOf(nodes.first()) }
-        later(0) { starts.forEach { runNode(it.id) } }
+        // the animation waits for the engine, so every node's success or failure is already known
+        // by the time the animation reaches it
+        afterCompute { starts.forEach { runNode(it.id) } }
     }
 
     // Run the flow engine over the current graph and store cout outputs (transient).
@@ -603,7 +629,7 @@ class EditorState(
         computeOutputs()
         // a node with input ports but no incoming connection fails here too (marked red),
         // just like a full run — it can't run without its input
-        later(0) { runNode(nodeId) }
+        afterCompute { runNode(nodeId) }
     }
 
     fun stopRun() {

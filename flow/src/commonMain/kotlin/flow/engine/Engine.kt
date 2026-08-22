@@ -29,8 +29,18 @@ class FlowEngine(
         _errors.clear()
         val byId = flow.nodes.associateBy { it.id }
         val outVals = HashMap<Pair<String, String>, ByteArray?>()
+        // a node stops the branch it is on: whatever it fed cannot be computed from real values, so
+        // running those anyway would either fail again for a derived reason or, worse, succeed on
+        // nulls. Branches that never touched the failure are unaffected — topological order means
+        // everything feeding this node has already run.
+        val blocked = HashSet<String>()
         for (nid in topoOrder(flow)) {
             val node = byId[nid] ?: continue
+            val upstream = flow.edges.filter { it.to.node == nid }.map { it.from.node }
+            if (upstream.any { it in blocked }) {
+                blocked += nid
+                continue
+            }
             val inVals: Map<String, ByteArray?> = node.inputs.associate { port ->
                 val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
                 port.name to (if (e == null) null else outVals[e.from.node to e.from.port])
@@ -38,6 +48,7 @@ class FlowEngine(
             // a module throwing (bad key/IV size, etc.) is attributed to this node, not swallowed silently
             val result = runCatching { evalNode(node, inVals, inputs) }.getOrElse { e ->
                 _errors[nid] = e.message ?: e::class.simpleName ?: "error"
+                blocked += nid
                 node.outputs.associate { it.name to null }
             }
             result.forEach { (p, v) -> outVals[nid to p] = v }
