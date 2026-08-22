@@ -4,6 +4,12 @@ import flow.model.FlowFile
 import flow.model.Node
 import flow.model.compFile
 import flow.model.isComp
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Flow execution engine (UI-independent).
@@ -28,38 +34,65 @@ class FlowEngine(
     private val _errors = LinkedHashMap<String, String>()
     val errors: Map<String, String> get() = _errors
 
-    // Evaluate every node; returns (nodeId, portName) -> value for all outputs.
-    private fun evaluate(flow: FlowFile, inputs: Map<String, ByteArray>): Map<Pair<String, String>, ByteArray?> {
+    /**
+     * Evaluate every node; returns (nodeId, portName) -> value for all outputs.
+     *
+     * Nodes run concurrently, each starting once the nodes feeding it have finished, rather than
+     * one after another down a topological list. Sequential evaluation made a slow module hold up
+     * everything ordered behind it whether or not anything depended on it — a sleep on one branch
+     * stalled an unrelated branch that had no reason to wait.
+     *
+     * This calls [moduleProcess] from several threads at once, which the extension contract already
+     * expects: process() is handed everything it needs and keeps nothing between calls.
+     */
+    private suspend fun evaluate(flow: FlowFile, inputs: Map<String, ByteArray>): Map<Pair<String, String>, ByteArray?> = coroutineScope {
         _errors.clear()
         val byId = flow.nodes.associateBy { it.id }
         val outVals = HashMap<Pair<String, String>, ByteArray?>()
+        // guards the three maps below; each node touches them only when it finishes, so the lock is
+        // held briefly and never across a module call
+        val lock = Mutex()
         // a node stops the branch it is on: whatever it fed cannot be computed from real values, so
         // running those anyway would either fail again for a derived reason or, worse, succeed on
-        // nulls. Branches that never touched the failure are unaffected — topological order means
-        // everything feeding this node has already run.
+        // nulls. Branches that never touched the failure are unaffected.
         val blocked = HashSet<String>()
+
+        val started = LinkedHashMap<String, Deferred<Unit>>()
+        // topological order only decides who waits for whom; it no longer decides who runs when
         for (nid in topoOrder(flow)) {
             val node = byId[nid] ?: continue
-            val upstream = flow.edges.filter { it.to.node == nid }.map { it.from.node }
-            if (upstream.any { it in blocked }) {
-                blocked += nid
-                onNodeSettled(nid, null) // never ran; the branch already stopped upstream
-                continue
+            val upstream = flow.edges.filter { it.to.node == nid }.map { it.from.node }.distinct()
+            val waitFor = upstream.mapNotNull { started[it] }
+            started[nid] = async(Dispatchers.Default) {
+                waitFor.forEach { it.await() }
+                val stopped = lock.withLock { upstream.any { it in blocked } }
+                if (stopped) {
+                    lock.withLock { blocked += nid }
+                    onNodeSettled(nid, null) // never ran; the branch already stopped upstream
+                    return@async
+                }
+                val inVals: Map<String, ByteArray?> = lock.withLock {
+                    node.inputs.associate { port ->
+                        val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
+                        port.name to (if (e == null) null else outVals[e.from.node to e.from.port])
+                    }
+                }
+                // a module throwing (bad key/IV size, etc.) is attributed to this node, not swallowed silently
+                val outcome = runCatching { evalNode(node, inVals, inputs) }
+                val error = outcome.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "error" }
+                val result = outcome.getOrElse { node.outputs.associate { p -> p.name to null } }
+                lock.withLock {
+                    if (error != null) {
+                        _errors[nid] = error
+                        blocked += nid
+                    }
+                    result.forEach { (p, v) -> outVals[nid to p] = v }
+                }
+                onNodeSettled(nid, error)
             }
-            val inVals: Map<String, ByteArray?> = node.inputs.associate { port ->
-                val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
-                port.name to (if (e == null) null else outVals[e.from.node to e.from.port])
-            }
-            // a module throwing (bad key/IV size, etc.) is attributed to this node, not swallowed silently
-            val result = runCatching { evalNode(node, inVals, inputs) }.getOrElse { e ->
-                _errors[nid] = e.message ?: e::class.simpleName ?: "error"
-                blocked += nid
-                node.outputs.associate { it.name to null }
-            }
-            result.forEach { (p, v) -> outVals[nid to p] = v }
-            onNodeSettled(nid, _errors[nid])
         }
-        return outVals
+        started.values.forEach { it.await() }
+        outVals
     }
 
     // the value arriving at a cout node (following its single input edge)
@@ -69,18 +102,18 @@ class FlowEngine(
     }
 
     // cin label -> value. Returns: cout label -> value (labels must be unique)
-    fun run(flow: FlowFile, inputs: Map<String, ByteArray>): Map<String, ByteArray?> {
+    suspend fun run(flow: FlowFile, inputs: Map<String, ByteArray>): Map<String, ByteArray?> {
         val outVals = evaluate(flow, inputs)
         return flow.nodes.filter { it.type == "cout" }.associate { it.label to coutValue(flow, it, outVals) }
     }
 
     // cout node id -> value (no label-collision; used by the in-app output editors)
-    fun runByNode(flow: FlowFile, inputs: Map<String, ByteArray>): Map<String, ByteArray?> {
+    suspend fun runByNode(flow: FlowFile, inputs: Map<String, ByteArray>): Map<String, ByteArray?> {
         val outVals = evaluate(flow, inputs)
         return flow.nodes.filter { it.type == "cout" }.associate { it.id to coutValue(flow, it, outVals) }
     }
 
-    private fun evalNode(node: Node, inVals: Map<String, ByteArray?>, externalInputs: Map<String, ByteArray?>): Map<String, ByteArray?> {
+    private suspend fun evalNode(node: Node, inVals: Map<String, ByteArray?>, externalInputs: Map<String, ByteArray?>): Map<String, ByteArray?> {
         return when {
             // top-level (in-app Input tabs) callers key externalInputs by node id, so two cin nodes
             // with the same display label never collide (labels are cosmetic only — see

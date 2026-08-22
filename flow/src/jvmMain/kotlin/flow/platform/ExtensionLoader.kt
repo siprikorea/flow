@@ -11,6 +11,7 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import java.net.URLClassLoader
 import java.util.ServiceLoader
+import kotlinx.coroutines.runBlocking
 
 // Install store: everything installed lives under extensions/<id>/, holding either the module's
 // jar(s) or a component.json plus the module jars that component depends on. Each loads and runs
@@ -154,7 +155,8 @@ internal object ExtensionLoader {
             moduleIds = sandbox.keys,
             moduleProcess = { mid, ins, params -> sandbox[mid]?.let { runExtension(it, ins, params) } ?: emptyMap() },
         )
-        return engine.run(flow, inputs.mapValues { it.value ?: ByteArray(0) })
+        // a sandboxed component is run from ordinary (non-suspending) calls, so block here
+        return runBlocking { engine.run(flow, inputs.mapValues { it.value ?: ByteArray(0) }) }
     }
 
     /* ───────── uninstall ───────── */

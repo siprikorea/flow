@@ -7,6 +7,7 @@ import flow.model.asComponent
 import flow.platform.Platform
 import kotlinx.serialization.json.Json
 import java.io.File
+import kotlinx.coroutines.runBlocking
 
 // Loading and running components outside the UI, shared by the CLI and the MCP server.
 
@@ -64,6 +65,7 @@ internal fun runComponent(
     }
     val flow = loadFlow(target.ref) ?: return emptyMap<String, ByteArray?>() to emptyMap()
     val eng = engine()
-    val result = eng.run(flow, inputs)
+    // the CLI has no event loop of its own, so it blocks here while the engine runs its nodes
+    val result = runBlocking { eng.run(flow, inputs) }
     return result to eng.errors
 }

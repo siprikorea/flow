@@ -68,6 +68,9 @@ interface ModuleExtension {
     /**
      * Process the port data. Values on ports are raw bytes:
      * input-port-id → bytes, plus the current option values, producing output-port-id → bytes.
+     *
+     * Flow evaluates independent nodes at the same time, so this may be called concurrently on the
+     * one instance. Everything it needs arrives in the arguments — keep no state between calls.
      */
     fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?>
 }
