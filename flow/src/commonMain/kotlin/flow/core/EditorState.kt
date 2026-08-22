@@ -533,6 +533,14 @@ class EditorState(
         // wait until every input is ready: each incoming edge's source node must be done.
         // (re-triggered as each edge completes, so a merge starts only once all arrive)
         if (incoming.any { nodeById(it.from.node)?.status != "done" }) return
+        // The engine has already run (startRun waits for it), so this node's outcome is known
+        // before any of it is animated. Failing here rather than after the step keeps a node from
+        // miming work it never did — a sleep node would otherwise spin for its whole configured
+        // delay, up to ten minutes, before admitting it could not run at all.
+        if (nodeErrors.containsKey(id)) {
+            setStatus(id, "error")
+            return
+        }
         setStatus(id, "running")
         // per-step animation duration in ms (from the seconds setting; larger = slower)
         val stepMs = (ws.animSeconds.coerceIn(0.05f, 10f) * 1000).toLong()
@@ -541,14 +549,6 @@ class EditorState(
             node.params["ms"]?.toLongOrNull()?.coerceIn(0L, 600_000L) ?: 1000L
         } else stepMs
         later(runMs) {
-            // The engine has already computed this node by now (startRun waits for it). A node it
-            // could not run stops here: it shows the error and nothing downstream is animated,
-            // matching what actually happened to the data. Nodes waiting on this one never see
-            // their inputs go "done", so they stay put without needing to be told.
-            if (nodeErrors.containsKey(id)) {
-                setStatus(id, "error")
-                return@later
-            }
             setStatus(id, "done")
             edges.filter { it.from.node == id }.forEach { e ->
                 setEdgeActive(e.id, true)
