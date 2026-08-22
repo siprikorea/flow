@@ -125,15 +125,28 @@ off a ciphertext), `flow.merge`, `flow.split`, `flow.sleep` and `flow.mcp`.
 First-party (built-in) extensions live under `flow-extensions/` using `flow.*` package ids; `flow-extensions/sample-extension` is a third-party example under `com.example.*`.
 
 ### Storage & sandbox (installed, read-only)
-Installed modules live under the app data dir, keyed by id, each in **its own folder** with its dependency JARs bundled alongside:
-- `~/.flow/modules/<id>/*.jar` — module extension + its dependency modules.
-
-Tool-made components you install go to `~/.flow/components/<id>/component.json` (+ bundled dependency module JARs). Each module and each component runs in a **sandbox**: an isolated classloader over just its own folder's JARs, so one extension's dependencies never clash with another's.
+Everything installed lives under `~/.flow/extensions/<id>/`, keyed by id, each in **its own folder**
+with its dependency JARs bundled alongside — either a module extension's jar(s), or a component's
+`component.json` plus the module jars it depends on. What makes a folder a component is the presence
+of `component.json`; without that distinction a component's bundled dependency would register itself
+as an installed module. Each runs in a **sandbox**: an isolated classloader over just its own
+folder's JARs, so one extension's dependencies never clash with another's.
 
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 
+The rest of the app data dir: `~/.flow/flows/` is the project, `~/.flow/settings.json` holds the
+preferences Settings edits, and `~/.flow/session.json` the open tabs and window layout.
+
 ### Installing
-Use the **Flow (logo) menu → Install Extension…** to pick a JAR, or **Install Current Component** to install the open editor component. If the id already exists, you're asked to **overwrite**. From the terminal:
+**Extensions** (logo menu) lists what the registry offers with **Install**, or **Update** when it
+carries a newer `version` than the installed one; extensions bundled with the app show as built-in.
+The same window installs from this machine — **Install from JAR…** for an extension, **Install from
+Flow file…** to register a `.flow` as a component — and uninstalls anything not built in. If an id
+already exists you're asked to **overwrite**.
+
+The registry is a JSON manifest served over HTTPS —
+[siprikorea/flow-extensions](https://github.com/siprikorea/flow-extensions) by default, changed via
+`registryUrl` in `settings.json`. From the terminal:
 
 ```bash
 ./gradlew :flow-extensions:base64-extension:jar

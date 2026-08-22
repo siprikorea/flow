@@ -29,6 +29,14 @@ interface ModuleExtension {
     /** Name shown in the palette. */
     val displayName: String
 
+    /**
+     * Version of this extension, as dot-separated numbers ("1.2.0"). Flow compares it against the
+     * version a registry offers to decide whether an update is available, so it has to go up when
+     * the extension changes. Defaults so that an extension written before versions existed still
+     * compiles and reads as 1.0.0.
+     */
+    val version: String get() = "1.0.0"
+
     /** Input port ids (the full/default set — see [inputsFor] for option-dependent ports). */
     val inputs: List<String>
 

@@ -114,7 +114,9 @@ internal object ExtensionLoader {
     }
 
     fun moduleInfos(): List<ModuleInfo> =
-        loadedModules().values.map { m -> ModuleInfo(m.ext.id, m.ext.displayName, m.ext.inputs, m.ext.outputs, optDefs(m.ext), m.builtin) }
+        loadedModules().values.map { m ->
+            ModuleInfo(m.ext.id, m.ext.displayName, m.ext.inputs, m.ext.outputs, optDefs(m.ext), m.builtin, m.ext.version)
+        }
 
     fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
         loadedModules()[id]?.ext?.let { runExtension(it, inputs, options) } ?: emptyMap()

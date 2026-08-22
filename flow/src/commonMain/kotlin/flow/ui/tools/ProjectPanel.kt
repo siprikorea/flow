@@ -300,7 +300,6 @@ fun ProjectContextMenu(ws: Workspace) {
     val path = ws.projectMenuFor ?: return
     val isRoot = path.isEmpty()
     val isDir = isRoot || ws.isDir(path)
-    val isFlow = !isDir && path.endsWith(".flow")
     // only one submenu is open at a time, so the two cards never fight for the same slot
     var submenu by remember(path) { mutableStateOf<String?>(null) }
     fun toggle(name: String) { submenu = if (submenu == name) null else name }
@@ -320,12 +319,6 @@ fun ProjectContextMenu(ws: Workspace) {
                     }
                 }
                 MenuItem(ws.t("openIn"), submenu = true, highlighted = submenu == "openIn") { toggle("openIn") }
-                if (isFlow) {
-                    MenuItem(ws.t("addToExtensions")) {
-                        ws.closeProjectMenu()
-                        ws.installComponentFile(path)
-                    }
-                }
                 if (!isRoot) {
                     MenuItem(ws.t("rename"), shortcut = ws.shortcutLabel(Action.RENAME)) {
                         ws.closeProjectMenu()

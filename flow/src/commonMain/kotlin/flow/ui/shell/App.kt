@@ -18,6 +18,8 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.draganddrop.DragAndDropEvent
@@ -350,10 +352,12 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
     }
 }
 
-// Extensions: install and manage modules/components (hosted in its own window)
+// Extensions: what can be installed from the registry, and what already is (its own window)
 @Composable
 fun ExtensionsScreen(ws: Workspace) {
     ApplyTheme(ws.theme)
+    // fetched once when the window opens; the refresh button asks again
+    LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
             Row(
@@ -369,14 +373,33 @@ fun ExtensionsScreen(ws: Workspace) {
                 ) { Txt(ws.t("done"), 12.sp, Palette.menuText) }
             }
             Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
-            Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(18.dp)) {
-                // install actions
+            Column(
+                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
+                verticalArrangement = Arrangement.spacedBy(18.dp),
+            ) {
+                // install from a file on this machine — a jar, or a flow to register as a component
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DialogButton(ws.t("installPlugin"), Palette.accent, Palette.holeBg, filled = true) {
+                    DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
                         Platform.pickJar()?.let { ws.installJarFlow(it) }
                     }
-                    DialogButton(ws.t("installComponent"), Palette.runFromBorder, Palette.accentHover) {
-                        ws.installActiveComponent()
+                    DialogButton(ws.t("installLocalFlow"), Palette.runFromBorder, Palette.accentHover) {
+                        Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
+                    }
+                }
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Txt(ws.t("registrySection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+                        Txt(
+                            ws.t("registryRefresh"), 11.sp, Palette.accentHover,
+                            modifier = Modifier.plainClick { ws.loadRegistry() },
+                        )
+                    }
+                    when {
+                        ws.registryLoading -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
+                        ws.registryError != null -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
+                        ws.registry.isEmpty() -> Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
+                        else -> ws.registry.forEach { entry -> RegistryRow(ws, entry) }
                     }
                 }
 
@@ -384,8 +407,11 @@ fun ExtensionsScreen(ws: Workspace) {
                     Txt(ws.t("installedModules").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
                     if (ws.installedModules.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
                     ws.installedModules.forEach { m ->
-                        ManageRow(ws, title = m.name, id = m.id, io = "${m.inputs.size}→${m.outputs.size}",
-                            onUninstall = if (m.builtin) null else { { ws.uninstallModule(m.id) } })
+                        ManageRow(
+                            ws, title = m.name, id = m.id, io = "${m.inputs.size}→${m.outputs.size}",
+                            version = m.version,
+                            onUninstall = if (m.builtin) null else { { ws.uninstallModule(m.id) } },
+                        )
                     }
                 }
 
@@ -404,8 +430,55 @@ fun ExtensionsScreen(ws: Workspace) {
     }
 }
 
+// One extension on offer. The action on the right is whatever applies: install it, update it, or
+// nothing at all when it is already current or shipped with the app.
 @Composable
-private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUninstall: (() -> Unit)?) {
+private fun RegistryRow(ws: Workspace, entry: flow.model.RegistryEntry) {
+    val state = ws.registryState(entry)
+    val busy = entry.id in ws.registryBusy
+    Row(
+        Modifier
+            .width(560.dp)
+            .background(Palette.dropdownBg, RoundedCornerShape(7.dp))
+            .border(1.dp, Palette.border, RoundedCornerShape(7.dp))
+            .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Txt(entry.name.ifBlank { entry.id }, 12.5.sp, Palette.text, weight = FontWeight.Medium)
+                Txt("v${entry.version}", 10.5.sp, Palette.dimText, mono = true)
+            }
+            Txt(entry.id, 10.5.sp, Palette.dimText, mono = true, maxLines = 1)
+            if (entry.description.isNotBlank()) Txt(entry.description, 11.sp, Palette.subText, maxLines = 2)
+        }
+        when {
+            busy -> Txt(ws.t("installing"), 11.sp, Palette.faintText)
+            state == flow.model.RegistryState.BUILTIN -> Txt(ws.t("builtin"), 11.sp, Palette.faintText)
+            state == flow.model.RegistryState.INSTALLED -> Txt(ws.t("installed"), 11.sp, Palette.successText)
+            else -> {
+                val update = state == flow.model.RegistryState.UPDATABLE
+                Box(
+                    Modifier
+                        .background(if (update) Palette.warn else Palette.accent, RoundedCornerShape(5.dp))
+                        .plainClick { ws.installFromRegistry(entry) }
+                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                ) { Txt(ws.t(if (update) "update" else "install"), 11.sp, Palette.holeBg, weight = FontWeight.Medium) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ManageRow(
+    ws: Workspace,
+    title: String,
+    id: String,
+    io: String,
+    version: String? = null,
+    onUninstall: (() -> Unit)?,
+) {
     Row(
         Modifier
             .width(520.dp)
@@ -416,6 +489,7 @@ private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUn
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
+        if (version != null) Txt("v$version", 10.5.sp, Palette.dimText, mono = true)
         Txt(id, 11.sp, Palette.dimText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
         Txt(io, 10.5.sp, Palette.dimText, mono = true)
         if (onUninstall != null) {

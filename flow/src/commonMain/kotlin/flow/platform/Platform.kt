@@ -25,6 +25,11 @@ expect object Platform {
     fun uninstallModule(id: String)
     fun uninstallComponent(id: String)
     fun pickJar(): String? // JAR file picker dialog
+
+    // ── extension registry (a manifest served over HTTPS; see flow.model.RegistryIndex) ──
+    fun fetchText(url: String): String?  // null on any network/HTTP failure
+    // Download the jar at [url] and install it. Same conflict rules as installJar.
+    fun installFromUrl(url: String, overwrite: Boolean): InstallResult
     fun pickFlowFile(): String? // Open dialog restricted to *.flow -> absolute path (File > Open)
     // Read a .flow file anywhere on disk by its absolute path (File > Open / drag-and-drop of a
     // file the project sandbox wouldn't otherwise resolve). Null if missing or not a .flow file.

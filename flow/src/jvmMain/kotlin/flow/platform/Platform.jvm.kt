@@ -57,6 +57,45 @@ actual object Platform {
         return File(dir, name).absolutePath
     }
 
+    // ── extension registry ──
+    // java.net.http is in the JDK, so fetching costs the MCP/CLI bundle no extra jar.
+    private val http: java.net.http.HttpClient by lazy {
+        java.net.http.HttpClient.newBuilder()
+            .connectTimeout(java.time.Duration.ofSeconds(10))
+            .followRedirects(java.net.http.HttpClient.Redirect.NORMAL)
+            .build()
+    }
+
+    private fun httpsOnly(url: String): java.net.URI? =
+        runCatching { java.net.URI(url) }.getOrNull()?.takeIf { it.scheme == "https" }
+
+    actual fun fetchText(url: String): String? {
+        val uri = httpsOnly(url) ?: return null
+        return runCatching {
+            val req = java.net.http.HttpRequest.newBuilder(uri)
+                .timeout(java.time.Duration.ofSeconds(20)).GET().build()
+            val res = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofString())
+            if (res.statusCode() in 200..299) res.body() else null
+        }.getOrNull()
+    }
+
+    actual fun installFromUrl(url: String, overwrite: Boolean): InstallResult {
+        val uri = httpsOnly(url) ?: return InstallResult()
+        return runCatching {
+            val req = java.net.http.HttpRequest.newBuilder(uri)
+                .timeout(java.time.Duration.ofSeconds(60)).GET().build()
+            val res = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofInputStream())
+            if (res.statusCode() !in 200..299) return InstallResult()
+            // installJar reads from a path, so the download lands in the app's own scratch dir
+            tmpDir.mkdirs()
+            val tmp = File.createTempFile("download", ".jar", tmpDir).apply { deleteOnExit() }
+            res.body().use { input -> tmp.outputStream().use { input.copyTo(it) } }
+            val result = ExtensionLoader.installJar(tmp.absolutePath, overwrite)
+            tmp.delete()
+            result
+        }.getOrDefault(InstallResult())
+    }
+
     actual fun pickFlowFile(): String? {
         val dlg = FileDialog(null as Frame?, "Open Flow File", FileDialog.LOAD)
         dlg.setFilenameFilter { _, name -> name.endsWith(".flow") }

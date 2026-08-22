@@ -103,7 +103,14 @@ data class Settings(
     // action id -> shortcut id ("meta+n"); missing actions use the default binding
     val keymap: Map<String, String> = emptyMap(),
     val animSeconds: Float = 1f,
+    // where the Extensions screen looks for installable extensions
+    val registryUrl: String = DEFAULT_REGISTRY_URL,
 )
+
+// The manifest the Extensions screen reads by default. Served straight off the repository, so
+// publishing an extension is a commit rather than a deployment.
+const val DEFAULT_REGISTRY_URL =
+    "https://raw.githubusercontent.com/siprikorea/flow-extensions/main/extensions.json"
 
 // Session format: open tabs + the UI state that goes with them (IntelliJ-style workspace restore).
 // The `lang`/`theme`/`keymap`/`animSeconds` fields are the pre-settings.json layout, read once so an

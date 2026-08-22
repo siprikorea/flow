@@ -12,6 +12,11 @@ import flow.model.OptDef
 import flow.model.Node
 import flow.model.Session
 import flow.model.Settings
+import flow.model.DEFAULT_REGISTRY_URL
+import flow.model.RegistryEntry
+import flow.model.RegistryIndex
+import flow.model.RegistryState
+import flow.model.compareVersions
 import flow.model.asComponent
 import flow.platform.Platform
 import flow.ui.theme.Theme
@@ -23,6 +28,9 @@ import flow.util.pathName
 import flow.util.pathParent
 import flow.util.pathUnder
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 
 // pending install-overwrite confirmation (label = conflicting id, commit = perform overwrite)
@@ -41,6 +49,7 @@ class Workspace(private val scope: CoroutineScope) {
     // global UI (shared across documents)
     var lang by mutableStateOf("en") // default language: English
     var theme by mutableStateOf(Theme.SYSTEM) // system | dark | light
+    var registryUrl by mutableStateOf(DEFAULT_REGISTRY_URL)
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules
     // palette sections left open, by key
@@ -245,20 +254,70 @@ class Workspace(private val scope: CoroutineScope) {
         } else refreshFiles()
     }
 
-    // Install a project flow as a component, from the project tree rather than the open editor.
-    // Reads the file rather than a document, so it works on a flow that isn't open in a tab.
-    fun installComponentFile(path: String) {
-        if (!path.endsWith(".flow")) return
-        val raw = Platform.readFlow(path) ?: return
+    /* ───────── extension registry ───────── */
+
+    var registry by mutableStateOf<List<RegistryEntry>>(emptyList())
+    var registryLoading by mutableStateOf(false)
+    var registryError by mutableStateOf<String?>(null)
+    // ids currently downloading, so each row can show its own progress
+    var registryBusy by mutableStateOf(setOf<String>())
+
+    // A jar path in the manifest is relative to the manifest itself, so a registry can be moved or
+    // mirrored without rewriting every entry.
+    private fun entryUrl(file: String): String =
+        if (file.startsWith("https://")) file else registryUrl.substringBeforeLast('/') + "/" + file.removePrefix("./")
+
+    fun loadRegistry() {
+        if (registryLoading) return
+        registryLoading = true
+        registryError = null
+        scope.launch {
+            val raw = withContext(Dispatchers.Default) { Platform.fetchText(registryUrl) }
+            val index = raw?.let { runCatching { json.decodeFromString<RegistryIndex>(it) }.getOrNull() }
+            registry = index?.extensions.orEmpty()
+            registryError = when {
+                raw == null -> t("registryUnreachable")
+                index == null -> t("registryBroken")
+                else -> null
+            }
+            registryLoading = false
+        }
+    }
+
+    /** Whether [entry] is installable, already installed, or has a newer version on offer. */
+    fun registryState(entry: RegistryEntry): RegistryState {
+        val installed = installedModules.find { it.id == entry.id } ?: return RegistryState.AVAILABLE
+        if (installed.builtin) return RegistryState.BUILTIN
+        return if (compareVersions(entry.version, installed.version) > 0) RegistryState.UPDATABLE
+        else RegistryState.INSTALLED
+    }
+
+    /** Download and install (or update) one registry entry. Overwrites, since that is the point. */
+    fun installFromRegistry(entry: RegistryEntry) {
+        if (entry.id in registryBusy) return
+        registryBusy = registryBusy + entry.id
+        scope.launch {
+            val r = withContext(Dispatchers.Default) { Platform.installFromUrl(entryUrl(entry.file), overwrite = true) }
+            registryBusy = registryBusy - entry.id
+            if (r.installed.isEmpty()) {
+                showError(t("registryInstallFailed").replace("{name}", entry.name.ifBlank { entry.id }))
+            }
+            refreshFiles()
+        }
+    }
+
+    /** Install a .flow chosen from disk as a component, without bringing it into the project. */
+    fun installLocalFlow(path: String) {
+        val raw = Platform.readExternalFlow(path) ?: return
         val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: run {
-            showError(t("openErrorBroken").replace("{name}", pathName(path)), "openErrorTitle")
+            showError(t("openErrorBroken").replace("{name}", Platform.fileName(path)), "openErrorTitle")
             return
         }
         if (flow.nodes.none { it.type == "cin" || it.type == "cout" }) {
             showError(t("valNeedIo"))
             return
         }
-        val id = "local." + path.removeSuffix(".flow").replace('/', '.')
+        val id = "local." + Platform.fileName(path).removeSuffix(".flow").replace('/', '.')
         val r = Platform.installComponent(id, raw, overwrite = false)
         if (r.conflicts.isNotEmpty()) {
             installConfirm = InstallPending(id) {
@@ -594,7 +653,7 @@ class Workspace(private val scope: CoroutineScope) {
     )
 
     fun settingsJson(): String = json.encodeToString(
-        Settings(lang, theme, keymap.mapValues { it.value.id() }, animSeconds)
+        Settings(lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl)
     )
 
     private fun loadSession() {
@@ -607,6 +666,7 @@ class Workspace(private val scope: CoroutineScope) {
             lang = saved.lang
             theme = saved.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
             animSeconds = saved.animSeconds.coerceIn(0.05f, 10f)
+            registryUrl = saved.registryUrl.ifBlank { DEFAULT_REGISTRY_URL }
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }
