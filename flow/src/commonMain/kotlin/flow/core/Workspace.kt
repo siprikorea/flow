@@ -13,6 +13,7 @@ import flow.model.Node
 import flow.model.Session
 import flow.model.asComponent
 import flow.platform.Platform
+import flow.ui.theme.Theme
 import flow.util.flowLabel
 import flow.util.isValidSegment
 import flow.util.pathAncestors
@@ -38,6 +39,7 @@ class Workspace(private val scope: CoroutineScope) {
 
     // global UI (shared across documents)
     var lang by mutableStateOf("en") // default language: English
+    var theme by mutableStateOf(Theme.SYSTEM) // system | dark | light
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules
     // palette sections left open, by key
@@ -550,7 +552,7 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun sessionJson(): String = json.encodeToString(
         Session(
-            docs.map { it.fileName }, activeIndex, lang, showLeft, leftTab, expandedDirs.toList().sorted(),
+            docs.map { it.fileName }, activeIndex, lang, theme, showLeft, leftTab, expandedDirs.toList().sorted(),
             expandedSections.toList().sorted(), keymap.mapValues { it.value.id() },
             showProps, showMinimap, leftWidth, propsWidth, animSeconds,
             windowX, windowY, windowWidth, windowHeight, windowMaximized,
@@ -561,6 +563,7 @@ class Workspace(private val scope: CoroutineScope) {
         val s = Platform.loadSession()?.let { runCatching { json.decodeFromString<Session>(it) }.getOrNull() }
         if (s != null) {
             lang = s.lang
+            theme = s.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
             showLeft = s.showLeft
             leftTab = s.leftTab
             // an older session file has no such field; keep the root open

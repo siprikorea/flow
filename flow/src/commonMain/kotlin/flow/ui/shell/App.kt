@@ -63,7 +63,9 @@ import flow.ui.common.DtxField
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
+import flow.ui.theme.ApplyTheme
 import flow.ui.theme.Palette
+import flow.ui.theme.Theme
 import flow.ui.tools.LeftToolWindow
 import flow.ui.tools.ProjectContextMenu
 import flow.ui.tools.RightToolWindow
@@ -74,6 +76,7 @@ import kotlin.math.roundToInt
 @OptIn(FlowPreview::class, ExperimentalComposeUiApi::class)
 @Composable
 fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)? = null) {
+    ApplyTheme(ws.theme)
     // external .flow file dropped onto the editor window: copy it into the project and open it
     val editorDropTarget = remember(ws) {
         object : DragAndDropTarget {
@@ -342,6 +345,7 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
 // Extensions: install and manage modules/components (hosted in its own window)
 @Composable
 fun ExtensionsScreen(ws: Workspace) {
+    ApplyTheme(ws.theme)
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
             Row(
@@ -426,7 +430,9 @@ private fun ManageRow(ws: Workspace, title: String, id: String, io: String, onUn
 // draft and only written to the workspace on Apply/OK.
 @Composable
 fun SettingsScreen(ws: Workspace) {
+    ApplyTheme(ws.theme)
     var lang by remember { mutableStateOf(ws.lang) }
+    var theme by remember { mutableStateOf(ws.theme) }
     var anim by remember { mutableStateOf(ws.animSeconds) }
     var keymap by remember { mutableStateOf(ws.keymap) }
     var recording by remember { mutableStateOf<String?>(null) } // action waiting for a key press
@@ -445,6 +451,7 @@ fun SettingsScreen(ws: Workspace) {
 
     fun apply() {
         ws.lang = lang
+        ws.theme = theme
         ws.animSeconds = anim
         ws.keymap = keymap
     }
@@ -481,8 +488,20 @@ fun SettingsScreen(ws: Workspace) {
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
                 Spacer(Modifier.height(16.dp))
                 when (current?.first) {
-                    "appearance" -> SettingRow(ws.t("language")) {
-                        Segmented(listOf("ko" to "한국어", "en" to "English"), lang) { lang = it }
+                    "appearance" -> Column {
+                        SettingRow(ws.t("language")) {
+                            Segmented(listOf("ko" to "한국어", "en" to "English"), lang) { lang = it }
+                        }
+                        SettingRow(ws.t("theme")) {
+                            Segmented(
+                                listOf(
+                                    Theme.SYSTEM to ws.t("themeSystem"),
+                                    Theme.LIGHT to ws.t("themeLight"),
+                                    Theme.DARK to ws.t("themeDark"),
+                                ),
+                                theme,
+                            ) { theme = it }
+                        }
                     }
                     "run" -> SettingRow(ws.t("animTime")) {
                         val unit = ws.t("secUnit")

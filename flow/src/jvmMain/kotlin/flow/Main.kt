@@ -24,16 +24,32 @@ import flow.ui.shell.ExtensionsScreen
 import flow.ui.shell.SettingsScreen
 import flow.ui.shell.closeOnEscape
 import flow.ui.shell.handleKey
+import flow.ui.theme.Theme
+import flow.model.Session
 import flow.platform.Platform
+import kotlinx.serialization.json.Json
 import java.awt.Taskbar
 import java.awt.Toolkit
 import kotlinx.coroutines.flow.debounce
 
+// The theme from the last session, for the one decision that has to be made before the Workspace
+// exists. Any trouble reading it just means "system", which is the default anyway.
+private fun savedTheme(): String = runCatching {
+    val raw = Platform.loadSession() ?: return@runCatching Theme.SYSTEM
+    Json { ignoreUnknownKeys = true }.decodeFromString<Session>(raw).theme
+}.getOrNull()?.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
+
 fun main() {
     // App name shown in the macOS menu bar / Dock (instead of the main class name)
     System.setProperty("apple.awt.application.name", "Flow")
-    // macOS: dark title bar so the traffic lights match the dark background
-    System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
+    // macOS: the title bar (and so the traffic lights) has to match the theme the app is about to
+    // paint, and AWT reads this before any window exists — hence reading the saved theme here
+    // rather than off the Workspace. "system" is left to AWT's own OS tracking.
+    when (savedTheme()) {
+        Theme.DARK -> System.setProperty("apple.awt.application.appearance", "NSAppearanceNameDarkAqua")
+        Theme.LIGHT -> System.setProperty("apple.awt.application.appearance", "NSAppearanceNameAqua")
+        else -> System.setProperty("apple.awt.application.appearance", "system")
+    }
     val isMac = System.getProperty("os.name").lowercase().contains("mac")
 
     // app icon — shown in the macOS Dock

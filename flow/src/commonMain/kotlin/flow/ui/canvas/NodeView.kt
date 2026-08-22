@@ -192,8 +192,8 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         // header 28px: drag to move. Tinted per group (io/component) for distinction
         val io = node.type == "cin" || node.type == "cout"
         val headerTint = when {
-            comp -> Palette.catComponent.copy(alpha = 0.16f)
-            io -> Palette.catIo.copy(alpha = 0.16f)
+            comp -> Palette.compHeaderTint
+            io -> Palette.ioHeaderTint
             else -> Color.Transparent
         }
         Row(

@@ -99,6 +99,8 @@ data class Session(
     val openFiles: List<String> = emptyList(),
     val activeIndex: Int = 0,
     val lang: String = "ko",
+    // system | dark | light; "system" follows the OS setting (see flow.ui.theme.Theme)
+    val theme: String = "system",
     val showLeft: Boolean = true,
     val leftTab: String = "project",
     // project tree folders left open ("" = the root row itself)
