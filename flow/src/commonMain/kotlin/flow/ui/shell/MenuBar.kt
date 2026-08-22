@@ -34,7 +34,10 @@ fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> U
     val active = ws.active
     Column {
         Row(
-            Modifier.fillMaxWidth().height(40.dp).background(Palette.panelBg)
+            // 28dp because that is the height macOS centres the traffic lights in: with
+            // fullWindowContent the buttons keep their standard-title-bar placement, so a taller
+            // strip leaves them sitting high and there is no AWT property to move them down.
+            Modifier.fillMaxWidth().height(28.dp).background(Palette.panelBg)
                 // double-click on the title strip toggles fullscreen (like a native title bar)
                 .then(
                     if (onTitleDoubleClick != null) Modifier.pointerInput(Unit) {
@@ -73,9 +76,9 @@ private fun RunButton(
 ) {
     var m = Modifier.background(bg ?: Color.Transparent, RoundedCornerShape(6.dp))
     if (borderColor != null) m = m.border(1.dp, borderColor, RoundedCornerShape(6.dp))
-    Box(m.plainClick { if (enabled) onClick() }.padding(horizontal = 12.dp, vertical = 5.dp)) {
+    Box(m.plainClick { if (enabled) onClick() }.padding(horizontal = 11.dp, vertical = 3.dp)) {
         Txt(
-            label, 12.5.sp,
+            label, 12.sp,
             if (enabled) textColor else textColor.copy(alpha = 0.4f),
             weight = if (bg != null) FontWeight.SemiBold else FontWeight.Medium,
         )
