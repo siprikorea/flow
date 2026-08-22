@@ -149,26 +149,28 @@ Flow speaks the Model Context Protocol in both directions, with no extra depende
 JSON-RPC 2.0 stdio plumbing is implemented in the repo.
 
 ### Flow as an MCP server
-`cli --mcp` lets a client such as Claude Desktop or Claude Code **author** flow files: describe
-what a flow should do and it is drafted from the installed modules, wired up, laid out and saved
-to `~/.flow/flows`. Running flows is the app's job, so the server exposes five tools and nothing
-else:
+`cli --mcp` lets a client such as Claude Desktop or Claude Code **author** flow files: describe what
+a flow should do and it is drafted from the installed modules, wired up and laid out. Running flows
+is the app's job, so the server exposes five tools and nothing else:
 
 | Tool | |
 |---|---|
 | `list_modules` | every building block — cin/cout, each module's ports and options, existing flows usable as sub-components |
 | `list_flows` | the project's flow files with their ports |
-| `read_flow` | a flow as the same `{nodes, edges}` spec `write_flow` takes, plus its `problems` |
+| `read_flow` | a flow as the same `{nodes, edges}` spec `build_flow` takes, plus its `problems` |
 | `validate_flow` | verify a saved flow and report every fault found |
-| `write_flow` | create or edit a `.flow` from that spec |
+| `build_flow` | build a `.flow` from that spec and return its contents |
 
-`write_flow` takes the graph, not the file format: nodes by type, edges as `"node.port"` (or just
+`build_flow` takes the graph, not the file format: nodes by type, edges as `"node.port"` (or just
 `"node"` when that side has one port). Port lists, edge ids and node sizes are worked out server
 side — a module's ports can depend on its options, so they are asked for rather than assumed.
 Coordinates are optional: set `x`/`y` to place a node deliberately, or leave them off and the graph
-is laid out left to right with each node centred on whatever feeds it. `read_flow` returns exactly
-what `write_flow` accepts, so editing is read → change → write back with `overwrite=true`, which is
-also why an existing file is never replaced without that flag.
+is laid out left to right with each node centred on whatever feeds it.
+
+**Nothing is written.** `build_flow` hands back the file's contents and stops there; what goes into
+the project is the user's call, so they save it and bring it in through **File ▸ Open File…** or by
+dropping it on the window. Editing an existing flow is therefore `read_flow` → change the spec →
+`build_flow` → save over it. `~/.flow/flows` is only ever read by this server.
 
 Both `read_flow` and `validate_flow` report the faults that can be established structurally: a
 module that is not installed, an option set to a value it does not accept, ports that no longer

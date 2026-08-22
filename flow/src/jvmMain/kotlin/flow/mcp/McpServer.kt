@@ -102,7 +102,7 @@ object McpServer {
             name = "list_modules",
             description = "List every building block a flow can contain: the cin/cout boundary nodes, each " +
                 "installed module with its ports and options, and each existing flow usable as a " +
-                "sub-component. Call this before write_flow to get exact type names and option values.",
+                "sub-component. Call this before build_flow to get exact type names and option values.",
             schema = objectSchema(emptyList()),
             call = { listModules() },
         ),
@@ -115,11 +115,11 @@ object McpServer {
         ),
         Tool(
             name = "read_flow",
-            description = "Read a flow as the same {nodes, edges} spec write_flow accepts, together with a " +
-                "'problems' list naming any wiring faults (unconnected ports, an input fed twice, a cycle, " +
-                "a missing boundary). Use it to review a flow, fix the spec, and write it back with " +
-                "overwrite=true. Coordinates come back too — keep them to preserve the arrangement, or " +
-                "change them to tidy the layout.",
+            description = "Read a flow from the project as the same {nodes, edges} spec build_flow accepts, " +
+                "together with a 'problems' list naming any wiring faults (unconnected ports, an input fed " +
+                "twice, a cycle, a missing boundary). Use it to review a flow, fix the spec, and pass it to " +
+                "build_flow for the corrected file. Coordinates come back too — keep them to preserve the " +
+                "arrangement, or change them to tidy the layout.",
             schema = objectSchema(listOf(StringField("path", "project-relative path, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
             call = { args -> readFlowSpec(argText(args, "path")) },
         ),
@@ -133,14 +133,16 @@ object McpServer {
             call = { args -> validateFlowTool(argText(args, "path")) },
         ),
         Tool(
-            name = "write_flow",
-            description = "Create or edit a .flow file from a high-level spec: name the nodes and how they " +
-                "wire together, and port lists, edge ids and node sizes are worked out here. Set x/y on a " +
-                "node to place it exactly; leave them off and the graph is laid out left-to-right. Include " +
-                "a 'cin' node per input and a 'cout' per output — their labels become the flow's port " +
-                "names. Any wiring faults in the result are reported back rather than hidden.",
-            schema = writeFlowSchema(),
-            call = { args -> writeFlow(args) },
+            name = "build_flow",
+            description = "Build a .flow file from a high-level spec and return its contents — name the " +
+                "nodes and how they wire together, and port lists, edge ids and node sizes are worked out " +
+                "here. Set x/y on a node to place it exactly; leave them off and the graph is laid out " +
+                "left-to-right. Include a 'cin' node per input and a 'cout' per output — their labels " +
+                "become the flow's port names. Wiring faults are reported alongside the file rather than " +
+                "hidden. Nothing is saved: give the user the contents to keep as <name>.flow, which they " +
+                "open in Flow through File ▸ Open or by dropping it on the window.",
+            schema = buildFlowSchema(),
+            call = { args -> buildFlowFile(args) },
         ),
     )
 
@@ -237,7 +239,7 @@ object McpServer {
         return "$head\n${problems.size} problem(s):\n" + problems.joinToString("\n") { "- $it" }
     }
 
-    /** A flow rendered back into the write_flow spec, so read → edit → write round-trips. */
+    /** A flow rendered back into the build_flow spec, so read → edit → rebuild round-trips. */
     private fun readFlowSpec(path: String): String {
         val (name, flow) = loadForEdit(path)
         val spec = buildJsonObject {
@@ -270,13 +272,12 @@ object McpServer {
         return prettyJson.encodeToString(JsonObject.serializer(), spec)
     }
 
-    private fun writeFlow(args: JsonObject): String {
-        val name = normalizeFlowPath(argText(args, "path"))
-        val overwrite = (args["overwrite"] as? JsonPrimitive)?.content?.toBoolean() ?: false
-        if (!overwrite && Platform.readFlow(name) != null) {
-            error("$name already exists — read_flow it first, then pass overwrite=true to replace it")
-        }
-
+    /**
+     * Builds the flow and hands back its file content. Nothing is written: the project folder is
+     * the user's, and what lands in it is their call — they save this and bring it in through the
+     * app (File ▸ Open, or dropping it on the window).
+     */
+    private fun buildFlowFile(args: JsonObject): String {
         val nodes = argArray(args, "nodes").mapIndexed { i, element ->
             val o = element as? JsonObject ?: error("nodes[$i] is not an object")
             val id = (o["id"] as? JsonPrimitive)?.content?.trim().orEmpty()
@@ -302,15 +303,19 @@ object McpServer {
         }
 
         val flow = buildFlow(nodes, edges)
-        Platform.writeFlow(name, prettyJson.encodeToString(FlowFile.serializer(), flow))
+        val fileName = argText(args, "name").trim().ifEmpty { "flow" }
+            .removeSuffix(".flow").replace('/', '-') + ".flow"
+        val content = prettyJson.encodeToString(FlowFile.serializer(), flow)
 
-        val summary = flow.asComponent(name)
+        val summary = flow.asComponent(fileName)
             ?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
             ?: "no boundary ports yet"
-        val head = "saved $name (${flow.nodes.size} nodes, ${flow.edges.size} edges; $summary)"
-        // the file is written either way — these are faults to fix, not reasons to refuse the save
+        val head = "$fileName — ${flow.nodes.size} nodes, ${flow.edges.size} edges; $summary"
+        // reported alongside the content rather than withheld: the caller still gets a file to
+        // hand over, and can decide whether the faults matter
         val problems = flowProblems(flow)
-        return if (problems.isEmpty()) head else head + "\n" + problems.joinToString("\n") { "problem: $it" }
+        val notes = if (problems.isEmpty()) "" else "\n" + problems.joinToString("\n") { "problem: $it" }
+        return "$head$notes\n\n$content"
     }
 
     /**
@@ -342,16 +347,16 @@ object McpServer {
     private class StringField(val name: String, val description: String)
 
     /**
-     * write_flow's schema, written out rather than built from [StringField] because it is the one
+     * build_flow's schema, written out rather than built from [StringField] because it is the one
      * tool taking arrays of objects — the shape that lets a client describe a whole flow in a
      * single call instead of assembling raw file JSON.
      */
-    private fun writeFlowSchema(): JsonObject = buildJsonObject {
+    private fun buildFlowSchema(): JsonObject = buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
-            putJsonObject("path") {
+            putJsonObject("name") {
                 put("type", "string")
-                put("description", "project-relative path to write, e.g. 'sub/a.flow' ('.flow' may be omitted)")
+                put("description", "what to call the file, e.g. 'decrypt-user-info' ('.flow' is added if absent)")
             }
             putJsonObject("nodes") {
                 put("type", "array")
@@ -412,15 +417,11 @@ object McpServer {
                     putJsonArray("required") { add("from"); add("to") }
                 }
             }
-            putJsonObject("overwrite") {
-                put("type", "boolean")
-                put("description", "replace the file if it already exists (default false, so a new flow never clobbers one)")
-            }
         }
-        putJsonArray("required") { add("path"); add("nodes") }
+        putJsonArray("required") { add("nodes") }
     }
 
-    // schema for the tools whose arguments are just required strings (write_flow has its own)
+    // schema for the tools whose arguments are just required strings (build_flow has its own)
     private fun objectSchema(fields: List<StringField>): JsonObject = buildJsonObject {
         put("type", "object")
         putJsonObject("properties") {
