@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Action
 import flow.core.Workspace
+import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.util.pathParent
 import flow.ui.common.ActivityButton
@@ -299,11 +300,14 @@ fun ProjectContextMenu(ws: Workspace) {
     val path = ws.projectMenuFor ?: return
     val isRoot = path.isEmpty()
     val isDir = isRoot || ws.isDir(path)
-    var showNew by remember(path) { mutableStateOf(false) }
+    val isFlow = !isDir && path.endsWith(".flow")
+    // only one submenu is open at a time, so the two cards never fight for the same slot
+    var submenu by remember(path) { mutableStateOf<String?>(null) }
+    fun toggle(name: String) { submenu = if (submenu == name) null else name }
     Box(Modifier.fillMaxSize().plainClick { ws.closeProjectMenu() }) {
         Row(Modifier.offset { IntOffset(ws.projectMenuPos.x.roundToInt(), ws.projectMenuPos.y.roundToInt()) }) {
             MenuCard {
-                MenuItem(ws.t("menuNew"), submenu = true, highlighted = showNew) { showNew = !showNew }
+                MenuItem(ws.t("menuNew"), submenu = true, highlighted = submenu == "new") { toggle("new") }
                 if (isRoot) {
                     MenuItem(ws.t("refresh")) {
                         ws.closeProjectMenu()
@@ -314,6 +318,15 @@ fun ProjectContextMenu(ws: Workspace) {
                         ws.closeProjectMenu()
                         if (isDir) ws.revealDir(path) else ws.openFiles(ws.projectSelected)
                     }
+                }
+                MenuItem(ws.t("openIn"), submenu = true, highlighted = submenu == "openIn") { toggle("openIn") }
+                if (isFlow) {
+                    MenuItem(ws.t("addToExtensions")) {
+                        ws.closeProjectMenu()
+                        ws.installComponentFile(path)
+                    }
+                }
+                if (!isRoot) {
                     MenuItem(ws.t("rename"), shortcut = ws.shortcutLabel(Action.RENAME)) {
                         ws.closeProjectMenu()
                         ws.requestRename(path)
@@ -325,17 +338,31 @@ fun ProjectContextMenu(ws: Workspace) {
                     }
                 }
             }
-            if (showNew) {
-                // new items land in the clicked folder, or the clicked file's folder
-                val dir = if (isDir) path else pathParent(path)
-                MenuCard {
-                    MenuItem(ws.t("addFlow"), shortcut = ws.shortcutLabel(Action.NEW_FLOW)) {
-                        ws.closeProjectMenu()
-                        ws.newComponent(dir)
+            when (submenu) {
+                "new" -> {
+                    // new items land in the clicked folder, or the clicked file's folder
+                    val dir = if (isDir) path else pathParent(path)
+                    MenuCard {
+                        MenuItem(ws.t("addFlow"), shortcut = ws.shortcutLabel(Action.NEW_FLOW)) {
+                            ws.closeProjectMenu()
+                            ws.newComponent(dir)
+                        }
+                        MenuItem(ws.t("addFolder"), shortcut = ws.shortcutLabel(Action.NEW_FOLDER)) {
+                            ws.closeProjectMenu()
+                            ws.requestNewFolder(dir)
+                        }
                     }
-                    MenuItem(ws.t("addFolder"), shortcut = ws.shortcutLabel(Action.NEW_FOLDER)) {
+                }
+                "openIn" -> MenuCard {
+                    // the file manager selects the item itself; a terminal can only be put in a
+                    // folder, so for a file it opens the folder holding it
+                    MenuItem(Platform.fileManagerName()) {
                         ws.closeProjectMenu()
-                        ws.requestNewFolder(dir)
+                        Platform.revealInFileManager(path)
+                    }
+                    MenuItem(ws.t("openInTerminal")) {
+                        ws.closeProjectMenu()
+                        Platform.openInTerminal(path)
                     }
                 }
             }

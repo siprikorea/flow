@@ -137,6 +137,43 @@ actual object Platform {
     actual fun flowsDirLabel(): String = flowsDir.absolutePath
     actual fun flowsDirName(): String = flowsDir.name
 
+    // ── "Open In" ──
+    // The project root resolves to the flows dir itself; anything else goes through resolveRel, so
+    // a crafted path still cannot point the file manager outside the project.
+    private fun openTarget(rel: String): File? =
+        if (rel.isEmpty()) flowsDir else resolveRel(rel, requireFlow = false)?.takeIf { it.exists() }
+
+    private fun run(vararg command: String) {
+        runCatching { ProcessBuilder(*command).start() }
+    }
+
+    actual fun revealInFileManager(rel: String) {
+        val file = openTarget(rel) ?: return
+        when {
+            isMac -> run("open", "-R", file.absolutePath)
+            isWindows -> run("explorer.exe", "/select,${file.absolutePath}")
+            // no universal "reveal" on Linux, so open the containing folder
+            else -> run("xdg-open", (if (file.isDirectory) file else file.parentFile).absolutePath)
+        }
+    }
+
+    actual fun openInTerminal(rel: String) {
+        val file = openTarget(rel) ?: return
+        val dir = (if (file.isDirectory) file else file.parentFile) ?: return
+        when {
+            isMac -> run("open", "-a", "Terminal", dir.absolutePath)
+            isWindows -> run("cmd.exe", "/c", "start", "cmd.exe", "/K", "cd /d ${dir.absolutePath}")
+            // the Debian alternative most desktops register; nothing to fall back to if absent
+            else -> run("x-terminal-emulator", "--working-directory=${dir.absolutePath}")
+        }
+    }
+
+    actual fun fileManagerName(): String = when {
+        isMac -> "Finder"
+        isWindows -> "Explorer"
+        else -> "Files"
+    }
+
     // ── arbitrary file access for the data editor ──
     actual fun pickFileRead(): String? {
         val dlg = FileDialog(null as Frame?, "Open File", FileDialog.LOAD)
@@ -220,6 +257,8 @@ actual object Platform {
 
     actual fun currentTimeHms(): String = LocalTime.now().format(hms)
 
-    private val isMac = System.getProperty("os.name").lowercase().contains("mac")
+    private val osName = System.getProperty("os.name").lowercase()
+    private val isMac = osName.contains("mac")
+    private val isWindows = osName.contains("win")
     actual fun metaKeyLabel(): String = if (isMac) "\u2318" else "Win+"
 }

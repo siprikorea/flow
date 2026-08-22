@@ -42,6 +42,12 @@ expect object Platform {
     fun flowsDirLabel(): String              // absolute path
     fun flowsDirName(): String               // root folder name
 
+    // "Open In" on a project item. [rel] is a project-relative path ("" = the root folder itself);
+    // anything that escapes the project is refused, as everywhere else.
+    fun revealInFileManager(rel: String)     // select the item in Finder/Explorer/the file manager
+    fun openInTerminal(rel: String)          // a shell already sitting in that folder
+    fun fileManagerName(): String            // "Finder" / "Explorer" / "Files", for the menu label
+
     // arbitrary file access for the data editor
     fun pickFileRead(): String?               // open dialog -> path
     fun pickFileSave(defaultName: String): String? // save dialog -> path

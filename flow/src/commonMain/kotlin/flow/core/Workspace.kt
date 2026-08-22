@@ -244,6 +244,28 @@ class Workspace(private val scope: CoroutineScope) {
         } else refreshFiles()
     }
 
+    // Install a project flow as a component, from the project tree rather than the open editor.
+    // Reads the file rather than a document, so it works on a flow that isn't open in a tab.
+    fun installComponentFile(path: String) {
+        if (!path.endsWith(".flow")) return
+        val raw = Platform.readFlow(path) ?: return
+        val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: run {
+            showError(t("openErrorBroken").replace("{name}", pathName(path)), "openErrorTitle")
+            return
+        }
+        if (flow.nodes.none { it.type == "cin" || it.type == "cout" }) {
+            showError(t("valNeedIo"))
+            return
+        }
+        val id = "local." + path.removeSuffix(".flow").replace('/', '.')
+        val r = Platform.installComponent(id, raw, overwrite = false)
+        if (r.conflicts.isNotEmpty()) {
+            installConfirm = InstallPending(id) {
+                Platform.installComponent(id, raw, overwrite = true); refreshFiles()
+            }
+        } else refreshFiles()
+    }
+
     fun confirmInstall() { installConfirm?.commit?.invoke(); installConfirm = null }
     fun cancelInstall() { installConfirm = null }
 
