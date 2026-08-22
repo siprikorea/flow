@@ -194,7 +194,8 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         val headerTint = when {
             comp -> Palette.compHeaderTint
             io -> Palette.ioHeaderTint
-            else -> Color.Transparent
+            pluginMod -> Palette.pluginHeaderTint
+            else -> Palette.moduleHeaderTint
         }
         Row(
             Modifier

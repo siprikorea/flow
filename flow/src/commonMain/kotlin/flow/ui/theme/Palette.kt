@@ -53,11 +53,14 @@ class Scheme(
     val catIo: Color,
     val catComponent: Color,
     val catPlugin: Color,
-    // Washes laid over a node header. Kept apart from the cat* colours because the roles pull
-    // opposite ways in a light theme: a badge has to darken to stay legible, a wash has to stay
-    // pale to stay a wash. Alpha is part of the value, so each theme states its own strength.
+    // Washes laid over a node header, one per node kind. Kept apart from the cat* colours because
+    // the roles pull opposite ways in a light theme: a badge has to darken to stay legible, a wash
+    // has to stay pale to stay a wash. Alpha is part of the value, so each theme sets its own
+    // strength — including none at all, which is what the dark theme does for plain modules.
     val ioHeaderTint: Color,
     val compHeaderTint: Color,
+    val moduleHeaderTint: Color,
+    val pluginHeaderTint: Color,
 
     val edge: Color,
     val edgeSelected: Color,
@@ -119,6 +122,8 @@ val DarkScheme = Scheme(
     catPlugin = Color(0xFFEF7DBB),     // installed module plugin
     ioHeaderTint = Color(0xFFF2C94C).copy(alpha = 0.16f),
     compHeaderTint = Color(0xFF62C6FF).copy(alpha = 0.16f),
+    moduleHeaderTint = Color.Transparent,
+    pluginHeaderTint = Color.Transparent,
 
     edge = Color(0xFF4A5262),
     edgeSelected = Color(0xFFEAF1FF),
@@ -145,12 +150,12 @@ val DarkScheme = Scheme(
  * than lightened, since on a pale ground contrast comes from going down, not up.
  */
 val LightScheme = Scheme(
-    // The surfaces have to separate the way the dark theme's do, so they step: chrome sits
-    // lowest, the canvas is a definite grey, and nodes are white cards lifting off it. Making
-    // the canvas near-white too is what flattens a light theme into fog.
+    // Chrome is grey and the canvas is white, the way a light IDE separates its editor from the
+    // furniture around it. Nodes are white too, so what lifts them off the canvas is their border
+    // and their tinted header rather than a difference in fill.
     appBg = Color(0xFFE7EAF0),
     panelBg = Color(0xFFF2F4F8),
-    canvasBg = Color(0xFFEBEEF3),
+    canvasBg = Color(0xFFFFFFFF),
     holeBg = Color(0xFFFFFFFF),
     nodeBg = Color(0xFFFFFFFF),
     // clearly grey against the white node body, or an untinted header stops reading as a header
@@ -163,7 +168,7 @@ val LightScheme = Scheme(
     nodeBorder = Color(0xFFC3CBD8),
     buttonBorder = Color(0xFFB4BDCB),
     dropdownBorder = Color(0xFFCBD2DD),
-    gridDot = Color(0xFFC6CDDA),
+    gridDot = Color(0xFFDCE1E9),
 
     text = Color(0xFF1A1D24),
     menuText = Color(0xFF343A45),
@@ -190,9 +195,12 @@ val LightScheme = Scheme(
     catComponent = Color(0xFF1789CE),
     catPlugin = Color(0xFFD1428D),
     // Nearly opaque pastels rather than a thin wash: a low-alpha tint over a cool grey header
-    // turns khaki, and the point of the tint is to tell the node kinds apart at a glance.
+    // turns khaki, and the point of the tint is to tell the node kinds apart at a glance. Every
+    // kind gets one here — on a white canvas an untinted header leaves the node all one colour.
     ioHeaderTint = Color(0xFFFFE9A8).copy(alpha = 0.85f),
     compHeaderTint = Color(0xFFBFE3FB).copy(alpha = 0.85f),
+    moduleHeaderTint = Color(0xFFDED2FA).copy(alpha = 0.85f),
+    pluginHeaderTint = Color(0xFFFBD3E7).copy(alpha = 0.85f),
 
     edge = Color(0xFFA3ACBA),
     edgeSelected = Color(0xFF1B3E7A),
@@ -262,6 +270,8 @@ object Palette {
     val catPlugin get() = scheme.catPlugin
     val ioHeaderTint get() = scheme.ioHeaderTint
     val compHeaderTint get() = scheme.compHeaderTint
+    val moduleHeaderTint get() = scheme.moduleHeaderTint
+    val pluginHeaderTint get() = scheme.pluginHeaderTint
 
     val edge get() = scheme.edge
     val edgeSelected get() = scheme.edgeSelected
