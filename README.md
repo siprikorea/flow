@@ -149,13 +149,31 @@ Flow speaks the Model Context Protocol in both directions, with no extra depende
 JSON-RPC 2.0 stdio plumbing is implemented in the repo.
 
 ### Flow as an MCP server
-`cli --mcp` serves every component (project flows and installed ones) and every installed module
-as an MCP tool, so a client such as Claude Desktop or Claude Code can list and run them.
-Components become `flow_<name>` with one argument per input port; modules become
-`module_<id>` with one argument per input port plus their options. Output ports come back as
-`port = value` text, binary values as `hex:EB F6 …`. An input argument accepts that same form
-(spaced or not), so one tool's binary output feeds straight into the next one's input; text under
-the prefix that isn't whole hex byte pairs is reported as an error rather than taken literally.
+`cli --mcp` lets a client such as Claude Desktop or Claude Code **author** flow files: describe
+what a flow should do and it is drafted from the installed modules, wired up, laid out and saved
+to `~/.flow/flows`. Running flows is the app's job, so the server exposes five tools and nothing
+else:
+
+| Tool | |
+|---|---|
+| `list_modules` | every building block — cin/cout, each module's ports and options, existing flows usable as sub-components |
+| `list_flows` | the project's flow files with their ports |
+| `read_flow` | a flow as the same `{nodes, edges}` spec `write_flow` takes, plus its `problems` |
+| `validate_flow` | verify a saved flow and report every fault found |
+| `write_flow` | create or edit a `.flow` from that spec |
+
+`write_flow` takes the graph, not the file format: nodes by type, edges as `"node.port"` (or just
+`"node"` when that side has one port). Port lists, edge ids and node sizes are worked out server
+side — a module's ports can depend on its options, so they are asked for rather than assumed.
+Coordinates are optional: set `x`/`y` to place a node deliberately, or leave them off and the graph
+is laid out left to right with each node centred on whatever feeds it. `read_flow` returns exactly
+what `write_flow` accepts, so editing is read → change → write back with `overwrite=true`, which is
+also why an existing file is never replaced without that flag.
+
+Both `read_flow` and `validate_flow` report the faults that can be established structurally: a
+module that is not installed, an option set to a value it does not accept, ports that no longer
+match a node's options, an edge to a port that isn't there, an input fed twice or not at all, a
+loop in the wiring, a missing `cin`/`cout`.
 
 A client needs a plain command, and gradle's own output would corrupt the protocol stream, so
 generate a launcher that has the classpath baked in:
@@ -174,12 +192,17 @@ logs go to stderr.
 For Claude Desktop the server can ship as an extension bundle instead of a config entry:
 
 ```bash
-./gradlew :flow:mcpbBundle          # stages flow/build/mcpb (manifest + jars + built-in modules)
-./gradlew :flow:mcpbBundleVerify    # drives the staged server over stdio, checks it lists tools
-npx -y @anthropic-ai/mcpb pack flow/build/mcpb flow/build/flow.mcpb
+./gradlew :flow:mcpbBundle          # writes flow/build/flow.mcpb
 ```
 
+That one task runs all three steps: `mcpbStage` lays out `flow/build/mcpb` (manifest + jars +
+built-in modules), `mcpbBundleVerify` drives the server staged there and checks it lists its tools,
+then the zip itself is done by `npx -y @anthropic-ai/mcpb pack` — so Node has to be on `PATH`.
+
 Install the resulting `.mcpb` from **Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension…**.
+Without Node, run `:flow:mcpbStage` alone and point **Install Unpacked Extension** at
+`flow/build/mcpb` — same layout, just not zipped. That directory is build output, so `./gradlew
+clean` removes it.
 The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carries the built-in module
 jars but reads flows from `~/.flow/flows` as usual. Claude Desktop bundles a Node runtime but no JVM,
 so the launcher resolves a JDK 17+ from `JAVA_HOME`, then `/usr/libexec/java_home`, then `PATH` — one

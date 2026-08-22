@@ -129,8 +129,8 @@ tasks.register<JavaExec>("cli") {
     mainClass.set("flow.cli.CliKt")
 }
 
-// Claude Desktop extension bundle (MCPB). Stages build/mcpb with the manifest, the server jars and
-// the built-in module jars; `npx @anthropic-ai/mcpb pack` zips that directory into a .mcpb file
+// Claude Desktop extension bundle (MCPB), built in three steps: mcpbStage lays out the directory,
+// mcpbBundleVerify drives the server staged there, and mcpbBundle zips it into build/flow.mcpb —
 // installable from Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension….
 //
 // The MCP/CLI path never touches Compose or Skiko, so only these dependency jars ship — keeping the
@@ -138,9 +138,9 @@ tasks.register<JavaExec>("cli") {
 // prefix added here (mcpbBundleVerify below catches a miss).
 val mcpbServerJars = listOf("kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-extension-api")
 
-val mcpbBundle = tasks.register<Copy>("mcpbBundle") {
+val mcpbStage = tasks.register<Copy>("mcpbStage") {
     group = "application"
-    description = "Stage build/mcpb, a Claude Desktop extension bundle for the MCP server"
+    description = "Stage build/mcpb, the contents of the Claude Desktop extension bundle"
     val compilation = kotlin.jvm().compilations.getByName("main")
     val deps = compilation.runtimeDependencyFiles.filter { f ->
         mcpbServerJars.any { f.name.startsWith(it) }
@@ -157,10 +157,10 @@ val mcpbBundle = tasks.register<Copy>("mcpbBundle") {
 
 // Smoke test: drive the staged bundle over stdio the way Claude Desktop does and require the tool
 // list back, so a bundle that is missing a jar fails here instead of in the client.
-tasks.register("mcpbBundleVerify") {
+val mcpbBundleVerify = tasks.register("mcpbBundleVerify") {
     group = "verification"
     description = "Run the staged bundle's server and check it lists tools"
-    dependsOn(mcpbBundle)
+    dependsOn(mcpbStage)
     val script = layout.buildDirectory.file("mcpb/server/flow-mcp")
     doLast {
         val proc = ProcessBuilder("/bin/sh", script.get().asFile.absolutePath)
@@ -191,4 +191,27 @@ tasks.register("mcpbBundleVerify") {
         }
         logger.lifecycle("mcpb bundle OK — ${expected.size} tools, modules load")
     }
+}
+
+// The zip step is the mcpb CLI's own, so it stays authoritative on the archive format; it ships as
+// an npm package and Claude Desktop already requires Node, so npx is a fair thing to reach for.
+// Verification is a dependency rather than a separate habit — the bundle it checks for a missing
+// jar is exactly the one about to be handed to the client.
+tasks.register<Exec>("mcpbBundle") {
+    group = "application"
+    description = "Build build/flow.mcpb, the Claude Desktop extension bundle"
+    dependsOn(mcpbBundleVerify)
+    val staged = layout.buildDirectory.dir("mcpb")
+    val bundle = layout.buildDirectory.file("flow.mcpb")
+    inputs.dir(staged)
+    outputs.file(bundle)
+    commandLine("npx", "-y", "@anthropic-ai/mcpb", "pack", staged.get().asFile.path, bundle.get().asFile.path)
+    doFirst {
+        check(ProcessBuilder("sh", "-c", "command -v npx").start().waitFor() == 0) {
+            "npx not found — the .mcpb is zipped by @anthropic-ai/mcpb, which needs Node. " +
+                "Install Node, or hand Claude Desktop the staged directory instead: run " +
+                ":flow:mcpbStage and pick ${staged.get().asFile.path} with Install Unpacked Extension."
+        }
+    }
+    doLast { logger.lifecycle("mcpb bundle written to ${bundle.get().asFile.path}") }
 }
