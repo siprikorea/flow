@@ -91,11 +91,14 @@ class Workspace(private val scope: CoroutineScope) {
     // close-confirm target (tab index being closed). null = no dialog.
     var closeConfirm by mutableStateOf<Int?>(null)
 
-    // whether the settings screen is shown (logo menu > Settings)
+    // whether the settings screen is shown (logo menu > Settings), and which category it opens on
     var showSettings by mutableStateOf(false)
+    var settingsCategory by mutableStateOf("appearance")
 
-    // whether the extensions (module/component manage) window is shown
-    var showManage by mutableStateOf(false)
+    fun openSettings(category: String = "appearance") {
+        settingsCategory = category
+        showSettings = true
+    }
 
     // internal clipboard for module copy/paste between documents
     var clipboard by mutableStateOf<FlowFile?>(null)
@@ -287,7 +290,6 @@ class Workspace(private val scope: CoroutineScope) {
     /** Whether [entry] is installable, already installed, or has a newer version on offer. */
     fun registryState(entry: RegistryEntry): RegistryState {
         val installed = installedModules.find { it.id == entry.id } ?: return RegistryState.AVAILABLE
-        if (installed.builtin) return RegistryState.BUILTIN
         return if (compareVersions(entry.version, installed.version) > 0) RegistryState.UPDATABLE
         else RegistryState.INSTALLED
     }

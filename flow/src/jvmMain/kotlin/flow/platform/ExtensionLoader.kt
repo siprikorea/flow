@@ -21,15 +21,11 @@ import java.util.ServiceLoader
 // presence of component.json — without that check a component's bundled dependency would register
 // itself as an installed module.
 //
-// Two module roots: `builtinModulesDir` ships inside the app install (Compose's bundled app-resources
-// dir, exposed at runtime via the compose.application.resources.dir system property) and is never
-// written to or deleted by this loader; `extensionsDir` under the user's home is where user-installed
-// extensions live and is the only root install/uninstall ever touch.
+// extensionsDir under the user's home is the only root. Nothing ships with the app: every module
+// arrives by being installed, from the registry or from a file, and can be removed the same way.
 internal object ExtensionLoader {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
     private val extensionsDir = File(baseDir, "extensions")
-    private val builtinModulesDir = System.getProperty("compose.application.resources.dir")
-        ?.let { File(it, "modules") }?.takeIf { it.isDirectory }
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
     private val apiClassLoader = ModuleExtension::class.java.classLoader
 
@@ -83,10 +79,10 @@ internal object ExtensionLoader {
 
     /* ───────── installed modules (isolated loader per folder) ───────── */
 
-    private class LoadedModule(val dir: File, val loader: URLClassLoader, val ext: ModuleExtension, val builtin: Boolean)
+    private class LoadedModule(val dir: File, val loader: URLClassLoader, val ext: ModuleExtension)
 
     // scans one root (each subfolder = one module's jar(s), loaded via its own isolated classloader)
-    private fun scanModuleRoot(root: File?, builtin: Boolean): Map<String, LoadedModule> {
+    private fun scanModuleRoot(root: File?): Map<String, LoadedModule> {
         val map = LinkedHashMap<String, LoadedModule>()
         root?.listFiles { f -> f.isDirectory }?.forEach { dir ->
             // a component's bundled dependency jars are not installed modules
@@ -96,26 +92,25 @@ internal object ExtensionLoader {
             val cl = isolatedLoader(jars)
             val exts = runCatching { ServiceLoader.load(ModuleExtension::class.java, cl).toList() }.getOrDefault(emptyList())
             val primary = exts.find { it.id == dir.name } ?: exts.firstOrNull()
-            if (primary != null) map[primary.id] = LoadedModule(dir, cl, primary, builtin)
+            if (primary != null) map[primary.id] = LoadedModule(dir, cl, primary)
         }
         return map
     }
 
-    // id -> loaded module. Builtin (app-bundled) entries first; user installs can shadow by id (rare, not enforced).
+    // id -> loaded module, from the one install root.
     private var moduleCache: Map<String, LoadedModule>? = null
     private fun loadedModules(): Map<String, LoadedModule> {
         moduleCache?.let { return it }
         ensureDirs()
         val map = LinkedHashMap<String, LoadedModule>()
-        map.putAll(scanModuleRoot(builtinModulesDir, builtin = true))
-        map.putAll(scanModuleRoot(extensionsDir, builtin = false))
+        map.putAll(scanModuleRoot(extensionsDir))
         moduleCache = map
         return map
     }
 
     fun moduleInfos(): List<ModuleInfo> =
         loadedModules().values.map { m ->
-            ModuleInfo(m.ext.id, m.ext.displayName, m.ext.inputs, m.ext.outputs, optDefs(m.ext), m.builtin, m.ext.version)
+            ModuleInfo(m.ext.id, m.ext.displayName, m.ext.inputs, m.ext.outputs, optDefs(m.ext), m.ext.version)
         }
 
     fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
@@ -188,10 +183,6 @@ internal object ExtensionLoader {
         val tmp = isolatedLoader(arrayOf(jar))
         val mods = runCatching { ServiceLoader.load(ModuleExtension::class.java, tmp).toList() }.getOrDefault(emptyList())
         if (mods.isEmpty()) return InstallResult()
-
-        // built-in ids can never be shadowed by a user install, overwrite or not
-        val builtinConflicts = mods.filter { loadedModules()[it.id]?.builtin == true }.map { it.id }
-        if (builtinConflicts.isNotEmpty()) return InstallResult(conflicts = builtinConflicts)
 
         val conflicts = mods.filter { File(extensionsDir, it.id).exists() }.map { it.id }
         if (conflicts.isNotEmpty() && !overwrite) return InstallResult(conflicts = conflicts)

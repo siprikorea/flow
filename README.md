@@ -47,7 +47,7 @@ flow_editor/
 1. **Menu bar** — logo, File/Edit/Window dropdowns, Start / Run Selection / Stop buttons, KO/EN toggle
 2. **Left activity rail** — Project / Extensions buttons; each opens its panel, and pressing the button of the panel already showing collapses it
 3. **Project panel** — the flows folder as a tree (see below)
-4. **Module palette** — built-in modules + installed plugin cards (drag onto the canvas)
+4. **Module palette** — installed extension cards (drag onto the canvas)
 5. **Canvas** — dotted grid background, nodes/edges/packets, minimap in the bottom-right
 6. **Properties panel** — selected node (edit name/ID/params/ports) or edge (from → to, delete)
 7. **Right activity rail** — Settings / Properties buttons, same toggle behaviour as the left rail
@@ -114,7 +114,9 @@ Extensions provide **modules only** — components are built inside the Flow too
 
 - **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code (a JAR), registered under `META-INF/services/flow.extension.ModuleExtension`.
 
-Built-in modules cover the JCA facilities plus a few utilities: `flow.hash`, `flow.mac`,
+Nothing ships with the app — the palette starts empty and every module arrives by being installed
+from **Settings ▸ Extensions**. The published set covers the JCA facilities plus a few utilities:
+`flow.hash`, `flow.mac`,
 `flow.signature`, `flow.cipher` (symmetric algorithms, and RSA with PKCS#1 or OAEP padding),
 `flow.keygen`, `flow.keypairgen`, `flow.keyfactory` (PBKDF2 derivation, and PKCS#8 / X.509 /
 certificate keys as DER or PEM), `flow.keystore` (PKCS#12 and JKS stores → private key,
@@ -122,7 +124,8 @@ certificate, public key), `flow.securerandom`, `flow.base64` (standard or URL-sa
 or without padding), `flow.slice` (a byte range and the remainder — how a prepended IV is taken
 off a ciphertext), `flow.merge`, `flow.split`, `flow.sleep` and `flow.mcp`.
 
-First-party (built-in) extensions live under `flow-extensions/` using `flow.*` package ids; `flow-extensions/sample-extension` is a third-party example under `com.example.*`.
+First-party extensions live under `flow-extensions/` using `flow.*` package ids. They are built the
+same way anyone else's would be and published to the registry — the app has no privileged set.
 
 ### Storage & sandbox (installed, read-only)
 Everything installed lives under `~/.flow/extensions/<id>/`, keyed by id, each in **its own folder**
@@ -139,10 +142,10 @@ preferences Settings edits, and `~/.flow/session.json` the open tabs and window 
 
 ### Installing
 **Extensions** (logo menu) lists what the registry offers with **Install**, or **Update** when it
-carries a newer `version` than the installed one; extensions bundled with the app show as built-in.
-The same window installs from this machine — **Install from JAR…** for an extension, **Install from
-Flow file…** to register a `.flow` as a component — and uninstalls anything not built in. If an id
-already exists you're asked to **overwrite**.
+carries a newer `version` than the installed one, and **Uninstall** on anything already installed.
+The same list covers what was installed from a file rather than the registry, so nothing becomes
+unremovable. Above it, **Install extension from file…** takes a jar and **Install flow from file…**
+registers a `.flow` as a component. If an id already exists you're asked to **overwrite**.
 
 The registry is a JSON manifest served over HTTPS —
 [siprikorea/flow-extensions](https://github.com/siprikorea/flow-extensions) by default, changed via
@@ -210,16 +213,16 @@ For Claude Desktop the server can ship as an extension bundle instead of a confi
 ./gradlew :flow:mcpbBundle          # writes flow/build/flow.mcpb
 ```
 
-That one task runs all three steps: `mcpbStage` lays out `flow/build/mcpb` (manifest + jars +
-built-in modules), `mcpbBundleVerify` drives the server staged there and checks it lists its tools,
+That one task runs all three steps: `mcpbStage` lays out `flow/build/mcpb` (manifest + server jars),
+`mcpbBundleVerify` drives the server staged there and checks it answers,
 then the zip itself is done by `npx -y @anthropic-ai/mcpb pack` — so Node has to be on `PATH`.
 
 Install the resulting `.mcpb` from **Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension…**.
 Without Node, run `:flow:mcpbStage` alone and point **Install Unpacked Extension** at
 `flow/build/mcpb` — same layout, just not zipped. That directory is build output, so `./gradlew
 clean` removes it.
-The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carries the built-in module
-jars but reads flows from `~/.flow/flows` as usual. Claude Desktop bundles a Node runtime but no JVM,
+The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carries no extensions of
+its own, reading both flows and installed extensions out of `~/.flow` as the app does. Claude Desktop bundles a Node runtime but no JVM,
 so the launcher resolves a JDK 17+ from `JAVA_HOME`, then `/usr/libexec/java_home`, then `PATH` — one
 has to be installed on the machine. Only the jars the MCP path actually loads are staged (no Compose
 or Skiko), which keeps the bundle near 3MB.

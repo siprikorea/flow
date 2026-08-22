@@ -20,7 +20,6 @@ import androidx.compose.ui.window.MenuBar
 import flow.core.Workspace
 import androidx.compose.ui.window.WindowPlacement
 import flow.ui.shell.App
-import flow.ui.shell.ExtensionsScreen
 import flow.ui.shell.SettingsScreen
 import flow.ui.shell.closeOnEscape
 import flow.ui.shell.handleKey
@@ -127,25 +126,12 @@ fun main() {
             )
         }
 
-        // Extensions manager opens as its own window, centered over the main window
-        if (ws.showManage) {
-            Window(
-                onCloseRequest = { ws.showManage = false },
-                title = ws.t("manageTitle"),
-                state = rememberWindowState(width = 780.dp, height = 560.dp, position = centeredOver(windowState, 780.dp, 560.dp)),
-                icon = iconPainter,
-                onKeyEvent = { closeOnEscape(it) { ws.showManage = false } },
-            ) {
-                ExtensionsScreen(ws)
-            }
-        }
-
         // Settings opens as its own window too, centered over the main window
         if (ws.showSettings) {
             Window(
                 onCloseRequest = { ws.showSettings = false },
                 title = ws.t("settingsTitle"),
-                state = rememberWindowState(width = 760.dp, height = 520.dp, position = centeredOver(windowState, 760.dp, 520.dp)),
+                state = rememberWindowState(width = 900.dp, height = 640.dp, position = centeredOver(windowState, 900.dp, 640.dp)),
                 icon = iconPainter,
                 onKeyEvent = { closeOnEscape(it) { ws.showSettings = false } },
             ) {
@@ -201,9 +187,9 @@ private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
             Item(ws.t("save")) { ws.saveActive() }
             Item(ws.t("closeTab")) { ws.requestClose(ws.activeIndex) }
             Separator()
-            Item(ws.t("manageTitle")) { ws.showManage = true }
+            Item(ws.t("manageTitle")) { ws.openSettings("extensions") }
             Separator()
-            Item(ws.t("menuSettings")) { ws.showSettings = true }
+            Item(ws.t("menuSettings")) { ws.openSettings() }
         }
         Menu(ws.t("menuEdit")) {
             Item(ws.t("undo")) { ws.active?.undo() }

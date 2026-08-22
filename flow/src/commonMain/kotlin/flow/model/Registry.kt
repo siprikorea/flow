@@ -58,7 +58,6 @@ data class ModuleInfo(
     val inputs: List<String>,
     val outputs: List<String>,
     val options: List<OptDef> = emptyList(),
-    val builtin: Boolean = false, // bundled with the app install, not user-removable
     val version: String = "1.0.0",
 )
 

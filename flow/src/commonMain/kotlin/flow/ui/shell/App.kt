@@ -352,90 +352,90 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
     }
 }
 
-// Extensions: what can be installed from the registry, and what already is (its own window)
+// Extensions, as a Settings category: one list of everything the registry offers plus anything
+// installed that it doesn't, so install, update and uninstall all sit on the row they act on.
 @Composable
-fun ExtensionsScreen(ws: Workspace) {
-    ApplyTheme(ws.theme)
-    // fetched once when the window opens; the refresh button asks again
+private fun ExtensionsSettings(ws: Workspace) {
     LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
-    Box(Modifier.fillMaxSize().background(Palette.appBg)) {
-        Column(Modifier.fillMaxSize()) {
-            Row(
-                Modifier.fillMaxWidth().height(48.dp).background(Palette.panelBg).padding(horizontal = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Txt(ws.t("manageTitle"), 15.sp, Palette.text, weight = FontWeight.Bold)
-                Spacer(Modifier.weight(1f))
-                Box(
-                    Modifier.border(1.dp, Palette.buttonBorder, RoundedCornerShape(6.dp))
-                        .plainClick { ws.showManage = false }
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
-                ) { Txt(ws.t("done"), 12.sp, Palette.menuText) }
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
+                Platform.pickJar()?.let { ws.installJarFlow(it) }
             }
-            Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
-            Column(
-                Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(18.dp),
-            ) {
-                // install from a file on this machine — a jar, or a flow to register as a component
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
-                        Platform.pickJar()?.let { ws.installJarFlow(it) }
-                    }
-                    DialogButton(ws.t("installLocalFlow"), Palette.runFromBorder, Palette.accentHover) {
-                        Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
-                    }
-                }
+            DialogButton(ws.t("installLocalFlow"), Palette.runFromBorder, Palette.accentHover) {
+                Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
+            }
+        }
 
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                        Txt(ws.t("registrySection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-                        Txt(
-                            ws.t("registryRefresh"), 11.sp, Palette.accentHover,
-                            modifier = Modifier.plainClick { ws.loadRegistry() },
-                        )
-                    }
-                    when {
-                        ws.registryLoading -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
-                        ws.registryError != null -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-                        ws.registry.isEmpty() -> Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
-                        else -> ws.registry.forEach { entry -> RegistryRow(ws, entry) }
-                    }
-                }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Txt(ws.t("registrySection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
+        }
 
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Txt(ws.t("installedModules").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-                    if (ws.installedModules.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
-                    ws.installedModules.forEach { m ->
-                        ManageRow(
-                            ws, title = m.name, id = m.id, io = "${m.inputs.size}→${m.outputs.size}",
-                            version = m.version,
-                            onUninstall = if (m.builtin) null else { { ws.uninstallModule(m.id) } },
-                        )
-                    }
-                }
+        val offered = ws.registry
+        val offeredIds = offered.map { it.id }.toSet()
+        // installed from a file rather than the registry: it still has to be removable
+        val strays = ws.installedModules.filterNot { it.id in offeredIds }
+        val components = ws.components.filter { it.installed }
 
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Txt(ws.t("installedComponents").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-                    val installed = ws.components.filter { it.installed }
-                    if (installed.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
-                    installed.forEach { c ->
-                        ManageRow(ws, title = c.name, id = c.file.removeSuffix(".json"), io = "${c.ins.size}→${c.outs.size}") {
-                            ws.uninstallComponent(c.file.removeSuffix(".json"))
-                        }
-                    }
-                }
+        when {
+            ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
+            ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
+            offered.isEmpty() && strays.isEmpty() && components.isEmpty() ->
+                Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
+        }
+        ws.registryError?.takeIf { offered.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
+
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            offered.forEach { entry -> ExtensionRow(ws, entry) }
+            strays.forEach { m ->
+                ExtensionRow(
+                    ws, title = m.name, id = m.id, version = m.version, note = ws.t("fromFile"),
+                    onUninstall = { ws.uninstallModule(m.id) },
+                )
+            }
+            components.forEach { c ->
+                val id = c.file.removeSuffix(".json")
+                ExtensionRow(
+                    ws, title = c.name, id = id, version = null, note = ws.t("installedFlowNote"),
+                    onUninstall = { ws.uninstallComponent(id) },
+                )
             }
         }
     }
 }
 
-// One extension on offer. The action on the right is whatever applies: install it, update it, or
-// nothing at all when it is already current or shipped with the app.
+// A registry entry: install it, or — once installed — uninstall it, with update offered first when
+// the registry has moved ahead of the jar on disk.
 @Composable
-private fun RegistryRow(ws: Workspace, entry: flow.model.RegistryEntry) {
+private fun ExtensionRow(ws: Workspace, entry: flow.model.RegistryEntry) {
     val state = ws.registryState(entry)
-    val busy = entry.id in ws.registryBusy
+    val installed = state != flow.model.RegistryState.AVAILABLE
+    ExtensionRow(
+        ws,
+        title = entry.name.ifBlank { entry.id },
+        id = entry.id,
+        version = entry.version,
+        note = entry.description,
+        busy = entry.id in ws.registryBusy,
+        onUpdate = if (state == flow.model.RegistryState.UPDATABLE) ({ ws.installFromRegistry(entry) }) else null,
+        onInstall = if (!installed) ({ ws.installFromRegistry(entry) }) else null,
+        onUninstall = if (installed) ({ ws.uninstallModule(entry.id) }) else null,
+    )
+}
+
+@Composable
+private fun ExtensionRow(
+    ws: Workspace,
+    title: String,
+    id: String,
+    version: String?,
+    note: String,
+    busy: Boolean = false,
+    onUpdate: (() -> Unit)? = null,
+    onInstall: (() -> Unit)? = null,
+    onUninstall: (() -> Unit)? = null,
+) {
     Row(
         Modifier
             .width(560.dp)
@@ -443,67 +443,39 @@ private fun RegistryRow(ws: Workspace, entry: flow.model.RegistryEntry) {
             .border(1.dp, Palette.border, RoundedCornerShape(7.dp))
             .padding(horizontal = 12.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Txt(entry.name.ifBlank { entry.id }, 12.5.sp, Palette.text, weight = FontWeight.Medium)
-                Txt("v${entry.version}", 10.5.sp, Palette.dimText, mono = true)
+                Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
+                if (version != null) Txt("v$version", 10.5.sp, Palette.dimText, mono = true)
             }
-            Txt(entry.id, 10.5.sp, Palette.dimText, mono = true, maxLines = 1)
-            if (entry.description.isNotBlank()) Txt(entry.description, 11.sp, Palette.subText, maxLines = 2)
+            Txt(id, 10.5.sp, Palette.dimText, mono = true, maxLines = 1)
+            if (note.isNotBlank()) Txt(note, 11.sp, Palette.subText, maxLines = 2)
         }
-        when {
-            busy -> Txt(ws.t("installing"), 11.sp, Palette.faintText)
-            state == flow.model.RegistryState.BUILTIN -> Txt(ws.t("builtin"), 11.sp, Palette.faintText)
-            state == flow.model.RegistryState.INSTALLED -> Txt(ws.t("installed"), 11.sp, Palette.successText)
-            else -> {
-                val update = state == flow.model.RegistryState.UPDATABLE
-                Box(
-                    Modifier
-                        .background(if (update) Palette.warn else Palette.accent, RoundedCornerShape(5.dp))
-                        .plainClick { ws.installFromRegistry(entry) }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                ) { Txt(ws.t(if (update) "update" else "install"), 11.sp, Palette.holeBg, weight = FontWeight.Medium) }
-            }
+        if (busy) {
+            Txt(ws.t("installing"), 11.sp, Palette.faintText)
+        } else {
+            // update sits ahead of uninstall, so the useful action is the one nearer the text
+            onUpdate?.let { RowButton(ws.t("update"), Palette.warn, Palette.holeBg, it) }
+            onInstall?.let { RowButton(ws.t("install"), Palette.accent, Palette.holeBg, it) }
+            onUninstall?.let { RowButton(ws.t("uninstall"), null, Palette.errorSoft, it) }
         }
     }
 }
 
+// filled when it is the row's main action, outlined when it is the destructive one
 @Composable
-private fun ManageRow(
-    ws: Workspace,
-    title: String,
-    id: String,
-    io: String,
-    version: String? = null,
-    onUninstall: (() -> Unit)?,
+private fun RowButton(
+    label: String,
+    fill: androidx.compose.ui.graphics.Color?,
+    textColor: androidx.compose.ui.graphics.Color,
+    onClick: () -> Unit,
 ) {
-    Row(
-        Modifier
-            .width(520.dp)
-            .background(Palette.dropdownBg, RoundedCornerShape(7.dp))
-            .border(1.dp, Palette.border, RoundedCornerShape(7.dp))
-            .padding(horizontal = 12.dp, vertical = 9.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
-        if (version != null) Txt("v$version", 10.5.sp, Palette.dimText, mono = true)
-        Txt(id, 11.sp, Palette.dimText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
-        Txt(io, 10.5.sp, Palette.dimText, mono = true)
-        if (onUninstall != null) {
-            Box(
-                Modifier.border(1.dp, Palette.dangerBorder, RoundedCornerShape(5.dp))
-                    .plainClick(onUninstall)
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            ) { Txt(ws.t("uninstall"), 11.sp, Palette.errorSoft) }
-        } else {
-            Box(
-                Modifier.border(1.dp, Palette.buttonBorder, RoundedCornerShape(5.dp))
-                    .padding(horizontal = 8.dp, vertical = 3.dp)
-            ) { Txt(ws.t("builtin"), 11.sp, Palette.faintText) }
-        }
+    val base = if (fill != null) Modifier.background(fill, RoundedCornerShape(5.dp))
+    else Modifier.border(1.dp, Palette.dangerBorder, RoundedCornerShape(5.dp))
+    Box(base.plainClick(onClick).padding(horizontal = 10.dp, vertical = 4.dp)) {
+        Txt(label, 11.sp, textColor, weight = FontWeight.Medium)
     }
 }
 
@@ -518,15 +490,14 @@ fun SettingsScreen(ws: Workspace) {
     var anim by remember { mutableStateOf(ws.animSeconds) }
     var keymap by remember { mutableStateOf(ws.keymap) }
     var recording by remember { mutableStateOf<String?>(null) } // action waiting for a key press
-    var category by remember { mutableStateOf("appearance") }
+    var category by remember { mutableStateOf(ws.settingsCategory) }
     var query by remember { mutableStateOf("") }
     val recorder = remember { FocusRequester() }
 
     val categories = listOf(
         "appearance" to ws.t("setAppearance"),
         "keymap" to ws.t("setKeymap"),
-        "run" to ws.t("setRun"),
-        "project" to ws.t("setProject"),
+        "extensions" to ws.t("manageTitle"),
     )
     val shown = categories.filter { query.isBlank() || it.second.contains(query, ignoreCase = true) }
     val current = shown.find { it.first == category } ?: shown.firstOrNull()
@@ -564,7 +535,10 @@ fun SettingsScreen(ws: Workspace) {
                 }
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
-            Column(Modifier.weight(1f).fillMaxHeight().padding(horizontal = 22.dp, vertical = 18.dp)) {
+            Column(
+                Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
+                    .padding(horizontal = 22.dp, vertical = 18.dp),
+            ) {
                 Txt(current?.second ?: "", 14.sp, Palette.text, weight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
@@ -584,16 +558,16 @@ fun SettingsScreen(ws: Workspace) {
                                 theme,
                             ) { theme = it }
                         }
-                    }
-                    "run" -> SettingRow(ws.t("animTime")) {
-                        val unit = ws.t("secUnit")
-                        Segmented(
-                            listOf(0.25f, 0.5f, 1f).map { v ->
-                                val num = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
-                                v.toString() to "$num$unit"
-                            },
-                            anim.toString(),
-                        ) { anim = it.toFloat() }
+                        SettingRow(ws.t("animTime")) {
+                            val unit = ws.t("secUnit")
+                            Segmented(
+                                listOf(0.25f, 0.5f, 1f).map { v ->
+                                    val num = if (v == v.toInt().toFloat()) v.toInt().toString() else v.toString()
+                                    v.toString() to "$num$unit"
+                                },
+                                anim.toString(),
+                            ) { anim = it.toFloat() }
+                        }
                     }
                     "keymap" -> Column {
                         Action.ALL.forEach { action ->
@@ -611,9 +585,7 @@ fun SettingsScreen(ws: Workspace) {
                             recording = null
                         }
                     }
-                    "project" -> SettingRow(ws.t("projectFolder")) {
-                        Txt(ws.dirLabel, 11.5.sp, Palette.menuText, mono = true, maxLines = 1)
-                    }
+                    "extensions" -> ExtensionsSettings(ws)
                 }
             }
         }

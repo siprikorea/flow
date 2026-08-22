@@ -25,7 +25,7 @@ data class RegistryIndex(
 )
 
 /** What the Extensions screen shows for one registry entry, given what is installed locally. */
-enum class RegistryState { AVAILABLE, INSTALLED, UPDATABLE, BUILTIN }
+enum class RegistryState { AVAILABLE, INSTALLED, UPDATABLE }
 
 /**
  * Compare dot-separated numeric versions.
