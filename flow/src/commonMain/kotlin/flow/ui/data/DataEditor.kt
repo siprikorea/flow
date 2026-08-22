@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.sp
 import flow.core.DataTab
 import flow.core.Workspace
 import flow.model.Port
+import flow.core.cinFileSize
 import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.ui.common.Txt
@@ -110,10 +111,11 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val bytes = if (isOut) (tab.doc.runOutputs[tab.nodeId] ?: ByteArray(0))
     else (node.outputs.firstOrNull()?.data ?: ByteArray(0))
 
-    // a cin can be backed by a file: read windows straight off disk, never the whole file
+    // a cin can be backed by a file: read windows straight off disk, never the whole file.
+    // cinFileSize is the same rule the run uses, so what is shown here is what gets processed.
     val filePath = if (isOut) null else node.params["dataFile"]
-    val totalFileSize = remember(filePath) { if (filePath != null) Platform.fileSize(filePath) else -1L }
-    val fileBacked = filePath != null && totalFileSize >= 0
+    val totalFileSize = remember(filePath, node) { if (isOut) -1L else cinFileSize(node) ?: -1L }
+    val fileBacked = totalFileSize >= 0
     val editable = !isOut && !fileBacked
 
     fun switchTo(target: String) {

@@ -587,10 +587,9 @@ class EditorState(
         computeJob = scope.launch(Dispatchers.IO) {
             val inputs = cins.associate { n ->
                 // file-backed cin: read the whole file for processing; else the inline port bytes
-                val file = n.params["dataFile"]
-                val data = if (file != null) {
-                    val sz = Platform.fileSize(file)
-                    if (sz in 0..Int.MAX_VALUE.toLong()) Platform.readFileRange(file, 0, sz.toInt()) else ByteArray(0)
+                val size = cinFileSize(n)
+                val data = if (size != null && size <= Int.MAX_VALUE.toLong()) {
+                    Platform.readFileRange(n.params["dataFile"]!!, 0, size.toInt())
                 } else (n.outputs.firstOrNull()?.data ?: ByteArray(0))
                 // key by cin node id (not label) so two inputs never share a value — see
                 // Engine.evalNode's cin lookup, which tries id before falling back to label
@@ -681,3 +680,15 @@ class EditorState(
         if (inCanvas) addNodeAt(d.type, screenToWorld(local))
     }
 }
+
+/**
+ * The size of the file a cin node reads from, or null when it has none — including when the path it
+ * remembers no longer resolves.
+ *
+ * A file that cannot be read is not a file. Treating a dangling path as one made a run quietly use
+ * no data at all, while the data editor — which decides the same way — showed the bytes held on the
+ * port and let them be edited. The two have to answer this question identically or the canvas shows
+ * one input and the run uses another.
+ */
+fun cinFileSize(node: Node): Long? =
+    node.params["dataFile"]?.let { Platform.fileSize(it) }?.takeIf { it >= 0 }
