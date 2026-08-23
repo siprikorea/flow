@@ -103,6 +103,10 @@ private fun DataSource.read(offset: Long, length: Int): ByteArray = when (this) 
     is DataSource.FileRange -> Platform.readFileRange(path, offset, length)
 }
 
+// Node params the editor owns. A view is handed the whole map — it is where its own state lives —
+// but these come back from the app's copy whatever it returns.
+private val EDITOR_PARAMS = setOf(VIEW_PARAM, "dataFmt", "dataFile")
+
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DataEditor(ws: Workspace, tab: DataTab) {
@@ -196,7 +200,14 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 .padding(12.dp),
         ) {
             if (activeView != null) {
-                ViewSurface(ws, activeView.id, bytes, node.params, Modifier.fillMaxSize())
+                // A view keeps what it needs to remember in the node's params, so a tree left
+                // half-open stays that way — but the params the editor itself owns are not its to
+                // change, or a view could switch itself off or repoint the node at another file.
+                ViewSurface(ws, activeView.id, bytes, node.params, Modifier.fillMaxSize()) { next ->
+                    tab.doc.updateNode(node.id) { n ->
+                        n.copy(params = next - EDITOR_PARAMS + n.params.filterKeys { it in EDITOR_PARAMS })
+                    }
+                }
             } else if (editable) {
                 EditableField(bytes, isHex, tab, node, windowStart) { windowStart = it }
             } else {

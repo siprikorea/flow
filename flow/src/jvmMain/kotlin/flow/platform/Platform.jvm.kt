@@ -89,6 +89,15 @@ actual object Platform {
         monoCharWidth: Float,
     ): Drawing =
         runInterruptible(Dispatchers.Default) { ExtensionLoader.drawView(id, data, options, width, monoCharWidth) }
+    actual suspend fun viewEvent(
+        id: String,
+        kind: String,
+        region: String?,
+        x: Float,
+        y: Float,
+        options: Map<String, String>,
+    ): Map<String, String> =
+        runInterruptible(Dispatchers.Default) { ExtensionLoader.viewEvent(id, kind, region, x, y, options) }
     actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
     actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
     actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)

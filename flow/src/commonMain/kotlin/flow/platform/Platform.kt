@@ -31,6 +31,17 @@ expect object Platform {
         monoCharWidth: Float,
     ): Drawing
 
+    // Reports what the user did on a view and returns the options to draw it with next — the same
+    // ones back when the view makes nothing of it. Suspending like the rest: it runs the extension.
+    suspend fun viewEvent(
+        id: String,
+        kind: String,
+        region: String?,
+        x: Float,
+        y: Float,
+        options: Map<String, String>,
+    ): Map<String, String>
+
     fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?
     // run a component in its own folder sandbox (bundled dependency modules)

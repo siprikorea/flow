@@ -138,7 +138,7 @@ class ViewExtensionTest {
         val key = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair().public
         val canvas = FakeCanvas()
         Asn1View().draw(canvas, key.encoded, mapOf("showOffsets" to "false"))
-        val outer = canvas.texts.first { it.text.startsWith("SEQUENCE") }
+        val outer = canvas.texts.first { it.text.contains("SEQUENCE") }
         val inner = canvas.texts.first { it.text.contains("rsaEncryption") }
         assertTrue(inner.x > outer.x, "the algorithm identifier was not drawn inside the sequence")
     }
@@ -148,7 +148,9 @@ class ViewExtensionTest {
         // INTEGER 42
         val canvas = FakeCanvas()
         Asn1View().draw(canvas, byteArrayOf(0x02, 0x01, 42), mapOf("showOffsets" to "false"))
-        assertEquals(listOf("INTEGER  42"), canvas.lines)
+        // a leaf carries the width of the open/shut marker it does not have, so it lines up with
+        // the branches around it
+        assertEquals(listOf("  INTEGER  42"), canvas.lines)
     }
 
     @Test

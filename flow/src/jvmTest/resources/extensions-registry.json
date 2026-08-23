@@ -295,7 +295,7 @@
     {
       "id": "flow.view.string",
       "name": "String View",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "kind": "view",
       "description": "Show output data as text, in a choice of encodings.",
       "file": "extensions/flow.view.string.flowext"
@@ -303,23 +303,23 @@
     {
       "id": "flow.view.hex",
       "name": "Hex View",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "kind": "view",
-      "description": "Show output data as a hex dump with offsets and characters.",
+      "description": "Show output data as a hex dump with offsets and characters; click a byte to identify it.",
       "file": "extensions/flow.view.hex.flowext"
     },
     {
       "id": "flow.view.asn1",
       "name": "ASN.1 View",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "kind": "view",
-      "description": "Read DER-encoded structures — certificates, keys, PKCS — as a tree.",
+      "description": "Read DER-encoded structures — certificates, keys, PKCS — as a tree you can collapse.",
       "file": "extensions/flow.view.asn1.flowext"
     },
     {
       "id": "flow.view.image",
       "name": "Image View",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "kind": "view",
       "description": "Show output data as a picture, for modules that produce an image.",
       "file": "extensions/flow.view.image.flowext"

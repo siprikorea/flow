@@ -3,6 +3,7 @@ package flow.view
 import flow.extension.ExtensionOption
 import flow.extension.OptionType
 import flow.extension.ViewCanvas
+import flow.extension.ViewEvent
 import flow.extension.ViewExtension
 
 /**
@@ -12,23 +13,27 @@ import flow.extension.ViewExtension
  * hex tells you almost nothing. Parsing stops at the first byte that does not make sense and shows
  * what was understood up to there, with the problem in place — half a certificate plus the offset
  * where it went wrong is far more use than one line saying the input was invalid.
+ *
+ * Anything with children can be clicked shut. A certificate is a few hundred lines and most of any
+ * given look at one is spent on a handful of them, so which branches are open is worth keeping —
+ * and it is kept in the options, which travel with the flow.
  */
 class Asn1View : ViewExtension {
     override val id = "flow.view.asn1"
     override val displayName = "ASN.1 View"
-    override val version = "1.0.0"
+    override val version = "1.1.0"
     override val options = listOf(
         ExtensionOption("showOffsets", OptionType.SELECT, "true", listOf("true", "false")),
     )
 
     override fun draw(canvas: ViewCanvas, data: ByteArray, options: Map<String, String>) {
         val grid = Grid(canvas)
+        val collapsed = collapsedOf(options)
         val rows = ArrayList<Row>()
-        val reader = Der(data, rows)
-        runCatching { reader.readSequenceOfValues(0, data.size, depth = 0) }
-            .onFailure { rows.add(Row(0, it.message ?: "could not be parsed", ViewCanvas.ERROR, -1)) }
+        runCatching { Der(data, rows, collapsed).readSequenceOfValues(0, data.size, depth = 0) }
+            .onFailure { rows.add(Row(0, it.message ?: "could not be parsed", ViewCanvas.ERROR, -1, false)) }
 
-        if (rows.isEmpty()) rows.add(Row(0, "(no data)", ViewCanvas.MUTED_TEXT, -1))
+        if (rows.isEmpty()) rows.add(Row(0, "(no data)", ViewCanvas.MUTED_TEXT, -1, false))
         val showOffsets = options["showOffsets"] != "false"
         val offsetColumns = if (showOffsets) 8 else 0
 
@@ -40,27 +45,59 @@ class Asn1View : ViewExtension {
                     grid.fontSize, ViewCanvas.MUTED_TEXT, mono = true,
                 )
             }
+            val marker = when {
+                !row.hasChildren -> "  "
+                row.offset in collapsed -> "▶ "
+                else -> "▼ "
+            }
             canvas.text(
-                grid.x(offsetColumns + row.depth * 2), y, row.text,
+                grid.x(offsetColumns + row.depth * 2), y, marker + row.text,
                 grid.fontSize, row.color, mono = true,
             )
+            // the whole line is the target, not just the marker: a two-character hit area is a
+            // thing to aim at, and there is nothing else on the line to click
+            if (row.hasChildren) {
+                canvas.region(0f, y, canvas.width, grid.lineHeight, "n${row.offset}")
+            }
         }
         canvas.contentHeight(grid.height(rows.size))
     }
 
-    internal class Row(val depth: Int, val text: String, val color: Int, val offset: Int)
+    override fun onEvent(event: ViewEvent, options: Map<String, String>): Map<String, String> {
+        if (event.kind != ViewEvent.CLICK) return options
+        val offset = event.region?.removePrefix("n")?.toIntOrNull() ?: return options
+        val collapsed = collapsedOf(options).toMutableSet()
+        // one click closes what is open and opens what is closed
+        if (!collapsed.add(offset)) collapsed.remove(offset)
+        return options + (COLLAPSED to collapsed.sorted().joinToString(","))
+    }
+
+    private fun collapsedOf(options: Map<String, String>): Set<Int> =
+        options[COLLAPSED]?.split(',').orEmpty().mapNotNull { it.trim().toIntOrNull() }.toSet()
+
+    internal class Row(
+        val depth: Int,
+        val text: String,
+        val color: Int,
+        val offset: Int,
+        val hasChildren: Boolean,
+    )
 
     /**
      * Just enough DER to name what is there and show its value. Not a validator: it reads the
      * structure, and anything it cannot read it says so about rather than rejecting the whole input.
      */
-    private class Der(private val bytes: ByteArray, private val rows: MutableList<Row>) {
+    private class Der(
+        private val bytes: ByteArray,
+        private val rows: MutableList<Row>,
+        private val collapsed: Set<Int>,
+    ) {
 
         fun readSequenceOfValues(from: Int, to: Int, depth: Int) {
             var i = from
             while (i < to) {
                 if (rows.size > MAX_ROWS) {
-                    rows.add(Row(depth, "… too many elements to show", ViewCanvas.MUTED_TEXT, -1))
+                    rows.add(Row(depth, "… too many elements to show", ViewCanvas.MUTED_TEXT, -1, false))
                     return
                 }
                 i = readValue(i, to, depth)
@@ -83,11 +120,16 @@ class Asn1View : ViewExtension {
 
             val name = nameOf(tag, number)
             if (constructed) {
-                rows.add(Row(depth, "$name ($length bytes)", ViewCanvas.ACCENT, offset))
-                if (depth < MAX_DEPTH) readSequenceOfValues(i, end, depth + 1)
-                else rows.add(Row(depth + 1, "… nested too deeply to show", ViewCanvas.MUTED_TEXT, -1))
+                rows.add(Row(depth, "$name ($length bytes)", ViewCanvas.ACCENT, offset, true))
+                when {
+                    offset in collapsed -> Unit // shut: its children are not drawn at all
+                    depth < MAX_DEPTH -> readSequenceOfValues(i, end, depth + 1)
+                    else -> rows.add(Row(depth + 1, "… nested too deeply to show", ViewCanvas.MUTED_TEXT, -1, false))
+                }
             } else {
-                rows.add(Row(depth, "$name  ${primitive(number, tag, i, end)}", ViewCanvas.DEFAULT_TEXT, offset))
+                rows.add(
+                    Row(depth, "$name  ${primitive(number, tag, i, end)}", ViewCanvas.DEFAULT_TEXT, offset, false),
+                )
             }
             return end
         }
@@ -185,6 +227,9 @@ class Asn1View : ViewExtension {
     }
 
     private companion object {
+        /** Offsets of the branches the user has clicked shut, comma-separated. */
+        const val COLLAPSED = "asn1.collapsed"
+
         const val MAX_DEPTH = 24
         const val MAX_ROWS = 5000
         const val MAX_HEX = 32

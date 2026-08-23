@@ -128,7 +128,8 @@ internal object ExtensionLoader {
             val id = Wire.readString(input)
             val name = Wire.readString(input)
             val version = Wire.readString(input)
-            ViewInfo(id, name, readOptions(input), version)
+            val wantsHover = input.readBoolean()
+            ViewInfo(id, name, readOptions(input), version, wantsHover)
         }
     }
 
@@ -185,6 +186,34 @@ internal object ExtensionLoader {
             o.writeFloat(monoCharWidth)
         }
         return ViewWire.readDrawing(reply.orThrow())
+    }
+
+    /**
+     * Tells a view what the user did on it and returns the options to draw it with next.
+     *
+     * The same options come back when the view makes nothing of the event, which is how the app
+     * knows there is nothing to redraw.
+     */
+    fun viewEvent(
+        id: String,
+        kind: String,
+        region: String?,
+        x: Float,
+        y: Float,
+        options: Map<String, String>,
+    ): Map<String, String> {
+        val loaded = loadedViews()[id] ?: return options
+        val reply = processFor(loaded.dir).request(Wire.VIEW_EVENT) { o ->
+            Wire.writeString(o, id)
+            Wire.writeString(o, kind)
+            Wire.writeString(o, region ?: "")
+            o.writeFloat(x)
+            o.writeFloat(y)
+            Wire.writeStringMap(o, options)
+        }
+        // a view that fails on an event should not lose the drawing that is already on screen
+        if (!reply.ok) return options
+        return Wire.readStringMap(DataInputStream(ByteArrayInputStream(reply.payload)))
     }
 
     fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {

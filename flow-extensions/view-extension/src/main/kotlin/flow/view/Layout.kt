@@ -11,7 +11,8 @@ import flow.extension.ViewCanvas
 internal class Grid(private val canvas: ViewCanvas, val fontSize: Float = 12f) {
     val pad = 10f
     val lineHeight = fontSize * 1.45f
-    private val charWidth = canvas.monoCharWidth * fontSize
+    /** The advance width of one character at this size — what a column step is. */
+    val charWidth = canvas.monoCharWidth * fontSize
 
     /** The width available for text, once the padding on both sides is taken out. */
     val textWidth: Float get() = (canvas.width - pad * 2).coerceAtLeast(charWidth)

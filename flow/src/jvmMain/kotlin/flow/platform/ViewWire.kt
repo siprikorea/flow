@@ -3,6 +3,7 @@ package flow.platform
 import flow.extension.host.Wire
 import flow.model.DrawOp
 import flow.model.Drawing
+import flow.model.Region
 import java.io.DataInputStream
 
 /**
@@ -18,12 +19,25 @@ internal object ViewWire {
         val contentHeight = input.readFloat()
         val declared = input.readInt()
         val ops = ArrayList<DrawOp>(declared.coerceIn(0, 1024))
+        val regions = ArrayList<Region>()
         // the count was written before the ops, but the stream is the authority on how many arrived
-        while (input.available() > 0) ops.add(readOp(input))
-        return Drawing(contentHeight, ops)
+        while (input.available() > 0) {
+            // regions travel with the drawing calls but are not drawn, so they are split off here
+            // rather than being filtered on every frame
+            when (val op = input.readInt()) {
+                Wire.DRAW_REGION -> regions.add(
+                    Region(
+                        input.readFloat(), input.readFloat(), input.readFloat(), input.readFloat(),
+                        Wire.readString(input),
+                    ),
+                )
+                else -> ops.add(readOp(op, input))
+            }
+        }
+        return Drawing(contentHeight, ops, regions)
     }
 
-    private fun readOp(input: DataInputStream): DrawOp = when (val op = input.readInt()) {
+    private fun readOp(op: Int, input: DataInputStream): DrawOp = when (op) {
         Wire.DRAW_TEXT -> DrawOp.Text(
             input.readFloat(), input.readFloat(), Wire.readString(input),
             input.readFloat(), input.readInt(), input.readBoolean(),

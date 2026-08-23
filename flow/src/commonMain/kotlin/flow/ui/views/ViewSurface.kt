@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
@@ -15,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -24,6 +26,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -37,9 +40,11 @@ import flow.core.Workspace
 import flow.model.DrawOp
 import flow.model.Drawing
 import flow.model.ViewColor
+import flow.model.ViewEventKind
 import flow.platform.Platform
 import flow.ui.common.Txt
 import flow.ui.theme.Palette
+import kotlinx.coroutines.launch
 
 /**
  * Shows [data] using an installed view.
@@ -50,6 +55,10 @@ import flow.ui.theme.Palette
  *
  * The view is told only how wide it may be. It draws as tall as the data needs and says so, and
  * the extra is scrolled here — so scrolling costs nothing and never waits on the extension.
+ *
+ * Clicks go the other way. A view names the parts of its drawing that can be acted on, so the
+ * hit-testing happens here and only a click that actually landed on something crosses the pipe;
+ * what comes back is the options to draw it with next, which [onOptions] is handed to keep.
  */
 @Composable
 fun ViewSurface(
@@ -58,6 +67,7 @@ fun ViewSurface(
     data: ByteArray,
     options: Map<String, String>,
     modifier: Modifier = Modifier,
+    onOptions: ((Map<String, String>) -> Unit)? = null,
 ) {
     val measurer = rememberTextMeasurer()
     val densityScope = LocalDensity.current
@@ -108,10 +118,58 @@ fun ViewSurface(
                 val images = remember(shown) {
                     shown.ops.filterIsInstance<DrawOp.Image>().associateWith { decodePng(it.png) }
                 }
+
+                val scope = rememberCoroutineScope()
+                val interactive = onOptions != null && shown.regions.isNotEmpty()
+                val wantsHover = ws.viewInfo(viewId)?.wantsHover == true
+
+                fun send(kind: String, position: Offset) {
+                    val x = position.x / density
+                    val y = position.y / density
+                    val region = shown.regionAt(x, y)
+                    // a click on nothing is still worth reporting for hover, but not for a tap: a
+                    // view that named no region there has said it does not care
+                    if (kind != ViewEventKind.HOVER && region == null) return
+                    scope.launch {
+                        val next = runCatching { Platform.viewEvent(viewId, kind, region?.id, x, y, options) }
+                            .getOrDefault(options)
+                        if (next != options) onOptions!!(next)
+                    }
+                }
+
                 Box(Modifier.fillMaxSize().verticalScroll(scroll)) {
                     Canvas(
                         Modifier.fillMaxWidth()
-                            .height(maxOf(shown.contentHeight, viewportDp).dp),
+                            .height(maxOf(shown.contentHeight, viewportDp).dp)
+                            .then(
+                                if (!interactive) Modifier
+                                else Modifier.pointerInput(shown, viewId, options) {
+                                    detectTapGestures(
+                                        onTap = { send(ViewEventKind.CLICK, it) },
+                                        onDoubleTap = { send(ViewEventKind.DOUBLE_CLICK, it) },
+                                    )
+                                },
+                            )
+                            .then(
+                                if (!interactive || !wantsHover) Modifier
+                                else Modifier.pointerInput(shown, viewId, options) {
+                                    // only a move that leaves one region for another is worth a
+                                    // round trip; following the pointer pixel by pixel would be one
+                                    // per frame, and a highlight only changes when the region does
+                                    var last: String? = null
+                                    awaitPointerEventScope {
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val at = event.changes.firstOrNull()?.position ?: continue
+                                            val here = shown.regionAt(at.x / density, at.y / density)?.id
+                                            if (here != last) {
+                                                last = here
+                                                send(ViewEventKind.HOVER, at)
+                                            }
+                                        }
+                                    }
+                                },
+                            ),
                     ) {
                         // only what the scroll has brought into view is worth drawing: a long hex
                         // dump is tens of thousands of calls, and all but a screenful are off-screen

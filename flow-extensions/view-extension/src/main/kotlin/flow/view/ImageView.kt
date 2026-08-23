@@ -17,7 +17,7 @@ import javax.imageio.ImageIO
 class ImageView : ViewExtension {
     override val id = "flow.view.image"
     override val displayName = "Image View"
-    override val version = "1.0.0"
+    override val version = "1.1.0"
     override val options = listOf(
         ExtensionOption("fit", OptionType.SELECT, "contain", listOf("contain", "actual")),
     )

@@ -65,6 +65,7 @@ class ViewProcessTest {
             val id = Wire.readString(input)
             Wire.readString(input) // name
             Wire.readString(input) // version
+            input.readBoolean() // wantsHover
             repeat(input.readInt()) { // options
                 Wire.readString(input); Wire.readString(input); Wire.readString(input)
                 Wire.readStringList(input)
@@ -130,6 +131,77 @@ class ViewProcessTest {
         // and the worker is still there afterwards, which is the point of the isolation
         assertTrue(draw("flow.view.string", "still here".encodeToByteArray()).ops.isNotEmpty())
     }
+
+    /** Sends one event the way the app does, and returns the options the view answered with. */
+    private fun event(
+        id: String,
+        kind: String,
+        region: String?,
+        x: Float,
+        y: Float,
+        options: Map<String, String>,
+    ): Map<String, String> {
+        val reply = worker.request(Wire.VIEW_EVENT) { o ->
+            Wire.writeString(o, id)
+            Wire.writeString(o, kind)
+            Wire.writeString(o, region ?: "")
+            o.writeFloat(x)
+            o.writeFloat(y)
+            Wire.writeStringMap(o, options)
+        }
+        assertTrue(reply.ok, "the worker refused: ${reply.payload.decodeToString()}")
+        return Wire.readStringMap(DataInputStream(ByteArrayInputStream(reply.payload)))
+    }
+
+    @Test
+    fun `a view names the parts of its drawing that can be clicked`() {
+        val drawing = draw("flow.view.asn1", derSequence())
+        assertTrue(drawing.regions.isNotEmpty(), "no region crossed the pipe")
+        // regions are not drawing calls and must not be replayed as any
+        assertTrue(drawing.ops.none { it is DrawOp.Rect }, "a region was mistaken for something to draw")
+    }
+
+    @Test
+    fun `clicking through the pipe changes what the view draws next`() {
+        val der = derSequence()
+        val open = draw("flow.view.asn1", der, mapOf("showOffsets" to "false"))
+        val region = open.regions.first()
+
+        val next = event(
+            "flow.view.asn1", "click", region.id, region.x, region.y,
+            mapOf("showOffsets" to "false"),
+        )
+        assertTrue(next.containsKey("asn1.collapsed"), "the view kept nothing about the click: $next")
+
+        val shut = draw("flow.view.asn1", der, next)
+        assertTrue(
+            shut.ops.size < open.ops.size,
+            "closing the branch drew ${shut.ops.size} calls against ${open.ops.size}",
+        )
+    }
+
+    @Test
+    fun `an event the view makes nothing of comes back unchanged`() {
+        val options = mapOf("encoding" to "UTF-8")
+        assertEquals(options, event("flow.view.string", "click", "whatever", 1f, 1f, options))
+    }
+
+    @Test
+    fun `an event for a view the jar does not have is an error, not a crash`() {
+        val reply = worker.request(Wire.VIEW_EVENT) { o ->
+            Wire.writeString(o, "com.example.nope")
+            Wire.writeString(o, "click")
+            Wire.writeString(o, "x")
+            o.writeFloat(0f)
+            o.writeFloat(0f)
+            Wire.writeStringMap(o, emptyMap())
+        }
+        assertTrue(!reply.ok)
+        assertTrue(reply.payload.decodeToString().contains("not in this extension"), reply.payload.decodeToString())
+    }
+
+    /** SEQUENCE { INTEGER 42 } — the smallest thing with a branch to click. */
+    private fun derSequence() = byteArrayOf(0x30, 0x03, 0x02, 0x01, 42)
 
     @Test
     fun `asking for a view the jar does not have is an error, not a crash`() {

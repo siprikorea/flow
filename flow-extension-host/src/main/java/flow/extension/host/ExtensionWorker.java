@@ -2,6 +2,7 @@ package flow.extension.host;
 
 import flow.extension.ExtensionOption;
 import flow.extension.ModuleExtension;
+import flow.extension.ViewEvent;
 import flow.extension.ViewExtension;
 
 import java.io.*;
@@ -104,6 +105,22 @@ public final class ExtensionWorker {
                     o.write(canvas.finish());
                 });
             }
+            case Wire.VIEW_EVENT: {
+                String id = Wire.readString(in);
+                String kind = Wire.readString(in);
+                String region = Wire.readString(in);
+                float x = in.readFloat();
+                float y = in.readFloat();
+                Map<String, String> options = Wire.readStringMap(in);
+                return () -> reply(out, writeLock, reqId, o -> {
+                    ViewExtension v = loaded.views.get(id);
+                    if (v == null) throw new IllegalStateException("view '" + id + "' is not in this extension");
+                    // an empty region name means the click landed where the view claimed nothing
+                    ViewEvent event = new ViewEvent(kind, region.isEmpty() ? null : region, x, y);
+                    Map<String, String> next = v.onEvent(event, options);
+                    Wire.writeStringMap(o, next != null ? next : options);
+                });
+            }
             default:
                 return () -> reply(out, writeLock, reqId, o -> { throw new IllegalStateException("unknown request " + op); });
         }
@@ -166,6 +183,7 @@ public final class ExtensionWorker {
             Wire.writeString(o, v.getId());
             Wire.writeString(o, v.getDisplayName());
             Wire.writeString(o, v.getVersion());
+            o.writeBoolean(v.getWantsHover());
             writeOptions(o, v.getOptions());
         }
     }

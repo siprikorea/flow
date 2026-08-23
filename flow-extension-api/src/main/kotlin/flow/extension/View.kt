@@ -48,6 +48,17 @@ interface ViewCanvas {
      */
     fun image(x: Float, y: Float, width: Float, height: Float, png: ByteArray)
 
+    /**
+     * Marks a rectangle as something the user can act on, named [id].
+     *
+     * Nothing is drawn. When a click lands inside it the view is told, with this [id] — so a view
+     * decides for itself what its clickable parts are, while the app does the hit-testing without
+     * having to ask across the process boundary on every mouse move.
+     *
+     * Regions may overlap; the last one declared wins, which is the one drawn on top.
+     */
+    fun region(x: Float, y: Float, width: Float, height: Float, id: String)
+
     companion object {
         /**
          * Ask the app for its own colour rather than naming one, so a view is not stuck light on
@@ -84,11 +95,57 @@ interface ViewExtension {
     val options: List<ExtensionOption> get() = emptyList()
 
     /**
+     * Whether this view wants to hear about the pointer moving over it.
+     *
+     * Off unless asked for, because every move is a round trip to this process: a view that only
+     * responds to clicks should leave it alone, and one that highlights what is under the cursor
+     * should turn it on.
+     */
+    val wantsHover: Boolean get() = false
+
+    /**
      * Draw [data] into [canvas].
      *
      * Called again whenever the data, the options or the width change, so it should be cheap enough
      * to run on a resize and must not keep anything between calls. Throwing reports the problem in
      * place of the drawing — which is the right thing for data this view cannot make sense of.
+     *
+     * A view keeps nothing between calls, so anything it needs to remember — what is expanded, what
+     * is selected — belongs in [options]: whatever [onEvent] returns is passed back here, and is
+     * saved with the flow, so a tree left half-open is still half-open tomorrow.
      */
     fun draw(canvas: ViewCanvas, data: ByteArray, options: Map<String, String>)
+
+    /**
+     * Something happened on the view. Return the options it should be drawn with next.
+     *
+     * Returning [options] unchanged means nothing happened as far as this view is concerned, and
+     * nothing is redrawn. The default does exactly that, so a view that does not care about being
+     * clicked need not mention it.
+     */
+    fun onEvent(event: ViewEvent, options: Map<String, String>): Map<String, String> = options
+}
+
+/**
+ * Something the user did on a view.
+ *
+ * [region] is the name the view gave that part of its drawing, which is usually all it needs to
+ * know; [x] and [y] are there for the cases where the position within the view matters more than
+ * which part was hit.
+ */
+class ViewEvent(
+    /** One of [CLICK], [DOUBLE_CLICK] or [HOVER]. */
+    val kind: String,
+    /** The innermost region under the pointer, or null where the view declared none. */
+    val region: String?,
+    val x: Float,
+    val y: Float,
+) {
+    companion object {
+        const val CLICK = "click"
+        const val DOUBLE_CLICK = "doubleClick"
+
+        /** Only delivered to a view whose [ViewExtension.wantsHover] is true. */
+        const val HOVER = "hover"
+    }
 }

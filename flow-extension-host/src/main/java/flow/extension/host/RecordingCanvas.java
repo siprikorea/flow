@@ -104,6 +104,19 @@ final class RecordingCanvas implements ViewCanvas {
         });
     }
 
+    @Override
+    public void region(float x, float y, float width, float height, String id) {
+        if (id == null || id.isEmpty()) return;
+        begin(Wire.DRAW_REGION);
+        write(o -> {
+            o.writeFloat(x);
+            o.writeFloat(y);
+            o.writeFloat(width);
+            o.writeFloat(height);
+            Wire.writeString(o, id);
+        });
+    }
+
     /** The recording, in the shape the app reads it back in. */
     byte[] finish() {
         ByteArrayOutputStream all = new ByteArrayOutputStream();

@@ -12,6 +12,8 @@ data class ViewInfo(
     val name: String,
     val options: List<OptDef> = emptyList(),
     val version: String = "1.0.0",
+    // whether the pointer moving over it is worth a round trip to the extension
+    val wantsHover: Boolean = false,
 )
 
 /**
@@ -60,10 +62,37 @@ sealed interface DrawOp {
 }
 
 /**
+ * A rectangle the view named while drawing, so a click on it can be reported back by name.
+ *
+ * These are kept apart from the drawing calls because nothing about them is drawn — they exist so
+ * the app can answer "what was clicked" on its own, without asking the extension where things are.
+ */
+data class Region(val x: Float, val y: Float, val w: Float, val h: Float, val id: String) {
+    fun contains(px: Float, py: Float) = px >= x && px < x + w && py >= y && py < y + h
+}
+
+/**
  * A finished drawing. [contentHeight] is how tall the view says it is, which may exceed the space
  * on screen — the app scrolls the difference rather than asking the view to draw again.
  */
-data class Drawing(val contentHeight: Float, val ops: List<DrawOp>)
+data class Drawing(
+    val contentHeight: Float,
+    val ops: List<DrawOp>,
+    val regions: List<Region> = emptyList(),
+) {
+    /**
+     * The region at a point, or null. The last one declared wins: regions are read in drawing
+     * order, so the innermost part of a nested layout is the one that was declared last.
+     */
+    fun regionAt(x: Float, y: Float): Region? = regions.lastOrNull { it.contains(x, y) }
+}
+
+/** What the user did on a view. Mirrors `flow.extension.ViewEvent`'s kinds. */
+object ViewEventKind {
+    const val CLICK = "click"
+    const val DOUBLE_CLICK = "doubleClick"
+    const val HOVER = "hover"
+}
 
 /**
  * Colours a view can name instead of choosing one, so it is not stuck dark-on-dark when the theme

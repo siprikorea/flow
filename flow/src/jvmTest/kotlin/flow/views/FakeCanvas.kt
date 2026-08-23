@@ -18,6 +18,7 @@ class FakeCanvas(
     data class Rect(val x: Float, val y: Float, val w: Float, val h: Float, val color: Int, val filled: Boolean) : Op
     data class Line(val x1: Float, val y1: Float, val x2: Float, val y2: Float, val color: Int, val stroke: Float) : Op
     class Image(val x: Float, val y: Float, val w: Float, val h: Float, val bytes: ByteArray) : Op
+    data class Region(val x: Float, val y: Float, val w: Float, val h: Float, val id: String) : Op
 
     val ops = mutableListOf<Op>()
     var height: Float? = null
@@ -25,6 +26,12 @@ class FakeCanvas(
 
     val texts: List<Text> get() = ops.filterIsInstance<Text>()
     val lines: List<String> get() = texts.map { it.text }
+    val regions: List<Region> get() = ops.filterIsInstance<Region>()
+
+    /** The region a point falls in, the way the app resolves one: last declared wins. */
+    fun regionAt(x: Float, y: Float): Region? = regions.lastOrNull {
+        x >= it.x && x < it.x + it.w && y >= it.y && y < it.y + it.h
+    }
 
     override fun contentHeight(height: Float) { this.height = height }
 
@@ -42,5 +49,9 @@ class FakeCanvas(
 
     override fun image(x: Float, y: Float, width: Float, height: Float, png: ByteArray) {
         ops.add(Image(x, y, width, height, png))
+    }
+
+    override fun region(x: Float, y: Float, width: Float, height: Float, id: String) {
+        ops.add(Region(x, y, width, height, id))
     }
 }

@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets
 class StringView : ViewExtension {
     override val id = "flow.view.string"
     override val displayName = "String View"
-    override val version = "1.0.0"
+    override val version = "1.1.0"
     override val options = listOf(
         ExtensionOption("encoding", OptionType.SELECT, "UTF-8", listOf("UTF-8", "US-ASCII", "ISO-8859-1", "UTF-16")),
         ExtensionOption("wrap", OptionType.SELECT, "true", listOf("true", "false")),
