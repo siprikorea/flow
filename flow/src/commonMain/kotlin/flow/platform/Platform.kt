@@ -1,8 +1,10 @@
 package flow.platform
 
+import flow.model.Drawing
 import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
+import flow.model.ViewInfo
 
 expect object Platform {
     // ── installed modules/components (each folder isolated by a classloader = sandbox) ──
@@ -16,6 +18,19 @@ expect object Platform {
     fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>?
     // options to show for the given values (a module may hide options another option makes moot)
     fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>?
+    // ── installed views (the same extension store; a jar may provide modules, views or both) ──
+    fun installedViewInfos(): List<ViewInfo>
+    // Asks a view to draw [data] into a strip [width] wide. Suspending for the same reason
+    // moduleProcess is: a view is arbitrary code, and a drawing that never finishes has to be
+    // cancellable. It draws as tall as it needs and the app scrolls the rest.
+    suspend fun drawView(
+        id: String,
+        data: ByteArray,
+        options: Map<String, String>,
+        width: Float,
+        monoCharWidth: Float,
+    ): Drawing
+
     fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?
     // run a component in its own folder sandbox (bundled dependency modules)

@@ -2,6 +2,7 @@ package flow.extension.host;
 
 import flow.extension.ExtensionOption;
 import flow.extension.ModuleExtension;
+import flow.extension.ViewExtension;
 
 import java.io.*;
 import java.net.URL;
@@ -28,7 +29,7 @@ public final class ExtensionWorker {
         PrintStream appStdout = System.out;
         System.setOut(System.err);
 
-        Map<String, ModuleExtension> byId = load(args);
+        Loaded loaded = load(args);
 
         DataInputStream in = new DataInputStream(new BufferedInputStream(System.in));
         DataOutputStream out = new DataOutputStream(new BufferedOutputStream(appStdout));
@@ -48,7 +49,7 @@ public final class ExtensionWorker {
             }
             int op = in.readInt();
             // the whole request is read here, on the one reading thread, before it is handed off
-            Runnable job = readJob(reqId, op, in, byId, out, writeLock);
+            Runnable job = readJob(reqId, op, in, loaded, out, writeLock);
             pool.execute(job);
         }
         pool.shutdownNow();
@@ -56,9 +57,10 @@ public final class ExtensionWorker {
 
     /** Reads one request off the pipe and returns the work that answers it. */
     private static Runnable readJob(
-        int reqId, int op, DataInputStream in, Map<String, ModuleExtension> byId,
+        int reqId, int op, DataInputStream in, Loaded loaded,
         DataOutputStream out, Object writeLock
     ) throws IOException {
+        Map<String, ModuleExtension> byId = loaded.modules;
         switch (op) {
             case Wire.DESCRIBE:
                 return () -> reply(out, writeLock, reqId, o -> describe(byId, o));
@@ -85,6 +87,22 @@ public final class ExtensionWorker {
                 String id = Wire.readString(in);
                 Map<String, String> values = Wire.readStringMap(in);
                 return () -> reply(out, writeLock, reqId, o -> writeOptions(o, need(byId, id).optionsFor(values)));
+            }
+            case Wire.VIEW_DESCRIBE:
+                return () -> reply(out, writeLock, reqId, o -> describeViews(loaded.views, o));
+            case Wire.VIEW_DRAW: {
+                String id = Wire.readString(in);
+                byte[] data = Wire.readBytes(in);
+                Map<String, String> options = Wire.readStringMap(in);
+                float width = in.readFloat();
+                float monoCharWidth = in.readFloat();
+                return () -> reply(out, writeLock, reqId, o -> {
+                    ViewExtension v = loaded.views.get(id);
+                    if (v == null) throw new IllegalStateException("view '" + id + "' is not in this extension");
+                    RecordingCanvas canvas = new RecordingCanvas(width, monoCharWidth);
+                    v.draw(canvas, data != null ? data : new byte[0], options);
+                    o.write(canvas.finish());
+                });
             }
             default:
                 return () -> reply(out, writeLock, reqId, o -> { throw new IllegalStateException("unknown request " + op); });
@@ -142,6 +160,16 @@ public final class ExtensionWorker {
         }
     }
 
+    private static void describeViews(Map<String, ViewExtension> views, DataOutputStream o) throws IOException {
+        o.writeInt(views.size());
+        for (ViewExtension v : views.values()) {
+            Wire.writeString(o, v.getId());
+            Wire.writeString(o, v.getDisplayName());
+            Wire.writeString(o, v.getVersion());
+            writeOptions(o, v.getOptions());
+        }
+    }
+
     private static void writeOptions(DataOutputStream o, List<ExtensionOption> options) throws IOException {
         o.writeInt(options.size());
         for (ExtensionOption opt : options) {
@@ -152,14 +180,27 @@ public final class ExtensionWorker {
         }
     }
 
-    /** Every jar named on the command line, loaded together as this one extension. */
-    private static Map<String, ModuleExtension> load(String[] jars) throws Exception {
+    /** What one extension folder turned out to provide. */
+    private static final class Loaded {
+        final Map<String, ModuleExtension> modules = new LinkedHashMap<>();
+        final Map<String, ViewExtension> views = new LinkedHashMap<>();
+    }
+
+    /**
+     * Every jar named on the command line, loaded together as this one extension.
+     *
+     * Modules and views are looked up separately but come from the same loader, so one extension
+     * may ship both — a module and the view that makes sense of what it produces.
+     */
+    private static Loaded load(String[] jars) throws Exception {
         URL[] urls = new URL[jars.length];
         for (int i = 0; i < jars.length; i++) urls[i] = new File(jars[i]).toURI().toURL();
         // the contract comes from this process's own classpath; everything else from the jars
         URLClassLoader cl = new URLClassLoader(urls, ExtensionWorker.class.getClassLoader());
-        Map<String, ModuleExtension> byId = new LinkedHashMap<>();
-        for (ModuleExtension e : ServiceLoader.load(ModuleExtension.class, cl)) byId.put(e.getId(), e);
-        return byId;
+        Loaded loaded = new Loaded();
+        for (ModuleExtension e : ServiceLoader.load(ModuleExtension.class, cl)) loaded.modules.put(e.getId(), e);
+        // a jar with no views is the common case, and ServiceLoader is happy to find none
+        for (ViewExtension v : ServiceLoader.load(ViewExtension.class, cl)) loaded.views.put(v.getId(), v);
+        return loaded;
     }
 }

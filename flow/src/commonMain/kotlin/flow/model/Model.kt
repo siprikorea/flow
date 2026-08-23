@@ -105,6 +105,9 @@ data class Settings(
     val animSeconds: Float = 1f,
     // where the Extensions screen looks for installable extensions
     val registryUrl: String = DEFAULT_REGISTRY_URL,
+    // views the user has switched off. Kept as the exception rather than the list of enabled ones
+    // so a newly installed view is usable without having to be turned on first.
+    val disabledViews: List<String> = emptyList(),
 )
 
 // The manifest the Extensions screen reads by default. Served straight off the repository, so

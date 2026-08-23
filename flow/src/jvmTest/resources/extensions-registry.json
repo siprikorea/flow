@@ -1,0 +1,328 @@
+{
+  "extensions": [
+    {
+      "id": "flow.base64",
+      "name": "Base64",
+      "version": "1.0.0",
+      "description": "Base64 encode or decode, standard or URL-safe alphabet, padding optional.",
+      "file": "extensions/flow.base64.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.cipher",
+      "name": "Cipher",
+      "version": "1.0.0",
+      "description": "Symmetric and RSA encryption/decryption — AES, DES, DESede, Blowfish, RSA.",
+      "file": "extensions/flow.cipher.flowext",
+      "inputs": [
+        "in",
+        "key",
+        "iv"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.hash",
+      "name": "Hash",
+      "version": "1.0.0",
+      "description": "Message digest: MD5, SHA-1, SHA-256, SHA-512.",
+      "file": "extensions/flow.hash.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.hotp",
+      "name": "HOTP",
+      "version": "1.0.0",
+      "description": "Counter-based one-time password (RFC 4226). Takes a raw or base32 secret.",
+      "file": "extensions/flow.otp.flowext",
+      "inputs": [
+        "secret",
+        "counter"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.json",
+      "name": "JSON Format",
+      "version": "1.0.0",
+      "description": "Re-format JSON with an indent; optionally sort keys. Reports where invalid JSON stops making sense.",
+      "file": "extensions/flow.json.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.jwt",
+      "name": "JWT",
+      "version": "1.0.0",
+      "description": "Verify a JWT against a secret and split out its header, payload and signature.",
+      "file": "extensions/flow.jwt.flowext",
+      "inputs": [
+        "jwt",
+        "secret"
+      ],
+      "outputs": [
+        "header",
+        "payload",
+        "signature"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.keyfactory",
+      "name": "Key Factory",
+      "version": "1.0.0",
+      "description": "Derive a key from a password (PBKDF2) or rebuild one from encoded key bytes.",
+      "file": "extensions/flow.keyfactory.flowext",
+      "inputs": [
+        "password",
+        "salt",
+        "key"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.keygen",
+      "name": "Key Generator",
+      "version": "1.0.0",
+      "description": "Generate a symmetric key for AES, DES, Blowfish, HMAC and friends.",
+      "file": "extensions/flow.keygen.flowext",
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.keypairgen",
+      "name": "Key Pair Generator",
+      "version": "1.0.0",
+      "description": "Generate an RSA, DSA or EC key pair.",
+      "file": "extensions/flow.keypairgen.flowext",
+      "inputs": [],
+      "outputs": [
+        "publicKey",
+        "privateKey"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.keystore",
+      "name": "Key Store",
+      "version": "1.0.0",
+      "description": "Read a private key, certificate and public key out of a PKCS12 or JKS store.",
+      "file": "extensions/flow.keystore.flowext",
+      "inputs": [
+        "store",
+        "password"
+      ],
+      "outputs": [
+        "privateKey",
+        "certificate",
+        "publicKey"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.mac",
+      "name": "MAC",
+      "version": "1.0.0",
+      "description": "Keyed message authentication code (HMAC) over the input.",
+      "file": "extensions/flow.mac.flowext",
+      "inputs": [
+        "in",
+        "key"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.mcp",
+      "name": "MCP Tool",
+      "version": "1.0.0",
+      "description": "Call a tool on an external MCP server, or list the tools it offers.",
+      "file": "extensions/flow.mcp.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.merge",
+      "name": "Merge",
+      "version": "1.0.0",
+      "description": "Join two inputs into one, with an optional separator.",
+      "file": "extensions/flow.merge.flowext",
+      "inputs": [
+        "a",
+        "b"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.securerandom",
+      "name": "Secure Random",
+      "version": "1.0.0",
+      "description": "Random bytes from a named SecureRandom algorithm.",
+      "file": "extensions/flow.securerandom.flowext",
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.signature",
+      "name": "Signature",
+      "version": "1.0.0",
+      "description": "Sign data or verify a signature — RSA, DSA, ECDSA.",
+      "file": "extensions/flow.signature.flowext",
+      "inputs": [
+        "in",
+        "key",
+        "signature"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.sleep",
+      "name": "Sleep",
+      "version": "1.1.0",
+      "description": "Pass the input through after a delay; useful for pacing a flow.",
+      "file": "extensions/flow.sleep.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.slice",
+      "name": "Slice",
+      "version": "1.0.0",
+      "description": "Take a byte range out of the input and pass the remainder on separately.",
+      "file": "extensions/flow.slice.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out",
+        "rest"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.split",
+      "name": "Split",
+      "version": "1.0.0",
+      "description": "Split the input on a separator into two outputs.",
+      "file": "extensions/flow.split.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "a",
+        "b"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.totp",
+      "name": "TOTP",
+      "version": "1.0.0",
+      "description": "Time-based one-time password (RFC 6238), with a configurable step and digit count.",
+      "file": "extensions/flow.otp.flowext",
+      "inputs": [
+        "secret"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module"
+    },
+    {
+      "id": "flow.qr",
+      "name": "QR Code",
+      "version": "1.0.0",
+      "kind": "module",
+      "description": "Encode the input as a QR code image, ready for the Image View.",
+      "file": "extensions/flow.qr.flowext",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ]
+    },
+    {
+      "id": "flow.view.string",
+      "name": "String View",
+      "version": "1.0.0",
+      "kind": "view",
+      "description": "Show output data as text, in a choice of encodings.",
+      "file": "extensions/flow.view.string.flowext"
+    },
+    {
+      "id": "flow.view.hex",
+      "name": "Hex View",
+      "version": "1.0.0",
+      "kind": "view",
+      "description": "Show output data as a hex dump with offsets and characters.",
+      "file": "extensions/flow.view.hex.flowext"
+    },
+    {
+      "id": "flow.view.asn1",
+      "name": "ASN.1 View",
+      "version": "1.0.0",
+      "kind": "view",
+      "description": "Read DER-encoded structures — certificates, keys, PKCS — as a tree.",
+      "file": "extensions/flow.view.asn1.flowext"
+    },
+    {
+      "id": "flow.view.image",
+      "name": "Image View",
+      "version": "1.0.0",
+      "kind": "view",
+      "description": "Show output data as a picture, for modules that produce an image.",
+      "file": "extensions/flow.view.image.flowext"
+    }
+  ]
+}

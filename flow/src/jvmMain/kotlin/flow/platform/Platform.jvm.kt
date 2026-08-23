@@ -1,8 +1,10 @@
 package flow.platform
 
 import flow.model.InstallResult
+import flow.model.Drawing
 import flow.model.ModuleInfo
 import flow.model.OptDef
+import flow.model.ViewInfo
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -77,6 +79,16 @@ actual object Platform {
     actual fun moduleInputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.inputsFor(id, options)
     actual fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.outputsFor(id, options)
     actual fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>? = ExtensionLoader.optionsFor(id, values)
+    actual fun installedViewInfos(): List<ViewInfo> = ExtensionLoader.viewInfos()
+    // same reasoning as moduleProcess: a view is arbitrary code, so the wait for it is interruptible
+    actual suspend fun drawView(
+        id: String,
+        data: ByteArray,
+        options: Map<String, String>,
+        width: Float,
+        monoCharWidth: Float,
+    ): Drawing =
+        runInterruptible(Dispatchers.Default) { ExtensionLoader.drawView(id, data, options, width, monoCharWidth) }
     actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
     actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
     actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)

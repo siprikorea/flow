@@ -13,11 +13,17 @@ data class RegistryEntry(
     val name: String = "",
     val version: String = "1.0.0",
     val description: String = "",
+    // "module" or "view" — which list the entry belongs in. Anything unrecognised is treated as a
+    // module, so an older build still offers an extension a newer registry has categorised.
+    val kind: String = KIND_MODULE,
     // where the jar sits, relative to the manifest's own URL, or an absolute https URL
     val file: String = "",
     val inputs: List<String> = emptyList(),
     val outputs: List<String> = emptyList(),
 )
+
+const val KIND_MODULE = "module"
+const val KIND_VIEW = "view"
 
 @Serializable
 data class RegistryIndex(

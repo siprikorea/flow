@@ -6,6 +6,8 @@ import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
 import flow.model.OptType
+import flow.model.Drawing
+import flow.model.ViewInfo
 import kotlinx.serialization.json.Json
 import java.io.File
 import flow.extension.host.Wire
@@ -77,19 +79,28 @@ internal object ExtensionLoader {
         processes.getOrPut(dir) { ExtensionProcess(dir, jarsIn(dir).toList()) }
     }
 
+    // what a worker told us about one view it serves
+    private class LoadedView(val dir: File, val info: ViewInfo)
+
     // Asks each extension folder what it provides. A folder that cannot answer — a broken jar, a
     // worker that will not start — is left out rather than taking the scan down with it.
-    private fun scanModuleRoot(root: File?): Map<String, Loaded> {
-        val map = LinkedHashMap<String, Loaded>()
-        root?.listFiles { f -> f.isDirectory }?.forEach { dir ->
+    //
+    // Modules and views are collected together in one walk so the two can never disagree about
+    // which folders exist, and so each worker is asked both questions while it is already up.
+    private fun scan() {
+        ensureDirs()
+        val mods = LinkedHashMap<String, Loaded>()
+        val views = LinkedHashMap<String, LoadedView>()
+        extensionsDir.listFiles { f -> f.isDirectory }?.forEach { dir ->
             // a component's bundled dependency jars are not installed modules
             if (isComponentDir(dir)) return@forEach
             if (jarsIn(dir).isEmpty()) return@forEach
-            runCatching { describe(processFor(dir)) }.getOrDefault(emptyList()).forEach { info ->
-                map[info.id] = Loaded(dir, info)
-            }
+            val proc = processFor(dir)
+            runCatching { describe(proc) }.getOrDefault(emptyList()).forEach { mods[it.id] = Loaded(dir, it) }
+            runCatching { describeViews(proc) }.getOrDefault(emptyList()).forEach { views[it.id] = LoadedView(dir, it) }
         }
-        return map
+        moduleCache = mods
+        viewCache = views
     }
 
     /** DESCRIBE: everything one worker serves. */
@@ -105,6 +116,19 @@ internal object ExtensionLoader {
             val inputs = Wire.readStringList(input)
             val outputs = Wire.readStringList(input)
             ModuleInfo(id, name, inputs, outputs, readOptions(input), version)
+        }
+    }
+
+    /** VIEW_DESCRIBE: the views one worker serves, which for most extensions is none. */
+    private fun describeViews(proc: ExtensionProcess): List<ViewInfo> {
+        val reply = proc.request(Wire.VIEW_DESCRIBE) {}
+        if (!reply.ok) return emptyList()
+        val input = DataInputStream(ByteArrayInputStream(reply.payload))
+        return (0 until input.readInt()).map {
+            val id = Wire.readString(input)
+            val name = Wire.readString(input)
+            val version = Wire.readString(input)
+            ViewInfo(id, name, readOptions(input), version)
         }
     }
 
@@ -125,18 +149,43 @@ internal object ExtensionLoader {
         return DataInputStream(ByteArrayInputStream(payload))
     }
 
-    // id -> loaded module, from the one install root.
+    // id -> what was loaded, from the one install root.
     private var moduleCache: Map<String, Loaded>? = null
-    private fun loadedModules(): Map<String, Loaded> {
-        moduleCache?.let { return it }
-        ensureDirs()
-        val map = LinkedHashMap<String, Loaded>()
-        map.putAll(scanModuleRoot(extensionsDir))
-        moduleCache = map
-        return map
-    }
+    private var viewCache: Map<String, LoadedView>? = null
+
+    private fun loadedModules(): Map<String, Loaded> =
+        moduleCache ?: run { scan(); moduleCache.orEmpty() }
+
+    private fun loadedViews(): Map<String, LoadedView> =
+        viewCache ?: run { scan(); viewCache.orEmpty() }
 
     fun moduleInfos(): List<ModuleInfo> = loadedModules().values.map { it.info }
+
+    fun viewInfos(): List<ViewInfo> = loadedViews().values.map { it.info }
+
+    /**
+     * Asks a view to draw [data] into a strip [width] wide.
+     *
+     * The width is all the view is told about the space: it draws as tall as the data needs and
+     * says so, and the app scrolls what does not fit rather than asking again on every scroll.
+     */
+    fun drawView(
+        id: String,
+        data: ByteArray,
+        options: Map<String, String>,
+        width: Float,
+        monoCharWidth: Float,
+    ): Drawing {
+        val loaded = loadedViews()[id] ?: error("view '$id' is not installed")
+        val reply = processFor(loaded.dir).request(Wire.VIEW_DRAW) { o ->
+            Wire.writeString(o, id)
+            Wire.writeBytes(o, data)
+            Wire.writeStringMap(o, options)
+            o.writeFloat(width)
+            o.writeFloat(monoCharWidth)
+        }
+        return ViewWire.readDrawing(reply.orThrow())
+    }
 
     fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val loaded = loadedModules()[id] ?: return emptyMap()
@@ -230,13 +279,18 @@ internal object ExtensionLoader {
         if (!safeId(id)) return
         release(File(extensionsDir, id))
         runCatching { File(extensionsDir, id).deleteRecursively() }
-        moduleCache = null
+        invalidate()
     }
 
     fun uninstallComponent(id: String) {
         if (!safeId(id)) return
         release(File(extensionsDir, id))
         runCatching { File(extensionsDir, id).deleteRecursively() }
+    }
+
+    private fun invalidate() {
+        moduleCache = null
+        viewCache = null
     }
 
     /* ───────── install ───────── */
@@ -248,23 +302,25 @@ internal object ExtensionLoader {
         // asked in a throwaway worker: finding out what a jar provides means running its code, and
         // an installer should not be the one place that still does that in the app's own JVM
         val probe = ExtensionProcess(jar.parentFile ?: extensionsDir, listOf(jar))
-        val mods = try {
-            runCatching { describe(probe) }.getOrDefault(emptyList())
+        // a jar may provide modules, views, or both — any of the three is worth installing
+        val ids = try {
+            (runCatching { describe(probe) }.getOrDefault(emptyList()).map { it.id } +
+                runCatching { describeViews(probe) }.getOrDefault(emptyList()).map { it.id }).distinct()
         } finally {
             probe.kill()
         }
-        if (mods.isEmpty()) return InstallResult()
+        if (ids.isEmpty()) return InstallResult()
 
-        val conflicts = mods.filter { File(extensionsDir, it.id).exists() }.map { it.id }
+        val conflicts = ids.filter { File(extensionsDir, it).exists() }
         if (conflicts.isNotEmpty() && !overwrite) return InstallResult(conflicts = conflicts)
 
-        mods.forEach { m ->
-            release(File(extensionsDir, m.id))
-            val d = File(extensionsDir, m.id).also { it.deleteRecursively(); it.mkdirs() }
-            runCatching { jar.copyTo(File(d, "${m.id}$EXTENSION_SUFFIX"), overwrite = true) }
+        ids.forEach { id ->
+            release(File(extensionsDir, id))
+            val d = File(extensionsDir, id).also { it.deleteRecursively(); it.mkdirs() }
+            runCatching { jar.copyTo(File(d, "$id$EXTENSION_SUFFIX"), overwrite = true) }
         }
-        moduleCache = null
-        return InstallResult(installed = mods.map { it.id })
+        invalidate()
+        return InstallResult(installed = ids)
     }
 
     // Install an editor component: create the folder + component.json, bundle referenced installed-module jars (sandbox)

@@ -54,6 +54,7 @@ import flow.core.DEFAULT_KEYMAP
 import flow.core.DragModule
 import flow.core.Shortcut
 import flow.core.Workspace
+import flow.model.KIND_VIEW
 import flow.model.findDef
 import flow.model.isComp
 import flow.platform.Platform
@@ -371,21 +372,80 @@ private fun ExtensionsSettings(ws: Workspace) {
         val offered = ws.registry
         val offeredIds = offered.map { it.id }.toSet()
         // installed from a file rather than the registry: it still has to be removable
-        val strays = ws.installedModules.filterNot { it.id in offeredIds }
+        val strayModules = ws.installedModules.filterNot { it.id in offeredIds }
+        val strayViews = ws.installedViews.filterNot { it.id in offeredIds }
 
         when {
             ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
             ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
+            offered.isEmpty() && strayModules.isEmpty() && strayViews.isEmpty() ->
+                Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
         }
         ws.registryError?.takeIf { offered.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
 
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            offered.forEach { entry -> ExtensionRow(ws, entry) }
-            strays.forEach { m ->
+        // Modules and views install the same way and live in the same store, but they are different
+        // things to look for — one does work, the other shows its result — so each gets its own list.
+        val modules = offered.filterNot { it.kind == KIND_VIEW }
+        val views = offered.filter { it.kind == KIND_VIEW }
+
+        ExtensionCategory(ws, ws.t("categoryModules"), modules.isNotEmpty() || strayModules.isNotEmpty()) {
+            modules.forEach { entry -> ExtensionRow(ws, entry) }
+            strayModules.forEach { m ->
                 ExtensionRow(
                     ws, title = m.name, id = m.id, version = m.version, note = ws.t("fromFile"),
                     onUninstall = { ws.uninstallModule(m.id) },
+                )
+            }
+        }
+        ExtensionCategory(ws, ws.t("categoryViews"), views.isNotEmpty() || strayViews.isNotEmpty()) {
+            views.forEach { entry -> ExtensionRow(ws, entry) }
+            strayViews.forEach { v ->
+                ExtensionRow(
+                    ws, title = v.name, id = v.id, version = v.version, note = ws.t("fromFile"),
+                    onUninstall = { ws.uninstallModule(v.id) },
+                )
+            }
+        }
+    }
+}
+
+// One heading and its rows, drawn only when there is something under it — an empty "Views" heading
+// says nothing a missing one does not.
+@Composable
+private fun ExtensionCategory(ws: Workspace, title: String, any: Boolean, rows: @Composable () -> Unit) {
+    if (!any) return
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Txt(title.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+        rows()
+    }
+}
+
+// Views, as a Settings category. A view arrives the same way a module does — it is an extension,
+// installed from the registry or from a file — so this page is about which of the installed ones an
+// output is allowed to be shown with, and installing is left on the Extensions page.
+//
+// Switching one off leaves it installed: it stops being offered, and anything already showing it
+// falls back to another, rather than the data becoming unreadable.
+@Composable
+private fun ViewsSettings(ws: Workspace) {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
+            Platform.pickJar()?.let { ws.installJarFlow(it) }
+        }
+        Txt(ws.t("viewsSection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+        if (ws.installedViews.isEmpty()) Txt(ws.t("noViews"), 12.sp, Palette.faintText)
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            ws.installedViews.forEach { view ->
+                val enabled = view.id !in ws.disabledViews
+                ExtensionRow(
+                    ws,
+                    title = view.name,
+                    id = view.id,
+                    version = view.version,
+                    note = if (enabled) "" else ws.t("viewDisabled"),
+                    onUpdate = { ws.setViewEnabled(view.id, !enabled) },
+                    updateLabel = ws.t(if (enabled) "viewDisable" else "viewEnable"),
+                    onUninstall = { ws.uninstallModule(view.id) },
                 )
             }
         }
@@ -453,6 +513,9 @@ private fun ExtensionRow(
     note: String,
     busy: Boolean = false,
     onUpdate: (() -> Unit)? = null,
+    // what the middle action is called. It offers an update on the Extensions page and switches a
+    // view on or off on the Views page — the same slot, because both act on the row they sit in.
+    updateLabel: String = ws.t("update"),
     onInstall: (() -> Unit)? = null,
     onUninstall: (() -> Unit)? = null,
     // what the destructive action is called. On the Extensions page it removes an installed copy;
@@ -481,7 +544,7 @@ private fun ExtensionRow(
             Txt(ws.t("installing"), 11.sp, Palette.faintText)
         } else {
             // update sits ahead of uninstall, so the useful action is the one nearer the text
-            onUpdate?.let { RowButton(ws.t("update"), Palette.warn, Palette.holeBg, it) }
+            onUpdate?.let { RowButton(updateLabel, Palette.warn, Palette.holeBg, it) }
             onInstall?.let { RowButton(ws.t("install"), Palette.accent, Palette.holeBg, it) }
             onUninstall?.let { RowButton(uninstallLabel, null, Palette.errorSoft, it) }
         }
@@ -522,6 +585,7 @@ fun SettingsScreen(ws: Workspace) {
         "appearance" to ws.t("setAppearance"),
         "keymap" to ws.t("setKeymap"),
         "extensions" to ws.t("manageTitle"),
+        "views" to ws.t("setViews"),
         "flows" to ws.t("setFlows"),
     )
     val shown = categories.filter { query.isBlank() || it.second.contains(query, ignoreCase = true) }
@@ -612,6 +676,7 @@ fun SettingsScreen(ws: Workspace) {
                         }
                     }
                     "extensions" -> ExtensionsSettings(ws)
+                    "views" -> ViewsSettings(ws)
                     "flows" -> FlowsSettings(ws)
                 }
             }

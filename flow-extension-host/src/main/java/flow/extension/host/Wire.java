@@ -23,6 +23,15 @@ public final class Wire {
     public static final int PROCESS  = 2;   // (id, inputs, options) -> outputs
     public static final int PORTS    = 3;   // (id, options) -> inputs, outputs
     public static final int OPTIONS  = 4;   // (id, values) -> option specs
+    public static final int VIEW_DESCRIBE = 5; // -> the views this worker loaded
+    public static final int VIEW_DRAW     = 6; // (id, data, options, width) -> a drawing
+
+    // What a view drew, replayed by the app. A drawing is a flat list of these: the view lays
+    // everything out itself, so there is no nesting or state to carry between them.
+    public static final int DRAW_TEXT  = 1;
+    public static final int DRAW_RECT  = 2;
+    public static final int DRAW_LINE  = 3;
+    public static final int DRAW_IMAGE = 4;
 
     // responses
     public static final int OK    = 0;

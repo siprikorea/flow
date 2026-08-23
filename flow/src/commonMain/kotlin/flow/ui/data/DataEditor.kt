@@ -54,7 +54,10 @@ import flow.core.DataTab
 import flow.core.Workspace
 import flow.model.Port
 import flow.core.cinFileSize
+import flow.model.VIEW_PARAM
 import flow.platform.Platform
+import flow.ui.views.ViewPicker
+import flow.ui.views.ViewSurface
 import flow.platform.droppedFilePath
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -118,6 +121,9 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val fileBacked = totalFileSize >= 0
     val editable = !isOut && !fileBacked
 
+    // an output can be read through a view; a cin is the user's own bytes and stays plain
+    val activeView = if (isOut) ws.viewFor(node) else null
+
     fun switchTo(target: String) {
         if (target != fmt) tab.doc.updateNode(node.id) { it.copy(params = it.params + ("dataFmt" to target)) }
     }
@@ -156,7 +162,11 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             } else {
                 ToolButton(ws.t("dataReadFile")) { Platform.pickFileRead()?.let { setParam("dataFile", it) } }
             }
-            FormatToggle(isHex) { hex -> switchTo(if (hex) "hex" else "string") }
+            if (isOut && ws.enabledViews.isNotEmpty()) {
+                ViewPicker(ws, node.params[VIEW_PARAM]?.takeIf { it.isNotBlank() }) { setParam(VIEW_PARAM, it) }
+            }
+            // hex and string are how the raw bytes are read; a view decides that for itself
+            if (activeView == null) FormatToggle(isHex) { hex -> switchTo(if (hex) "hex" else "string") }
         }
 
         // loaded-file banner (name + total size + clear)
@@ -185,14 +195,16 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 .then(if (isOut) Modifier else Modifier.dragAndDropTarget(shouldStartDragAndDrop = { true }, target = dropTarget))
                 .padding(12.dp),
         ) {
-            if (editable) {
+            if (activeView != null) {
+                ViewSurface(ws, activeView.id, bytes, node.params, Modifier.fillMaxSize())
+            } else if (editable) {
                 EditableField(bytes, isHex, tab, node, windowStart) { windowStart = it }
             } else {
                 val source = if (fileBacked) DataSource.FileRange(filePath!!, totalFileSize) else DataSource.Memory(bytes)
                 ReadOnlyView(source, isHex, windowStart) { windowStart = it }
             }
 
-            if (totalSize == 0L) {
+            if (totalSize == 0L && activeView == null) {
                 Txt(
                     when {
                         isOut -> ws.t("dataNoOutput")
