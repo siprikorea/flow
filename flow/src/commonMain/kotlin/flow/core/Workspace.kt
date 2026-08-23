@@ -178,6 +178,12 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun selectDataTab(tab: DataTab) { activeData = tab }
 
+    /**
+     * Whether a canvas is on screen to receive a dropped module. A data-editor tab covers the
+     * canvas, so a drop then would add a node to something the user cannot see.
+     */
+    val canvasOpen: Boolean get() = activeData == null && active != null
+
     fun closeDataTab(tab: DataTab) {
         val i = dataTabs.indexOf(tab)
         if (i < 0) return

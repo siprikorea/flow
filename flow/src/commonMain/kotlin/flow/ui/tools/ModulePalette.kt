@@ -132,11 +132,21 @@ private fun PaletteCard(
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
-                    drag(down.id) { ch ->
-                        ws.dragModule = DragModule(type, origin + ch.position)
-                        ch.consume()
+                    // with no canvas showing there is nowhere for the module to land, so the drag
+                    // never starts rather than leaving a ghost with nothing to drop onto
+                    if (!ws.canvasOpen) return@awaitEachGesture
+                    try {
+                        drag(down.id) { ch ->
+                            ws.dragModule = DragModule(type, origin + ch.position)
+                            ch.consume()
+                        }
+                        ws.active?.dropModule()
+                    } finally {
+                        // A gesture can also end by being cancelled — the panel switching, the
+                        // list re-sorting this card out from under itself — and then the lines
+                        // above never run. The ghost must not outlive the gesture either way.
+                        ws.dragModule = null
                     }
-                    ws.active?.dropModule()
                 }
             }
             .padding(horizontal = 10.dp, vertical = 9.dp),

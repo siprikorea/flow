@@ -703,6 +703,9 @@ class EditorState(
     fun dropModule() {
         val d = dragModule ?: return
         dragModule = null
+        // the canvas has to be the thing on screen: its origin and size are only meaningful then,
+        // and a node added behind a data-editor tab would appear somewhere the user never dropped it
+        if (!ws.canvasOpen) return
         val local = d.pos - canvasOrigin
         val inCanvas = local.x >= 0 && local.y >= 0 &&
             local.x <= canvasSize.width && local.y <= canvasSize.height
