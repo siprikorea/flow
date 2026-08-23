@@ -196,12 +196,26 @@ class Workspace(private val scope: CoroutineScope) {
     var expandedDirs by mutableStateOf(setOf(""))
     var components by mutableStateOf<List<CompDef>>(emptyList())
     var installedModules by mutableStateOf<List<ModuleInfo>>(emptyList())
-    val rootLabel: String = Platform.flowsDirName()
-    val dirLabel: String = Platform.flowsDirLabel()
+    // the open folder, or null. Kept as state so the tree and the menus follow it.
+    var projectRoot by mutableStateOf<String?>(null)
+    val rootLabel: String get() = Platform.projectName() ?: ""
+    val dirLabel: String get() = projectRoot ?: ""
+    val hasProject: Boolean get() = projectRoot != null
+
+    /** Opens [path] as the project folder, or closes the current one when null. */
+    fun openProject(path: String?) {
+        Platform.openProject(path)
+        projectRoot = Platform.projectRoot()
+        projectSelected = emptySet()
+        expandedDirs = setOf("")
+        refreshFiles()
+    }
 
     fun t(key: String) = flow.i18n.tr(lang, key)
 
     init {
+        // no folder is open at startup, the way an editor starts with none; the session restores
+        // preferences and window state but not a project
         refreshFiles()
         loadSession()
     }
@@ -512,10 +526,40 @@ class Workspace(private val scope: CoroutineScope) {
         return dest
     }
 
-    // File > Open, or a .flow file dropped onto the editor window: copy it into the project,
-    // then open it.
+    /**
+     * A .flow chosen from disk, or dropped on the window.
+     *
+     * With a folder open it is copied in and opened from there, so it becomes part of the project.
+     * With none, it is opened where it lies and saves back to the same file — an editor lets you
+     * work on a single file without adopting its folder.
+     */
     fun importFlow(path: String, dir: String = targetDir()) {
-        copyFlowIn(path, dir)?.let { openFile(it) }
+        if (hasProject) copyFlowIn(path, dir)?.let { openFile(it) } else openStandaloneFile(path)
+    }
+
+    /** Opens a .flow by absolute path, with no project around it. */
+    fun openStandaloneFile(path: String) {
+        docs.indexOfFirst { it.standalonePath == path }.takeIf { it >= 0 }?.let {
+            activeData = null; activeIndex = it; return
+        }
+        val label = Platform.fileName(path)
+        val raw = Platform.readExternalFlow(path)
+        val flow = raw?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() }
+        if (flow == null) {
+            showError(
+                t(if (raw == null) "openErrorNotFlow" else "openErrorBroken").replace("{name}", label),
+                "openErrorTitle",
+            )
+            return
+        }
+        val doc = EditorState(scope, this, path).also {
+            it.standalonePath = path
+            it.load(flow)
+            it.showValidation = true
+        }
+        docs.add(doc)
+        activeData = null
+        activeIndex = docs.lastIndex
     }
 
     // A .flow file dropped onto a project folder (or the root row): copy it in, but leave the
@@ -657,11 +701,11 @@ class Workspace(private val scope: CoroutineScope) {
             windowWidth = s.windowWidth
             windowHeight = s.windowHeight
             windowMaximized = s.windowMaximized
-            s.openFiles.filter { Platform.readFlow(it) != null }.forEach { openFile(it, reportError = false) }
-            activeIndex = s.activeIndex.coerceIn(0, (docs.size - 1).coerceAtLeast(0))
+            // openFiles named paths inside whichever folder was open, and none is at startup —
+            // they are left for the user to reopen rather than guessed at against another folder
+            activeIndex = 0
         }
-        if (docs.isEmpty()) {
-            if (files.isNotEmpty()) openFile(files.first()) else newComponent()
-        }
+        // and nothing is created either: an editor with no folder open shows an empty editor,
+        // it does not invent a file
     }
 }

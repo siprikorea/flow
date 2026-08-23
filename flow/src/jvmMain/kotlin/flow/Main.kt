@@ -183,7 +183,9 @@ private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
     MenuBar {
         Menu(ws.t("menuFile")) {
             Item(ws.t("newComponent")) { ws.newComponent() }
+            Item(ws.t("openFolder")) { Platform.pickFolder()?.let { ws.openProject(it) } }
             Item(ws.t("openFile")) { Platform.pickFlowFile()?.let { ws.importFlow(it) } }
+            Item(ws.t("closeFolder")) { ws.openProject(null) }
             Item(ws.t("save")) { ws.saveActive() }
             Item(ws.t("closeTab")) { ws.requestClose(ws.activeIndex) }
             Separator()

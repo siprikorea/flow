@@ -110,8 +110,15 @@ fun LeftToolWindow(ws: Workspace) {
 private fun ProjectPanel(ws: Workspace) {
     Column(Modifier.fillMaxWidth()) {
         PanelHeader(ws.t("tabProject")) {
-            HeaderIcon(onClick = { ws.requestNewFolder() }) { tint -> FolderPlusGlyph(tint, 15.dp) }
-            HeaderIcon(onClick = { ws.newComponent() }) { tint -> Txt("+", 15.sp, tint, weight = FontWeight.Bold) }
+            // creating anything needs somewhere to put it, so these wait for a folder
+            if (ws.hasProject) {
+                HeaderIcon(onClick = { ws.requestNewFolder() }) { tint -> FolderPlusGlyph(tint, 15.dp) }
+                HeaderIcon(onClick = { ws.newComponent() }) { tint -> Txt("+", 15.sp, tint, weight = FontWeight.Bold) }
+            }
+        }
+        if (!ws.hasProject) {
+            EmptyProject(ws)
+            return@Column
         }
         Column(
             Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(bottom = 8.dp),
@@ -121,6 +128,23 @@ private fun ProjectPanel(ws: Workspace) {
                 ws.projectRows().forEach { row -> key(row.path) { ItemRow(ws, row) } }
             }
         }
+    }
+}
+
+// Nothing is open yet. Says so, and offers the one thing that changes it.
+@Composable
+private fun EmptyProject(ws: Workspace) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+        Txt(ws.t("noProject"), 12.sp, Palette.faintText)
+        Box(
+            Modifier
+                .border(1.dp, Palette.runFromBorder, RoundedCornerShape(6.dp))
+                .plainClick { Platform.pickFolder()?.let { ws.openProject(it) } }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        ) { Txt(ws.t("openFolderHint"), 11.5.sp, Palette.accentHover) }
     }
 }
 

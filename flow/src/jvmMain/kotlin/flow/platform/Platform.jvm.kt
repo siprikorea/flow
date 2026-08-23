@@ -13,7 +13,11 @@ import kotlinx.coroutines.runInterruptible
 
 actual object Platform {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
-    private val flowsDir = File(baseDir, "flows")
+    // No folder is open until one is chosen, so this starts null and every path operation below
+    // reads as empty. ~/.flow keeps only what belongs to the app itself — installed extensions,
+    // the session and the settings — under the user's home on every platform.
+    @Volatile
+    private var projectDir: File? = null
     private val sessionFile = File(baseDir, "session.json")
     private val settingsFile = File(baseDir, "settings.json")
     private val hms = DateTimeFormatter.ofPattern("HH:mm:ss")
@@ -31,8 +35,36 @@ actual object Platform {
         }
     }
 
-    private fun ensureDirs() {
-        flowsDir.mkdirs()
+    actual fun projectRoot(): String? = projectDir?.absolutePath
+    actual fun projectName(): String? = projectDir?.name
+
+    actual fun openProject(path: String?) {
+        projectDir = path?.let { File(it) }?.takeIf { it.isDirectory }
+    }
+
+    actual fun pickFolder(): String? {
+        // AWT's FileDialog opens folders only with this flag set, and it has to be put back or
+        // every later file dialog would select directories too
+        val previous = System.getProperty("apple.awt.fileDialogForDirectories")
+        if (isMac) System.setProperty("apple.awt.fileDialogForDirectories", "true")
+        try {
+            val dlg = FileDialog(null as Frame?, "Open Folder", FileDialog.LOAD)
+            dlg.isVisible = true
+            val dir = dlg.directory ?: return null
+            val name = dlg.file ?: return null
+            val picked = File(dir, name)
+            return if (picked.isDirectory) picked.absolutePath else picked.parentFile?.absolutePath
+        } finally {
+            if (isMac) {
+                if (previous == null) System.clearProperty("apple.awt.fileDialogForDirectories")
+                else System.setProperty("apple.awt.fileDialogForDirectories", previous)
+            }
+        }
+    }
+
+    actual fun writeExternalFlow(path: String, json: String): Boolean {
+        if (!path.endsWith(".flow")) return false
+        return runCatching { File(path).writeText(json); true }.getOrDefault(false)
     }
 
     // ── installed modules/components (delegated to ExtensionLoader) ──
@@ -120,36 +152,39 @@ actual object Platform {
 
     // flows 루트 기준 상대 경로('/' 구분)만 허용: 빈 세그먼트·상위 이동·심볼릭 링크 탈출 차단
     private fun resolveRel(rel: String, requireFlow: Boolean): File? {
+        val root = projectDir ?: return null
         if (rel.isEmpty() || rel.contains('\\')) return null
         if (requireFlow && !rel.endsWith(".flow")) return null
         val parts = rel.split('/')
         if (parts.any { it.isEmpty() || it == "." || it == ".." }) return null
         return runCatching {
-            val file = File(flowsDir, rel)
-            val base = flowsDir.canonicalFile.path + File.separator
+            val file = File(root, rel)
+            val base = root.canonicalFile.path + File.separator
             if (file.canonicalFile.path.startsWith(base)) file else null
         }.getOrNull()
     }
 
-    private fun relPath(file: File): String =
-        file.toRelativeString(flowsDir).replace(File.separatorChar, '/')
+    private fun relPath(root: File, file: File): String =
+        file.toRelativeString(root).replace(File.separatorChar, '/')
 
     // 깊이 제한 트리 순회, 숨김(.) 항목 제외
-    private fun walk(): Sequence<File> {
-        ensureDirs()
-        return flowsDir.walkTopDown().maxDepth(MAX_TREE_DEPTH)
+    private fun walk(): Sequence<Pair<File, File>> {
+        val root = projectDir ?: return emptySequence()
+        return root.walkTopDown().maxDepth(MAX_TREE_DEPTH)
             .onEnter { !it.name.startsWith(".") }
-            .filter { it != flowsDir && !it.name.startsWith(".") }
+            .filter { it != root && !it.name.startsWith(".") }
+            .map { root to it }
     }
 
     actual fun listFlows(): List<String> =
-        walk().filter { it.isFile && it.name.endsWith(".flow") }.map { relPath(it) }.sorted().toList()
+        walk().filter { it.second.isFile && it.second.name.endsWith(".flow") }
+            .map { relPath(it.first, it.second) }.sorted().toList()
 
     actual fun listProjectFiles(): List<String> =
-        walk().filter { it.isFile }.map { relPath(it) }.sorted().toList()
+        walk().filter { it.second.isFile }.map { relPath(it.first, it.second) }.sorted().toList()
 
     actual fun listFlowDirs(): List<String> =
-        walk().filter { it.isDirectory }.map { relPath(it) }.sorted().toList()
+        walk().filter { it.second.isDirectory }.map { relPath(it.first, it.second) }.sorted().toList()
 
     actual fun readFlow(name: String): String? {
         val file = resolveRel(name, requireFlow = true) ?: return null
@@ -182,14 +217,12 @@ actual object Platform {
         return runCatching { n.parentFile?.mkdirs(); o.renameTo(n) }.getOrDefault(false)
     }
 
-    actual fun flowsDirLabel(): String = flowsDir.absolutePath
-    actual fun flowsDirName(): String = flowsDir.name
 
     // ── "Open In" ──
     // The project root resolves to the flows dir itself; anything else goes through resolveRel, so
     // a crafted path still cannot point the file manager outside the project.
     private fun openTarget(rel: String): File? =
-        if (rel.isEmpty()) flowsDir else resolveRel(rel, requireFlow = false)?.takeIf { it.exists() }
+        if (rel.isEmpty()) projectDir else resolveRel(rel, requireFlow = false)?.takeIf { it.exists() }
 
     private fun run(vararg command: String) {
         runCatching { ProcessBuilder(*command).start() }

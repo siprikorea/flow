@@ -55,7 +55,9 @@ flow_editor/
 Both rails mark the cursor position with a faint wash on hover and keep the open one lit with an accent bar on the window edge.
 
 ## Project panel (file tree)
-The panel shows `~/.flow/flows` as an IntelliJ-style tree: the root row carries the folder name with its full path greyed out beside it, and folders expand/collapse by their chevron (or a double-click). Which folders are open is remembered in the session.
+Files and folders work as they do in a code editor. Nothing is open at startup: the panel says so and offers **Open Folder…**, and **File ▸ Open Folder…** points it at any folder on disk, which then shows as a tree — the root row carries the folder name with its full path beside it, and folders expand by their chevron (or a double-click). **File ▸ Close Folder** puts it back to nothing.
+
+**File ▸ Open File…** opens a single `.flow` whether or not a folder is open. With one open the file is copied in and becomes part of the project; with none it is edited where it lies and saves back to its own path, so one file can be worked on without adopting its folder.
 - **Select** — click; Cmd/Ctrl+click extends the selection
 - **Open** — double-click a flow file (a folder toggles instead)
 - **Add** — the header's `+` creates a flow and the folder icon creates a folder, both inside the selected folder
@@ -136,7 +138,7 @@ Besides the UI, a component can be executed from the terminal: pick a component 
 ./gradlew :flow:cli --args="double --in in=10" # per-port input → out = 20
 ```
 
-Components are read from `~/.flow/flows` (by name) or a file path. The engine evaluates nodes in topological order; `map`/`filter` expressions are handled by a small evaluator (arithmetic, comparisons, variable `x`/`value`), and nested `comp:` nodes are expanded recursively.
+Components are read from the open folder (by name) or a file path. The engine evaluates nodes in topological order; `map`/`filter` expressions are handled by a small evaluator (arithmetic, comparisons, variable `x`/`value`), and nested `comp:` nodes are expanded recursively.
 
 ## Extensions
 
@@ -180,16 +182,17 @@ port data crosses a pipe, so a very large payload is copied on the way in and ou
 
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 
-The rest of the app data dir: `~/.flow/flows/` is the project, `~/.flow/settings.json` holds the
-preferences Settings edits, and `~/.flow/session.json` the open tabs and window layout.
+`~/.flow` holds only what belongs to the app — installed extensions, `settings.json` for the
+preferences Settings edits, and `session.json` for the window layout. It sits under the user's home
+on every platform, and is not where flows live: those are wherever the open folder is.
 
 ### Installing
 **Extensions** (logo menu) lists what the registry offers with **Install**, or **Update** when it
 carries a newer `version` than the installed one, and **Uninstall** on anything already installed.
 The same list covers what was installed from a file rather than the registry, so nothing becomes
-unremovable; **Install extension…** above it takes a jar. **Settings ▸ Flows** lists the project's flows — the same
-`~/.flow/flows` the project panel and the module palette read, so a flow appears in one place
-rather than needing to be registered somewhere else. **Install flow…** copies a `.flow` from
+unremovable; **Install extension…** above it takes a jar. **Settings ▸ Flows** lists the open folder's flows — the same
+folder the project panel and the module palette read, so a flow appears in one place rather than
+needing to be registered somewhere else. **Install flow…** copies a `.flow` from
 elsewhere into it, and removing a row deletes the file after a confirmation. If an id already
 exists you're asked to **overwrite**.
 
@@ -235,7 +238,8 @@ is laid out left to right with each node centred on whatever feeds it.
 **Nothing is written.** `build_flow` hands back the file's contents and stops there; what goes into
 the project is the user's call, so they save it and bring it in through **File ▸ Open File…** or by
 dropping it on the window. Editing an existing flow is therefore `read_flow` → change the spec →
-`build_flow` → save over it. `~/.flow/flows` is only ever read by this server.
+`build_flow` → save over it. The folder Flow has open is only ever read by this server, and the
+reading tools say so when there is none.
 
 Both `read_flow` and `validate_flow` report the faults that can be established structurally: a
 module that is not installed, an option set to a value it does not accept, ports that no longer

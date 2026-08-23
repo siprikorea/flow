@@ -37,7 +37,19 @@ expect object Platform {
     // file the project sandbox wouldn't otherwise resolve). Null if missing or not a .flow file.
     fun readExternalFlow(path: String): String?
 
-    // Project folder tree; paths are relative to the flows root ("sub/a.flow", "sub").
+    // ── the project folder ──
+    // Any folder the user picks, or none. Every path below is relative to whichever is open, and
+    // reads as empty while none is: the app starts without one, as an editor does.
+    fun projectRoot(): String?               // absolute path, or null when no folder is open
+    fun openProject(path: String?)           // null closes the current one
+    fun projectName(): String?               // the folder's own name, for the tree's root row
+    fun pickFolder(): String?                // folder picker dialog
+
+    // Reading and writing a .flow by absolute path, for a file opened on its own with no project
+    // folder around it.
+    fun writeExternalFlow(path: String, json: String): Boolean
+
+    // Project folder tree; paths are relative to the project root ("sub/a.flow", "sub").
     fun listFlows(): List<String>            // *.flow anywhere under the root, recursive
     fun listProjectFiles(): List<String>     // every file under the root (the tree shows them all)
     fun listFlowDirs(): List<String>         // folders anywhere under the root, recursive
@@ -46,8 +58,6 @@ expect object Platform {
     fun createFlowDir(path: String): Boolean
     fun deleteFlowPath(path: String)         // file, or folder with everything under it
     fun renameFlowPath(oldPath: String, newPath: String): Boolean // file or folder
-    fun flowsDirLabel(): String              // absolute path
-    fun flowsDirName(): String               // root folder name
 
     // "Open In" on a project item. [rel] is a project-relative path ("" = the root folder itself);
     // anything that escapes the project is refused, as everywhere else.

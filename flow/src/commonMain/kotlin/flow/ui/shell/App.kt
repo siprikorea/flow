@@ -236,7 +236,8 @@ private fun NewFolderDialog(ws: Workspace) {
         ) {
             Txt(ws.t("newFolderTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
             // where it lands: the project root shows as its folder name
-            Txt(ws.rootLabel + "/" + (ws.newFolderParent ?: ""), 11.sp, Palette.faintText, mono = true, maxLines = 1)
+            Txt(listOf(ws.rootLabel, ws.newFolderParent ?: "").filter { it.isNotEmpty() }.joinToString("/"),
+                11.sp, Palette.faintText, mono = true, maxLines = 1)
             DtxField(text, { text = it })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelNewFolder() }
@@ -396,13 +397,15 @@ private fun ExtensionsSettings(ws: Workspace) {
 @Composable
 private fun FlowsSettings(ws: Workspace) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        DialogButton(ws.t("installLocalFlow"), Palette.accent, Palette.holeBg, filled = true) {
-            Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
+        if (ws.hasProject) {
+            DialogButton(ws.t("installLocalFlow"), Palette.accent, Palette.holeBg, filled = true) {
+                Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
+            }
         }
         Txt(ws.t("installedComponents").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-        Txt(ws.dirLabel, 10.5.sp, Palette.faintText, mono = true, maxLines = 1)
-        val flows = ws.files.filter { it.endsWith(".flow") }
-        if (flows.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
+        val flows = if (ws.hasProject) ws.files.filter { it.endsWith(".flow") } else emptyList()
+        if (!ws.hasProject) Txt(ws.t("noProject"), 12.sp, Palette.faintText)
+        else if (flows.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             flows.forEach { path ->
                 // a flow only reads as a component once it has boundary nodes; say so either way

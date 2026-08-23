@@ -191,6 +191,13 @@ class EditorState(
         return if (hasUnconnectedInput || hasUnconnectedOutput) t("valNotConnected") else null
     }
 
+    /**
+     * Where this document lives when it is not inside the project folder — a file opened on its own
+     * with no folder open, the way an editor lets you work on one file. Null means [fileName] is a
+     * path relative to the project.
+     */
+    var standalonePath: String? = null
+
     // save to file; missing in/out boundary blocks the save, unconnected ports only warn
     fun save(): Boolean {
         showValidation = true // validate on save: flag unconnected modules on the canvas
@@ -199,7 +206,25 @@ class EditorState(
         resetRun()
         running = false
         validateComponent()?.let { ws.showError(it); return false }
-        Platform.writeFlow(fileName, flowJson())
+        val standalone = standalonePath
+        if (standalone != null) {
+            if (!Platform.writeExternalFlow(standalone, flowJson())) {
+                ws.showError(ws.t("saveFailed").replace("{name}", Platform.fileName(standalone)))
+                return false
+            }
+        } else if (ws.hasProject) {
+            Platform.writeFlow(fileName, flowJson())
+        } else {
+            // nowhere to put it yet: ask, and remember the answer for the next save
+            val picked = Platform.pickFileSave(Platform.fileName(fileName)) ?: return false
+            val target = if (picked.endsWith(".flow")) picked else "$picked.flow"
+            if (!Platform.writeExternalFlow(target, flowJson())) {
+                ws.showError(ws.t("saveFailed").replace("{name}", Platform.fileName(target)))
+                return false
+            }
+            standalonePath = target
+            fileName = target
+        }
         persisted = true
         savedSig = flowJson()
         saveTime = Platform.currentTimeHms()

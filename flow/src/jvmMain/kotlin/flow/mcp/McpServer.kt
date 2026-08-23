@@ -47,6 +47,12 @@ object McpServer {
     // to an MCP client is far easier to edit indented than as one line
     private val prettyJson = Json { ignoreUnknownKeys = true; encodeDefaults = true; prettyPrint = true }
 
+    // Reading a project needs one to be open. build_flow does not — it returns the file's contents
+    // and never touches a folder — so it keeps working either way.
+    private const val NO_PROJECT =
+        "no project folder is open — open one in Flow (File \u25b8 Open Folder…), or use build_flow, " +
+            "which returns the file's contents without needing one"
+
     fun run() {
         System.err.println("[flow-mcp] listening on stdio")
         generateSequence(::readLine).forEach { line ->
@@ -108,8 +114,9 @@ object McpServer {
         ),
         Tool(
             name = "list_flows",
-            description = "List the flow files in the Flow project (~/.flow/flows) with their input/output " +
-                "ports — use it to find the flow to read or edit.",
+            description = "List the flow files in the folder Flow currently has open, with their " +
+                "input/output ports — use it to find the flow to read or edit. Reports when no folder " +
+                "is open.",
             schema = objectSchema(emptyList()),
             call = { listFlows() },
         ),
@@ -120,7 +127,7 @@ object McpServer {
                 "twice, a cycle, a missing boundary). Use it to review a flow, fix the spec, and pass it to " +
                 "build_flow for the corrected file. Coordinates come back too — keep them to preserve the " +
                 "arrangement, or change them to tidy the layout.",
-            schema = objectSchema(listOf(StringField("path", "project-relative path, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
+            schema = objectSchema(listOf(StringField("path", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
             call = { args -> readFlowSpec(argText(args, "path")) },
         ),
         Tool(
@@ -129,7 +136,7 @@ object McpServer {
                 "installed, an option set to a value it does not accept, ports that no longer match the " +
                 "node's options, an edge to a port that isn't there, an input fed twice or not at all, a " +
                 "loop in the wiring, a missing cin/cout. Returns 'no problems found' when it is sound.",
-            schema = objectSchema(listOf(StringField("path", "project-relative path, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
+            schema = objectSchema(listOf(StringField("path", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
             call = { args -> validateFlowTool(argText(args, "path")) },
         ),
         Tool(
@@ -201,8 +208,10 @@ object McpServer {
     }
 
     private fun listFlows(): String {
+        // the server runs beside the app but has no folder of its own open
+        val root = Platform.projectRoot() ?: return NO_PROJECT
         val files = Platform.listFlows()
-        if (files.isEmpty()) return "(no flow files yet)"
+        if (files.isEmpty()) return "$root — (no flow files yet)"
         return files.joinToString("\n") { file ->
             val flow = loadFlow(file)
             val summary = when {
@@ -225,6 +234,7 @@ object McpServer {
 
     private fun loadForEdit(path: String): Pair<String, FlowFile> {
         val name = normalizeFlowPath(path)
+        Platform.projectRoot() ?: error(NO_PROJECT)
         val raw = Platform.readFlow(name) ?: error("flow file not found: $name")
         val flow = runCatching { runnerJson.decodeFromString<FlowFile>(raw) }
             .getOrElse { e -> error("$name is not valid flow JSON: ${e.message}") }
