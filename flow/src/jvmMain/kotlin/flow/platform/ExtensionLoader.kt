@@ -68,7 +68,32 @@ internal object ExtensionLoader {
         dir.listFiles { f -> f.isFile && LOADABLE_SUFFIXES.any { s -> f.name.endsWith(s) } } ?: emptyArray()
 
     private fun isolatedLoader(jars: Array<File>): URLClassLoader =
-        URLClassLoader(jars.map { it.toURI().toURL() }.toTypedArray(), apiClassLoader)
+        ExtensionClassLoader(jars.map { it.toURI().toURL() }.toTypedArray(), apiClassLoader)
+
+    /**
+     * Loads an extension's own jars before falling back to the host's.
+     *
+     * A plain URLClassLoader asks its parent first, so an extension bundling a different version of
+     * a library the host also uses silently got the host's — the dependency it was built and tested
+     * against was ignored. Looking in its own jars first is what makes bundling a dependency mean
+     * anything.
+     *
+     * Two things still come from the host, and have to: the extension contract itself, since both
+     * sides must be talking about the same ModuleExtension class, and anything the extension does
+     * not carry — the shipped extensions are thin and rely on the host's Kotlin runtime.
+     */
+    private class ExtensionClassLoader(urls: Array<java.net.URL>, private val host: ClassLoader) :
+        URLClassLoader(urls, host) {
+        override fun loadClass(name: String, resolve: Boolean): Class<*> =
+            synchronized(getClassLoadingLock(name)) {
+                findLoadedClass(name)
+                    ?: if (name.startsWith("flow.extension.")) host.loadClass(name)
+                    else runCatching { findClass(name) }.getOrElse { super.loadClass(name, resolve) }
+            }
+
+        // the same order for resources, so an extension's own META-INF/services and config win
+        override fun getResource(name: String): java.net.URL? = findResource(name) ?: super.getResource(name)
+    }
 
     // extension option specs -> the model's typed option specs (for palette/props)
     private fun optDefs(ext: ModuleExtension): List<OptDef> = optDefs(ext.options)

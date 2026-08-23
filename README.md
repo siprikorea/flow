@@ -139,6 +139,15 @@ of `component.json`; without that distinction a component's bundled dependency w
 as an installed module. Each runs in a **sandbox**: an isolated classloader over just its own
 folder's JARs, so one extension's dependencies never clash with another's.
 
+Each extension loads its **own jars before the host's**, so a dependency it bundles is the one it
+gets rather than being silently replaced by whatever version the app happens to carry. Two things
+still come from the host and have to: the `flow.extension` contract, since both sides must mean the
+same `ModuleExtension` class, and anything the extension does not bundle — the shipped extensions
+are thin and use the host's Kotlin runtime.
+
+This is classloader isolation, not process isolation: extensions run in the app's own JVM, so they
+can still reach its classes and a runaway one still shares its heap.
+
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 
 The rest of the app data dir: `~/.flow/flows/` is the project, `~/.flow/settings.json` holds the
