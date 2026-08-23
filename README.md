@@ -114,7 +114,7 @@ Components are read from `~/.flow/flows` (by name) or a file path. The engine ev
 
 Extensions provide **modules only** — components are built inside the Flow tool and added there. A module extension is identified by a **package-format id**, declares input/output ids, and may declare typed options (text / number / select) shown in the property panel. Its ports carry **bytes**. Both the ports and the options on show can depend on the current option values (`inputsFor` / `outputsFor` / `optionsFor`) — `flow.keyfactory` swaps its ports between `password`+`salt` and `key`, and hides the options its algorithm doesn't use. The `flow-extension-api` module defines the contract:
 
-- **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code (a JAR), registered under `META-INF/services/flow.extension.ModuleExtension`.
+- **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code, registered under `META-INF/services/flow.extension.ModuleExtension`. The file is a jar and the class loader reads it by content, but it carries a `.flowext` suffix so it is recognisable as a Flow extension rather than as any other library; `.jar` still loads, so anything installed earlier keeps working.
 
 Nothing ships with the app — the palette starts empty and every module arrives by being installed
 from **Settings ▸ Extensions**. The published set covers the JCA facilities plus a few utilities:

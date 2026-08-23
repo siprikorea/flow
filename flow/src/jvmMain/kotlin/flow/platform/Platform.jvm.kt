@@ -49,8 +49,11 @@ actual object Platform {
     actual fun uninstallComponent(id: String) = ExtensionLoader.uninstallComponent(id)
 
     actual fun pickJar(): String? {
-        val dlg = FileDialog(null as Frame?, "Install Plugin (JAR)", FileDialog.LOAD)
-        dlg.setFilenameFilter { _, name -> name.endsWith(".jar") }
+        val dlg = FileDialog(null as Frame?, "Install Flow Extension", FileDialog.LOAD)
+        // .jar too: an extension built elsewhere may not have been renamed yet
+        dlg.setFilenameFilter { _, name ->
+            name.endsWith(ExtensionLoader.EXTENSION_SUFFIX) || name.endsWith(".jar")
+        }
         dlg.isVisible = true
         val dir = dlg.directory ?: return null
         val name = dlg.file ?: return null

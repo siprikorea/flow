@@ -32,6 +32,13 @@ internal object ExtensionLoader {
 
     private const val COMPONENT_FILE = "component.json"
 
+    // Extensions are jars underneath — the class loader reads them by content, not by name — but
+    // they carry their own suffix so one is recognisable as a Flow extension rather than as some
+    // library that happens to be lying around. ".jar" is still accepted when scanning, so anything
+    // installed before this keeps loading.
+    const val EXTENSION_SUFFIX = ".flowext"
+    private val LOADABLE_SUFFIXES = listOf(EXTENSION_SUFFIX, ".jar")
+
     init {
         // one-time move of the previous split store; a name already taken in the merged dir is
         // left alone rather than overwritten, so nothing installed is silently replaced
@@ -56,7 +63,7 @@ internal object ExtensionLoader {
     private fun isComponentDir(dir: File) = File(dir, COMPONENT_FILE).exists()
 
     private fun jarsIn(dir: File): Array<File> =
-        dir.listFiles { f -> f.isFile && f.name.endsWith(".jar") } ?: emptyArray()
+        dir.listFiles { f -> f.isFile && LOADABLE_SUFFIXES.any { s -> f.name.endsWith(s) } } ?: emptyArray()
 
     private fun isolatedLoader(jars: Array<File>): URLClassLoader =
         URLClassLoader(jars.map { it.toURI().toURL() }.toTypedArray(), apiClassLoader)
@@ -191,7 +198,7 @@ internal object ExtensionLoader {
 
         mods.forEach { m ->
             val d = File(extensionsDir, m.id).also { it.deleteRecursively(); it.mkdirs() }
-            runCatching { jar.copyTo(File(d, "${m.id}.jar"), overwrite = true) }
+            runCatching { jar.copyTo(File(d, "${m.id}$EXTENSION_SUFFIX"), overwrite = true) }
         }
         moduleCache = null
         return InstallResult(installed = mods.map { it.id })
