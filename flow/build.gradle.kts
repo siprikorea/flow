@@ -26,6 +26,12 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(kotlin("test"))
+            // the shipped extensions are tested against their specs here, where a failure is loud;
+            // in the app they are loaded from jars, so this is a compile dependency only
+            implementation(project(":flow-extensions:otp-extension"))
+            implementation(project(":flow-extensions:jwt-extension"))
+            implementation(project(":flow-extensions:json-extension"))
+            implementation(project(":flow-extension-api"))
         }
     }
 }
