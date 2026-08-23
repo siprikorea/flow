@@ -415,6 +415,7 @@ private fun FlowsSettings(ws: Workspace) {
                     note = comp?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
                         ?: ws.t("flowNoPorts"),
                     onUninstall = { ws.requestDeleteFiles(setOf(path)) },
+                    uninstallLabel = ws.t("delete"),
                 )
             }
         }
@@ -451,6 +452,10 @@ private fun ExtensionRow(
     onUpdate: (() -> Unit)? = null,
     onInstall: (() -> Unit)? = null,
     onUninstall: (() -> Unit)? = null,
+    // what the destructive action is called. On the Extensions page it removes an installed copy;
+    // on Flows it deletes the user's own file, and a button reading "Uninstall" there invites
+    // someone to unregister something and lose the file instead.
+    uninstallLabel: String = ws.t("uninstall"),
 ) {
     Row(
         Modifier
@@ -475,7 +480,7 @@ private fun ExtensionRow(
             // update sits ahead of uninstall, so the useful action is the one nearer the text
             onUpdate?.let { RowButton(ws.t("update"), Palette.warn, Palette.holeBg, it) }
             onInstall?.let { RowButton(ws.t("install"), Palette.accent, Palette.holeBg, it) }
-            onUninstall?.let { RowButton(ws.t("uninstall"), null, Palette.errorSoft, it) }
+            onUninstall?.let { RowButton(uninstallLabel, null, Palette.errorSoft, it) }
         }
     }
 }

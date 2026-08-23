@@ -344,6 +344,12 @@ fun ProjectContextMenu(ws: Workspace) {
                             ws.closeProjectMenu()
                             ws.requestNewFolder(dir)
                         }
+                        // an existing .flow from elsewhere, copied into the same folder a new one
+                        // would land in — the menu equivalent of dropping it on that folder
+                        MenuItem(ws.t("addExistingFlow")) {
+                            ws.closeProjectMenu()
+                            Platform.pickFlowFile()?.let { ws.copyFlowIntoFolder(it, dir) }
+                        }
                     }
                 }
                 "openIn" -> MenuCard {
