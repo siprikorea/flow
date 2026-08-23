@@ -147,17 +147,41 @@ class EditorState(
     }
 
     // JSON to write to file — run state (status/active) is reset and not persisted.
+    /**
+     * The flow as it is written to file: what the flow *is*, with nothing from having run it.
+     *
+     * Port values are left out. An input is the user's to supply each time they open the flow, and
+     * an output only exists once it has been produced — keeping either would save a sample of one
+     * run as though it were part of the design, and quietly ship whatever was typed into an input
+     * along with the file.
+     *
+     * This is also what [dirty] compares, so typing into an input no longer counts as an unsaved
+     * change: there is nothing about it left to save.
+     */
     fun flowJson(): String = json.encodeToString(
         FlowFile(
             version = 1,
-            nodes = nodes.map { if (it.status == "idle") it else it.copy(status = "idle") },
+            nodes = nodes.map { n ->
+                n.copy(
+                    status = "idle",
+                    inputs = n.inputs.map { if (it.data.isEmpty()) it else Port(it.name) },
+                    outputs = n.outputs.map { if (it.data.isEmpty()) it else Port(it.name) },
+                )
+            },
             edges = edges.map { if (it.active) it.copy(active = false) else it },
             seq = seq,
         )
     )
 
-    // whether there are unsaved edits (new unsaved docs are always dirty; run-state changes excluded)
-    val dirty: Boolean get() = !persisted || flowJson() != savedSig
+    /** Nothing drawn: no nodes and no edges, so there is nothing a save would preserve. */
+    val isEmpty: Boolean get() = nodes.isEmpty() && edges.isEmpty()
+
+    /**
+     * Whether there are unsaved edits. New unsaved documents count, run state does not — and an
+     * empty canvas never does: a blank document that was never drawn on has nothing to lose, and
+     * asking about it turns closing a stray tab into a dialog.
+     */
+    val dirty: Boolean get() = !isEmpty && (!persisted || flowJson() != savedSig)
 
     // Blocking error: a component needs at least one input and one output boundary node.
     fun validateComponent(): String? {
