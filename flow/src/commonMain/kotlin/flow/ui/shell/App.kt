@@ -428,28 +428,57 @@ private fun ExtensionCategory(ws: Workspace, title: String, any: Boolean, rows: 
 // falls back to another, rather than the data becoming unreadable.
 @Composable
 private fun ViewsSettings(ws: Workspace) {
+    LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
             Platform.pickJar()?.let { ws.installJarFlow(it) }
         }
-        Txt(ws.t("viewsSection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-        if (ws.installedViews.isEmpty()) Txt(ws.t("noViews"), 12.sp, Palette.faintText)
+
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Txt(ws.t("viewsSection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
+        }
+
+        // One list of every view there is — the ones on offer and the ones already here — so a
+        // page that opens with nothing installed still says what could be. A view is installed the
+        // same way a module is; what is different is that it can also be switched off without
+        // being removed, which is the row's middle action once it is installed.
+        val offered = ws.registry.filter { it.kind == KIND_VIEW }
+        val offeredIds = offered.map { it.id }.toSet()
+        val strays = ws.installedViews.filterNot { it.id in offeredIds }
+
+        when {
+            ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
+            ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
+            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("noViews"), 12.sp, Palette.faintText)
+        }
+
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            ws.installedViews.forEach { view ->
-                val enabled = view.id !in ws.disabledViews
-                ExtensionRow(
-                    ws,
-                    title = view.name,
-                    id = view.id,
-                    version = view.version,
-                    note = if (enabled) "" else ws.t("viewDisabled"),
-                    onUpdate = { ws.setViewEnabled(view.id, !enabled) },
-                    updateLabel = ws.t(if (enabled) "viewDisable" else "viewEnable"),
-                    onUninstall = { ws.uninstallModule(view.id) },
-                )
-            }
+            offered.forEach { entry -> ViewRow(ws, entry.id, entry.name.ifBlank { entry.id }, entry.description, entry) }
+            strays.forEach { v -> ViewRow(ws, v.id, v.name, ws.t("fromFile"), null) }
         }
     }
+}
+
+// One view: install it if it is not here, and once it is, switch it off or remove it.
+@Composable
+private fun ViewRow(ws: Workspace, id: String, title: String, note: String, entry: flow.model.RegistryEntry?) {
+    val installed = ws.installedViews.any { it.id == id }
+    val state = entry?.let { ws.registryState(it) }
+    val enabled = id !in ws.disabledViews
+    ExtensionRow(
+        ws,
+        title = title,
+        id = id,
+        version = ws.installedViews.find { it.id == id }?.version ?: entry?.version,
+        note = if (installed && !enabled) ws.t("viewDisabled") else note,
+        busy = id in ws.registryBusy,
+        onUpdate = if (state == flow.model.RegistryState.UPDATABLE) ({ ws.installFromRegistry(entry!!) }) else null,
+        onInstall = if (!installed && entry != null) ({ ws.installFromRegistry(entry) }) else null,
+        onToggle = if (installed) ({ ws.setViewEnabled(id, !enabled) }) else null,
+        toggleLabel = ws.t(if (enabled) "viewDisable" else "viewEnable"),
+        onUninstall = if (installed) ({ ws.uninstallModule(id) }) else null,
+    )
 }
 
 // The project's flows. This is where a flow lives — the project panel and the module palette read
@@ -513,10 +542,10 @@ private fun ExtensionRow(
     note: String,
     busy: Boolean = false,
     onUpdate: (() -> Unit)? = null,
-    // what the middle action is called. It offers an update on the Extensions page and switches a
-    // view on or off on the Views page — the same slot, because both act on the row they sit in.
-    updateLabel: String = ws.t("update"),
     onInstall: (() -> Unit)? = null,
+    // switches something on or off without removing it — what a view has and a module does not
+    onToggle: (() -> Unit)? = null,
+    toggleLabel: String = "",
     onUninstall: (() -> Unit)? = null,
     // what the destructive action is called. On the Extensions page it removes an installed copy;
     // on Flows it deletes the user's own file, and a button reading "Uninstall" there invites
@@ -544,8 +573,9 @@ private fun ExtensionRow(
             Txt(ws.t("installing"), 11.sp, Palette.faintText)
         } else {
             // update sits ahead of uninstall, so the useful action is the one nearer the text
-            onUpdate?.let { RowButton(updateLabel, Palette.warn, Palette.holeBg, it) }
+            onUpdate?.let { RowButton(ws.t("update"), Palette.warn, Palette.holeBg, it) }
             onInstall?.let { RowButton(ws.t("install"), Palette.accent, Palette.holeBg, it) }
+            onToggle?.let { RowButton(toggleLabel, null, Palette.menuText, it) }
             onUninstall?.let { RowButton(uninstallLabel, null, Palette.errorSoft, it) }
         }
     }
