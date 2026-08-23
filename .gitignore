@@ -2,6 +2,8 @@
 .gradle/
 build/
 composeApp/build/
+# Eclipse/IDE compile output, which some toolchains drop beside the sources
+bin/
 
 # Kotlin
 .kotlin/
