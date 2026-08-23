@@ -555,6 +555,9 @@ class EditorState(
     }
 
     private fun resetRun() {
+        // the engine pass too, not only the animation: leaving it running meant Stop looked like it
+        // had worked while a module carried on and its results still landed when it finished
+        computeJob?.cancel()
         simJobs.toList().forEach { it.cancel() }
         simJobs.clear()
         nodes = nodes.map { if (it.status == "idle") it else it.copy(status = "idle") }
@@ -634,6 +637,7 @@ class EditorState(
     }
 
     fun stopRun() {
+        computeJob?.cancel()
         simJobs.toList().forEach { it.cancel() }
         simJobs.clear()
         running = false

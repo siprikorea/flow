@@ -24,7 +24,7 @@ import kotlinx.coroutines.sync.withLock
 class FlowEngine(
     private val loadFlow: (String) -> FlowFile?,
     private val moduleIds: Set<String> = emptySet(),
-    private val moduleProcess: (String, Map<String, ByteArray?>, Map<String, String>) -> Map<String, ByteArray?> = { _, _, _ -> emptyMap() },
+    private val moduleProcess: suspend (String, Map<String, ByteArray?>, Map<String, String>) -> Map<String, ByteArray?> = { _, _, _ -> emptyMap() },
     // Called as each node finishes, with its error or null — on the evaluating thread, in
     // topological order. The canvas animation follows this so a node that really is working (a
     // sleep, a big file) is shown working, instead of the whole run waiting for the total.

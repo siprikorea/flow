@@ -12,6 +12,8 @@ import java.io.File
 import java.net.URLClassLoader
 import java.util.ServiceLoader
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 
 // Install store: everything installed lives under extensions/<id>/, holding either the module's
 // jar(s) or a component.json plus the module jars that component depends on. Each loads and runs
@@ -160,7 +162,11 @@ internal object ExtensionLoader {
         val engine = FlowEngine(
             loadFlow = { ref -> readComponent(ref)?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() } },
             moduleIds = sandbox.keys,
-            moduleProcess = { mid, ins, params -> sandbox[mid]?.let { runExtension(it, ins, params) } ?: emptyMap() },
+            moduleProcess = { mid, ins, params ->
+                runInterruptible(Dispatchers.Default) {
+                    sandbox[mid]?.let { runExtension(it, ins, params) } ?: emptyMap()
+                }
+            },
         )
         // a sandboxed component is run from ordinary (non-suspending) calls, so block here
         return runBlocking { engine.run(flow, inputs.mapValues { it.value ?: ByteArray(0) }) }

@@ -7,7 +7,9 @@ import flow.model.OptDef
 expect object Platform {
     // ── installed modules/components (each folder isolated by a classloader = sandbox) ──
     fun installedModuleInfos(): List<ModuleInfo>
-    fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?>
+    // Suspending because a module is arbitrary code that may block for as long as it likes, and
+    // Stop has to be able to cut it off; the JVM side runs it where cancellation interrupts it.
+    suspend fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?>
     // ports for the given option values (null = id isn't a known module). Most modules' ports
     // don't depend on options, in which case this just returns the module's fixed inputs/outputs.
     fun moduleInputsFor(id: String, options: Map<String, String>): List<String>?

@@ -8,6 +8,8 @@ import java.awt.Frame
 import java.io.File
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runInterruptible
 
 actual object Platform {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
@@ -35,8 +37,11 @@ actual object Platform {
 
     // ── installed modules/components (delegated to ExtensionLoader) ──
     actual fun installedModuleInfos(): List<ModuleInfo> = ExtensionLoader.moduleInfos()
-    actual fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
-        ExtensionLoader.process(id, inputs, options)
+    // runInterruptible so cancelling the run interrupts the thread the module is on. That reaches
+    // a module parked in sleep, wait or interruptible IO — most of what a module blocks on —
+    // though nothing can reach one spinning in a loop that never checks.
+    actual suspend fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
+        runInterruptible(Dispatchers.Default) { ExtensionLoader.process(id, inputs, options) }
     actual fun moduleInputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.inputsFor(id, options)
     actual fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.outputsFor(id, options)
     actual fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>? = ExtensionLoader.optionsFor(id, values)
