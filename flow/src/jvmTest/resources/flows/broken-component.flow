@@ -1,0 +1,79 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "in",
+      "type": "cin",
+      "label": "Text",
+      "x": 60,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "boom",
+      "type": "test.boom",
+      "label": "Boom",
+      "x": 340,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "out",
+      "type": "cout",
+      "label": "Result",
+      "x": 620,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "boom",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "boom",
+        "port": "out"
+      },
+      "to": {
+        "node": "out",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 6
+}

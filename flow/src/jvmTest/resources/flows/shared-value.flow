@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "in",
+      "type": "cin",
+      "label": "Text",
+      "x": 60,
+      "y": 200,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "v",
+      "type": "test.vandal",
+      "label": "Vandal",
+      "x": 340,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "w",
+      "type": "test.witness",
+      "label": "Witness",
+      "x": 340,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outV",
+      "type": "cout",
+      "label": "FromVandal",
+      "x": 620,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outW",
+      "type": "cout",
+      "label": "FromWitness",
+      "x": 620,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "v",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "w",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "v",
+        "port": "out"
+      },
+      "to": {
+        "node": "outV",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "w",
+        "port": "out"
+      },
+      "to": {
+        "node": "outW",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 10
+}

@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "in",
+      "type": "cin",
+      "label": "Text",
+      "x": 60,
+      "y": 200,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "c",
+      "type": "comp:chain.flow",
+      "label": "Chain",
+      "x": 340,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "Text"
+      ],
+      "outputs": [
+        "Result"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outC",
+      "type": "cout",
+      "label": "FromComponent",
+      "x": 620,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "boom",
+      "type": "test.boom",
+      "label": "Boom",
+      "x": 340,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outB",
+      "type": "cout",
+      "label": "FromBoom",
+      "x": 620,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "c",
+        "port": "Text"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "c",
+        "port": "Result"
+      },
+      "to": {
+        "node": "outC",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "boom",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "boom",
+        "port": "out"
+      },
+      "to": {
+        "node": "outB",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 10
+}

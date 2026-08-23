@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "a",
+      "type": "cin",
+      "label": "A",
+      "x": 60,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "b",
+      "type": "cin",
+      "label": "B",
+      "x": 60,
+      "y": 260,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "m",
+      "type": "test.two",
+      "label": "Two",
+      "x": 340,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "left",
+        "right"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "out",
+      "type": "cout",
+      "label": "Result",
+      "x": 620,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "a",
+        "port": "out"
+      },
+      "to": {
+        "node": "m",
+        "port": "left"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "b",
+        "port": "out"
+      },
+      "to": {
+        "node": "m",
+        "port": "left"
+      },
+      "active": false
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "m",
+        "port": "out"
+      },
+      "to": {
+        "node": "out",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 8
+}

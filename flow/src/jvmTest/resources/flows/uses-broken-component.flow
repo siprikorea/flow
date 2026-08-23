@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "in",
+      "type": "cin",
+      "label": "Text",
+      "x": 60,
+      "y": 200,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "c",
+      "type": "comp:broken-component.flow",
+      "label": "Broken",
+      "x": 340,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "Text"
+      ],
+      "outputs": [
+        "Result"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outC",
+      "type": "cout",
+      "label": "FromBroken",
+      "x": 620,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "ok",
+      "type": "test.upper",
+      "label": "Fine",
+      "x": 340,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outOk",
+      "type": "cout",
+      "label": "FromFine",
+      "x": 620,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "c",
+        "port": "Text"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "c",
+        "port": "Result"
+      },
+      "to": {
+        "node": "outC",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "ok",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "ok",
+        "port": "out"
+      },
+      "to": {
+        "node": "outOk",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 10
+}

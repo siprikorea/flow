@@ -1,0 +1,135 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "in",
+      "type": "cin",
+      "label": "Text",
+      "x": 60,
+      "y": 200,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "u",
+      "type": "test.upper",
+      "label": "Upper",
+      "x": 340,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "r",
+      "type": "test.reverse",
+      "label": "Reverse",
+      "x": 340,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outU",
+      "type": "cout",
+      "label": "Uppered",
+      "x": 620,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outR",
+      "type": "cout",
+      "label": "Reversed",
+      "x": 620,
+      "y": 340,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "u",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "r",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "u",
+        "port": "out"
+      },
+      "to": {
+        "node": "outU",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "r",
+        "port": "out"
+      },
+      "to": {
+        "node": "outR",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 10
+}

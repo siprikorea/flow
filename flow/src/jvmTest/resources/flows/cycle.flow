@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "a",
+      "type": "test.upper",
+      "label": "A",
+      "x": 60,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "b",
+      "type": "test.upper",
+      "label": "B",
+      "x": 340,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "out",
+      "type": "cout",
+      "label": "Result",
+      "x": 620,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "a",
+        "port": "out"
+      },
+      "to": {
+        "node": "b",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "b",
+        "port": "out"
+      },
+      "to": {
+        "node": "a",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "b",
+        "port": "out"
+      },
+      "to": {
+        "node": "out",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 7
+}

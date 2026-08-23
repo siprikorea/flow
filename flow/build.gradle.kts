@@ -23,6 +23,9 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
             implementation(project(":flow-extension-api"))
         }
+        jvmTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 

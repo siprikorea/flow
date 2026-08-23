@@ -100,6 +100,32 @@ Colors, spacing, and typography reproduce the original design spec pixel for pix
 - Grid unit 20, node/card radius 7–9, button radius 5–6
 - Fonts: system sans-serif (UI) + monospace (ids and code values)
 
+## Tests
+
+```bash
+./gradlew :flow:jvmTest      # or just ./gradlew build
+```
+
+The suite is built out of defects that actually happened, so each case names the behaviour a user
+would have seen rather than an internal detail. The flow files it runs live in
+[flow/src/jvmTest/resources/flows](flow/src/jvmTest/resources/flows) — real `.flow` files, one per
+scenario, so the format the app reads is exercised too and a fixture that stops parsing fails on its
+own rather than quietly turning other tests into ones that prove nothing.
+
+What is covered:
+
+- **Engine** — a module that is not installed fails rather than passing its input through; a failing
+  node stops its own branch and only that branch; a module writing through its input cannot reach a
+  sibling's data; a component that fails, is missing, or names itself fails the node that used it
+  without taking the process with it; a cycle terminates
+- **Authoring** (`build_flow`) — layout places a node against what feeds it, honours coordinates it
+  is given, and keeps an auto-placed node right of a pinned source; unknown types, bad ports and
+  duplicate ids are refused; wiring faults are reported
+- **Versions** — the comparison that decides whether an update is offered, including `1.10 > 1.2`
+  and `1.0 == 1.0.0`
+- **Input files** — a cin whose file has moved falls back to the bytes on its port, which is what
+  the data editor shows
+
 ## Terminal CLI
 
 Besides the UI, a component can be executed from the terminal: pick a component (a flow with input/output boundary nodes) and feed it input; it evaluates the graph and prints the output. Backed by a UI-independent execution engine (`flow.engine`).
