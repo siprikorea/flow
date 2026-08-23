@@ -391,8 +391,8 @@ private fun ExtensionsSettings(ws: Workspace) {
     }
 }
 
-// Flows installed as components — a separate category because they come from the user's own files
-// rather than the registry, and are removed rather than updated.
+// The project's flows. This is where a flow lives — the project panel and the module palette read
+// the same folder — so the page lists what is actually there rather than a separate install store.
 @Composable
 private fun FlowsSettings(ws: Workspace) {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -400,15 +400,21 @@ private fun FlowsSettings(ws: Workspace) {
             Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
         }
         Txt(ws.t("installedComponents").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-        val installed = ws.components.filter { it.installed }
-        if (installed.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
+        Txt(ws.dirLabel, 10.5.sp, Palette.faintText, mono = true, maxLines = 1)
+        val flows = ws.files.filter { it.endsWith(".flow") }
+        if (flows.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            installed.forEach { c ->
-                val id = c.file.removeSuffix(".json")
+            flows.forEach { path ->
+                // a flow only reads as a component once it has boundary nodes; say so either way
+                val comp = ws.findComp(path)
                 ExtensionRow(
-                    ws, title = c.name, id = id, version = null,
-                    note = "${c.ins.joinToString(",")} → ${c.outs.joinToString(",")}",
-                    onUninstall = { ws.uninstallComponent(id) },
+                    ws,
+                    title = flowLabel(path),
+                    id = path,
+                    version = null,
+                    note = comp?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
+                        ?: ws.t("flowNoPorts"),
+                    onUninstall = { ws.requestDeleteFiles(setOf(path)) },
                 )
             }
         }
@@ -523,6 +529,7 @@ fun SettingsScreen(ws: Workspace) {
     // while recording, the next key press becomes the binding (Esc cancels)
     LaunchedEffect(recording) { if (recording != null) recorder.requestFocus() }
 
+    Box(Modifier.fillMaxSize()) {
     Column(
         Modifier.fillMaxSize().background(Palette.appBg)
             .focusRequester(recorder)
@@ -612,6 +619,9 @@ fun SettingsScreen(ws: Workspace) {
             DialogButton(ws.t("apply"), Palette.buttonBorder, Palette.menuText) { apply() }
             DialogButton(ws.t("ok"), Palette.accent, Palette.holeBg, filled = true) { apply(); ws.showSettings = false }
         }
+    }
+    // deleting a flow is asked about in the window that asked for it, not behind the main one
+    ws.fileDeleteConfirm?.let { FileDeleteDialog(ws, it.size) }
     }
 }
 

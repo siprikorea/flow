@@ -146,8 +146,10 @@ preferences Settings edits, and `~/.flow/session.json` the open tabs and window 
 **Extensions** (logo menu) lists what the registry offers with **Install**, or **Update** when it
 carries a newer `version` than the installed one, and **Uninstall** on anything already installed.
 The same list covers what was installed from a file rather than the registry, so nothing becomes
-unremovable; **Install extension…** above it takes a jar. **Settings ▸ Flows** is the matching page
-for flows registered as components — **Install flow…** and an uninstall per row. If an id already
+unremovable; **Install extension…** above it takes a jar. **Settings ▸ Flows** lists the project's flows — the same
+`~/.flow/flows` the project panel and the module palette read, so a flow appears in one place
+rather than needing to be registered somewhere else. **Install flow…** copies a `.flow` from
+elsewhere into it, and removing a row deletes the file after a confirmation. If an id already
 exists you're asked to **overwrite**.
 
 A flow whose module is not installed now fails on that node rather than passing its input through

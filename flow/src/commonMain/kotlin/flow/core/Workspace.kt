@@ -245,20 +245,6 @@ class Workspace(private val scope: CoroutineScope) {
         } else refreshFiles()
     }
 
-    // Install the currently-edited component (with cin/cout). The id is generated in package-name format.
-    fun installActiveComponent() {
-        val doc = active ?: return
-        if (doc.nodes.none { it.type == "cin" || it.type == "cout" }) return // components only
-        val id = "local." + doc.fileName.removeSuffix(".flow").replace('/', '.')
-        val payload = doc.flowJson()
-        val r = Platform.installComponent(id, payload, overwrite = false)
-        if (r.conflicts.isNotEmpty()) {
-            installConfirm = InstallPending(id) {
-                Platform.installComponent(id, payload, overwrite = true); refreshFiles()
-            }
-        } else refreshFiles()
-    }
-
     /* ───────── extension registry ───────── */
 
     var registry by mutableStateOf<List<RegistryEntry>>(emptyList())
@@ -310,24 +296,9 @@ class Workspace(private val scope: CoroutineScope) {
         }
     }
 
-    /** Install a .flow chosen from disk as a component, without bringing it into the project. */
+    /** Install a .flow chosen from disk: it goes where flows live, alongside the rest of them. */
     fun installLocalFlow(path: String) {
-        val raw = Platform.readExternalFlow(path) ?: return
-        val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: run {
-            showError(t("openErrorBroken").replace("{name}", Platform.fileName(path)), "openErrorTitle")
-            return
-        }
-        if (flow.nodes.none { it.type == "cin" || it.type == "cout" }) {
-            showError(t("valNeedIo"))
-            return
-        }
-        val id = "local." + Platform.fileName(path).removeSuffix(".flow").replace('/', '.')
-        val r = Platform.installComponent(id, raw, overwrite = false)
-        if (r.conflicts.isNotEmpty()) {
-            installConfirm = InstallPending(id) {
-                Platform.installComponent(id, raw, overwrite = true); refreshFiles()
-            }
-        } else refreshFiles()
+        copyFlowIntoFolder(path, "")
     }
 
     fun confirmInstall() { installConfirm?.commit?.invoke(); installConfirm = null }
@@ -335,11 +306,6 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun uninstallModule(id: String) {
         Platform.uninstallModule(id)
-        refreshFiles()
-    }
-
-    fun uninstallComponent(id: String) {
-        Platform.uninstallComponent(id)
         refreshFiles()
     }
 
