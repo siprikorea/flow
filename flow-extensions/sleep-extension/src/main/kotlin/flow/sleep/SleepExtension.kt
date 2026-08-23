@@ -1,7 +1,7 @@
 package flow.sleep
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 
 /**
@@ -11,7 +11,7 @@ import flow.extension.OptionType
  * module's own business, and pacing it from the host meant the delay applied only on the canvas —
  * the same flow run from the CLI or over MCP went straight through.
  */
-class SleepExtension : ModuleExtension {
+class SleepExtension : ProcessorExtension {
     override val id = "flow.sleep"
     override val displayName = "Sleep"
     override val version = "1.1.0"

@@ -12,7 +12,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.cipher",
@@ -28,7 +28,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.hash",
@@ -42,7 +42,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.hotp",
@@ -57,7 +57,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.json",
@@ -71,7 +71,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.jwt",
@@ -88,7 +88,7 @@
         "payload",
         "signature"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.keyfactory",
@@ -104,7 +104,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.keygen",
@@ -116,7 +116,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.keypairgen",
@@ -129,7 +129,7 @@
         "publicKey",
         "privateKey"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.keystore",
@@ -146,7 +146,7 @@
         "certificate",
         "publicKey"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.mac",
@@ -161,7 +161,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.mcp",
@@ -175,7 +175,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.merge",
@@ -190,7 +190,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.securerandom",
@@ -202,7 +202,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.signature",
@@ -218,7 +218,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.sleep",
@@ -232,7 +232,7 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.slice",
@@ -247,7 +247,7 @@
         "out",
         "rest"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.split",
@@ -262,7 +262,7 @@
         "a",
         "b"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.totp",
@@ -276,13 +276,13 @@
       "outputs": [
         "out"
       ],
-      "kind": "module"
+      "kind": "processor"
     },
     {
       "id": "flow.qr",
       "name": "QR Code",
       "version": "1.0.0",
-      "kind": "module",
+      "kind": "processor",
       "description": "Encode the input as a QR code image, ready for the Image View.",
       "file": "extensions/flow.qr.flowext",
       "inputs": [
@@ -293,36 +293,52 @@
       ]
     },
     {
-      "id": "flow.view.string",
-      "name": "String View",
+      "id": "flow.output.string",
+      "name": "String Output",
       "version": "1.1.0",
-      "kind": "view",
-      "description": "Show output data as text, in a choice of encodings.",
-      "file": "extensions/flow.view.string.flowext"
+      "kind": "output",
+      "description": "Show a result as text, in a choice of encodings.",
+      "file": "extensions/flow.output.string.flowext"
     },
     {
-      "id": "flow.view.hex",
-      "name": "Hex View",
+      "id": "flow.output.hex",
+      "name": "Hex Output",
       "version": "1.1.0",
-      "kind": "view",
-      "description": "Show output data as a hex dump with offsets and characters; click a byte to identify it.",
-      "file": "extensions/flow.view.hex.flowext"
+      "kind": "output",
+      "description": "Show a result as a hex dump with offsets and characters; click a byte to identify it.",
+      "file": "extensions/flow.output.hex.flowext"
     },
     {
-      "id": "flow.view.asn1",
-      "name": "ASN.1 View",
+      "id": "flow.output.asn1",
+      "name": "ASN.1 Output",
       "version": "1.1.0",
-      "kind": "view",
+      "kind": "output",
       "description": "Read DER-encoded structures — certificates, keys, PKCS — as a tree you can collapse.",
-      "file": "extensions/flow.view.asn1.flowext"
+      "file": "extensions/flow.output.asn1.flowext"
     },
     {
-      "id": "flow.view.image",
-      "name": "Image View",
+      "id": "flow.output.image",
+      "name": "Image Output",
       "version": "1.1.0",
-      "kind": "view",
-      "description": "Show output data as a picture, for modules that produce an image.",
-      "file": "extensions/flow.view.image.flowext"
+      "kind": "output",
+      "description": "Show a result as a picture, for processors that produce an image.",
+      "file": "extensions/flow.output.image.flowext"
+    },
+    {
+      "id": "flow.input.string",
+      "name": "String Input",
+      "version": "1.0.0",
+      "kind": "input",
+      "description": "Write a value as text, in a choice of encodings.",
+      "file": "extensions/flow.input.string.flowext"
+    },
+    {
+      "id": "flow.input.hex",
+      "name": "Hex Input",
+      "version": "1.0.0",
+      "kind": "input",
+      "description": "Write a value as hex digits — how you type a key, an IV, a digest.",
+      "file": "extensions/flow.input.hex.flowext"
     }
   ]
 }

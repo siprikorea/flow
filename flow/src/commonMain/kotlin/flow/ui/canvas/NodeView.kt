@@ -104,16 +104,18 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
     // bottom label: a processing error takes priority, then run status, then the validation error
     val bottomMsg = if (processError != null) state.t("stError") else statusText ?: validationError
     val bottomColor = if (processError != null) Palette.errorSoft else if (statusText != null) statusColor else Palette.errorSoft
-    // kind badge (top-left): I=input / O=output / M=module / C=component
+    // kind badge (top-left): I=input / O=output / P=processor / C=component
     val kindLetter = when {
         node.type == "cin" -> "I"
         node.type == "cout" -> "O"
         comp -> "C"
-        else -> "M"
+        else -> "P"
     }
-    // input/output = yellow; modules purple (installed ones pink = their non-built-in mark)
+    // the two ends of a flow read as different things, so they are coloured apart: input yellow,
+    // output blue. Processors are purple (installed ones pink = their non-built-in mark).
     val kindColor = when {
-        node.type == "cin" || node.type == "cout" -> Palette.catIo // yellow
+        node.type == "cin" -> Palette.catIo
+        node.type == "cout" -> Palette.catOut
         comp -> Palette.catComponent
         pluginMod -> Palette.catPlugin
         else -> Palette.catTransform

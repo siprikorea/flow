@@ -1,7 +1,7 @@
 package flow.cipher
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.security.SecureRandom
 import javax.crypto.Cipher
@@ -24,7 +24,7 @@ import javax.crypto.spec.SecretKeySpec
  * data smaller than the modulus (245 bytes for a 2048-bit key under PKCS#1), so bulk data is
  * normally encrypted symmetrically with an RSA-wrapped key.
  */
-class CipherExtension : ModuleExtension {
+class CipherExtension : ProcessorExtension {
     override val id = "flow.cipher"
     override val displayName = "Cipher"
     override val inputs = listOf("in", "key", "iv")

@@ -1,7 +1,7 @@
 package flow.keypairgen
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.security.KeyPairGenerator
 import java.security.SecureRandom
@@ -11,7 +11,7 @@ import java.security.SecureRandom
  * on "privateKey" and X.509-encoded on "publicKey" — the encodings flow.signature's "key" input
  * expects directly. For "EC", keySize picks a standard named curve of that bit length (e.g. 256 -> secp256r1).
  */
-class KeyPairGenExtension : ModuleExtension {
+class KeyPairGenExtension : ProcessorExtension {
     override val id = "flow.keypairgen"
     override val displayName = "Key Pair Generator"
     override val inputs = emptyList<String>()

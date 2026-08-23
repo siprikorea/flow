@@ -1,7 +1,7 @@
 package flow.keygen
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.security.SecureRandom
 import javax.crypto.KeyGenerator
@@ -10,7 +10,7 @@ import javax.crypto.KeyGenerator
  * Symmetric key generator. Takes no input; each run produces a fresh random key of the chosen
  * algorithm/size on "out" — plug it straight into flow.cipher's or flow.mac's "key" input.
  */
-class KeyGenExtension : ModuleExtension {
+class KeyGenExtension : ProcessorExtension {
     override val id = "flow.keygen"
     override val displayName = "Key Generator"
     override val inputs = emptyList<String>()

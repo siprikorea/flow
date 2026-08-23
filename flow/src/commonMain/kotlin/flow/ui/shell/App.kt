@@ -54,7 +54,9 @@ import flow.core.DEFAULT_KEYMAP
 import flow.core.DragModule
 import flow.core.Shortcut
 import flow.core.Workspace
-import flow.model.KIND_VIEW
+import flow.model.KIND_INPUT
+import flow.model.KIND_OUTPUT
+import flow.model.KIND_PROCESSOR
 import flow.model.findDef
 import flow.model.isComp
 import flow.platform.Platform
@@ -354,8 +356,8 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
     }
 }
 
-// Extensions, as a Settings category: one list of everything the registry offers plus anything
-// installed that it doesn't, so install, update and uninstall all sit on the row they act on.
+// Processors: the extensions that do the work in the middle of a flow. Inputs and outputs have
+// their own pages, since what you can do with one of those is different.
 @Composable
 private fun ExtensionsSettings(ws: Workspace) {
     LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
@@ -369,65 +371,70 @@ private fun ExtensionsSettings(ws: Workspace) {
             Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
         }
 
-        val offered = ws.registry
+        val offered = ws.registry.filter { it.kind == KIND_PROCESSOR }
         val offeredIds = offered.map { it.id }.toSet()
         // installed from a file rather than the registry: it still has to be removable
-        val strayModules = ws.installedModules.filterNot { it.id in offeredIds }
-        val strayViews = ws.installedViews.filterNot { it.id in offeredIds }
+        val strays = ws.installedModules.filterNot { it.id in offeredIds }
 
         when {
             ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
             ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-            offered.isEmpty() && strayModules.isEmpty() && strayViews.isEmpty() ->
-                Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
+            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
         }
         ws.registryError?.takeIf { offered.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
 
-        // Modules and views install the same way and live in the same store, but they are different
-        // things to look for — one does work, the other shows its result — so each gets its own list.
-        val modules = offered.filterNot { it.kind == KIND_VIEW }
-        val views = offered.filter { it.kind == KIND_VIEW }
-
-        ExtensionCategory(ws, ws.t("categoryModules"), modules.isNotEmpty() || strayModules.isNotEmpty()) {
-            modules.forEach { entry -> ExtensionRow(ws, entry) }
-            strayModules.forEach { m ->
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            offered.forEach { entry -> ExtensionRow(ws, entry) }
+            strays.forEach { m ->
                 ExtensionRow(
                     ws, title = m.name, id = m.id, version = m.version, note = ws.t("fromFile"),
                     onUninstall = { ws.uninstallModule(m.id) },
                 )
             }
         }
-        ExtensionCategory(ws, ws.t("categoryViews"), views.isNotEmpty() || strayViews.isNotEmpty()) {
-            views.forEach { entry -> ExtensionRow(ws, entry) }
-            strayViews.forEach { v ->
-                ExtensionRow(
-                    ws, title = v.name, id = v.id, version = v.version, note = ws.t("fromFile"),
-                    onUninstall = { ws.uninstallModule(v.id) },
-                )
-            }
-        }
     }
 }
 
-// One heading and its rows, drawn only when there is something under it — an empty "Views" heading
-// says nothing a missing one does not.
-@Composable
-private fun ExtensionCategory(ws: Workspace, title: String, any: Boolean, rows: @Composable () -> Unit) {
-    if (!any) return
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Txt(title.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-        rows()
-    }
-}
-
-// Views, as a Settings category. A view arrives the same way a module does — it is an extension,
-// installed from the registry or from a file — so this page is about which of the installed ones an
-// output is allowed to be shown with, and installing is left on the Extensions page.
+// The two ends of a flow, as Settings pages. They are the same shape — install one, switch it off
+// without removing it, remove it — so they are one function told which end it is showing.
 //
-// Switching one off leaves it installed: it stops being offered, and anything already showing it
-// falls back to another, rather than the data becoming unreadable.
+// Switching one off leaves it installed: it stops being offered, and anything already using it
+// falls back, rather than the data becoming unreadable or unwritable.
 @Composable
-private fun ViewsSettings(ws: Workspace) {
+private fun OutputsSettings(ws: Workspace) = EndSettings(
+    ws,
+    kind = KIND_OUTPUT,
+    heading = ws.t("outputsSection"),
+    empty = ws.t("noOutputs"),
+    installed = ws.installedOutputs.map { EndRow(it.id, it.name, it.version) },
+    disabled = ws.disabledOutputs,
+    onEnabled = ws::setOutputEnabled,
+)
+
+@Composable
+private fun InputsSettings(ws: Workspace) = EndSettings(
+    ws,
+    kind = KIND_INPUT,
+    heading = ws.t("inputsSection"),
+    empty = ws.t("noInputs"),
+    installed = ws.installedInputs.map { EndRow(it.id, it.name, it.version) },
+    disabled = ws.disabledInputs,
+    onEnabled = ws::setInputEnabled,
+)
+
+/** What one end-of-flow extension shows in the list, whichever end it is. */
+private data class EndRow(val id: String, val name: String, val version: String)
+
+@Composable
+private fun EndSettings(
+    ws: Workspace,
+    kind: String,
+    heading: String,
+    empty: String,
+    installed: List<EndRow>,
+    disabled: Set<String>,
+    onEnabled: (String, Boolean) -> Unit,
+) {
     LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
@@ -435,49 +442,60 @@ private fun ViewsSettings(ws: Workspace) {
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Txt(ws.t("viewsSection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            Txt(heading.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
             Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
         }
 
-        // One list of every view there is — the ones on offer and the ones already here — so a
-        // page that opens with nothing installed still says what could be. A view is installed the
-        // same way a module is; what is different is that it can also be switched off without
-        // being removed, which is the row's middle action once it is installed.
-        val offered = ws.registry.filter { it.kind == KIND_VIEW }
+        // one list of every one there is — the registry's and any installed from a file — so a page
+        // that opens with nothing installed still says what could be
+        val offered = ws.registry.filter { it.kind == kind }
         val offeredIds = offered.map { it.id }.toSet()
-        val strays = ws.installedViews.filterNot { it.id in offeredIds }
+        val strays = installed.filterNot { it.id in offeredIds }
 
         when {
             ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
             ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("noViews"), 12.sp, Palette.faintText)
+            offered.isEmpty() && strays.isEmpty() -> Txt(empty, 12.sp, Palette.faintText)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            offered.forEach { entry -> ViewRow(ws, entry.id, entry.name.ifBlank { entry.id }, entry.description, entry) }
-            strays.forEach { v -> ViewRow(ws, v.id, v.name, ws.t("fromFile"), null) }
+            offered.forEach { entry ->
+                EndExtensionRow(ws, entry.id, entry.name.ifBlank { entry.id }, entry.description, entry, installed, disabled, onEnabled)
+            }
+            strays.forEach { row ->
+                EndExtensionRow(ws, row.id, row.name, ws.t("fromFile"), null, installed, disabled, onEnabled)
+            }
         }
     }
 }
 
-// One view: install it if it is not here, and once it is, switch it off or remove it.
 @Composable
-private fun ViewRow(ws: Workspace, id: String, title: String, note: String, entry: flow.model.RegistryEntry?) {
-    val installed = ws.installedViews.any { it.id == id }
-    val state = entry?.let { ws.registryState(it) }
-    val enabled = id !in ws.disabledViews
+private fun EndExtensionRow(
+    ws: Workspace,
+    id: String,
+    title: String,
+    note: String,
+    entry: flow.model.RegistryEntry?,
+    installed: List<EndRow>,
+    disabled: Set<String>,
+    onEnabled: (String, Boolean) -> Unit,
+) {
+    val here = installed.find { it.id == id }
+    val enabled = id !in disabled
     ExtensionRow(
         ws,
         title = title,
         id = id,
-        version = ws.installedViews.find { it.id == id }?.version ?: entry?.version,
-        note = if (installed && !enabled) ws.t("viewDisabled") else note,
+        version = here?.version ?: entry?.version,
+        note = if (here != null && !enabled) ws.t("viewDisabled") else note,
         busy = id in ws.registryBusy,
-        onUpdate = if (state == flow.model.RegistryState.UPDATABLE) ({ ws.installFromRegistry(entry!!) }) else null,
-        onInstall = if (!installed && entry != null) ({ ws.installFromRegistry(entry) }) else null,
-        onToggle = if (installed) ({ ws.setViewEnabled(id, !enabled) }) else null,
+        onUpdate = if (entry != null && ws.registryState(entry) == flow.model.RegistryState.UPDATABLE) {
+            ({ ws.installFromRegistry(entry) })
+        } else null,
+        onInstall = if (here == null && entry != null) ({ ws.installFromRegistry(entry) }) else null,
+        onToggle = if (here != null) ({ onEnabled(id, !enabled) }) else null,
         toggleLabel = ws.t(if (enabled) "viewDisable" else "viewEnable"),
-        onUninstall = if (installed) ({ ws.uninstallModule(id) }) else null,
+        onUninstall = if (here != null) ({ ws.uninstallModule(id) }) else null,
     )
 }
 
@@ -611,15 +629,24 @@ fun SettingsScreen(ws: Workspace) {
     var query by remember { mutableStateOf("") }
     val recorder = remember { FocusRequester() }
 
+    // Extensions is a heading with the four kinds under it: an extension is any of them, and which
+    // one you are looking for is the first thing you know.
     val categories = listOf(
-        "appearance" to ws.t("setAppearance"),
-        "keymap" to ws.t("setKeymap"),
-        "extensions" to ws.t("manageTitle"),
-        "views" to ws.t("setViews"),
-        "flows" to ws.t("setFlows"),
+        Category("appearance", ws.t("setAppearance")),
+        Category("keymap", ws.t("setKeymap")),
+        Category("extensions", ws.t("manageTitle"), heading = true),
+        Category("inputs", ws.t("setInputs"), nested = true),
+        Category("outputs", ws.t("setOutputs"), nested = true),
+        Category("processors", ws.t("setProcessors"), nested = true),
+        Category("flows", ws.t("setFlows"), nested = true),
     )
-    val shown = categories.filter { query.isBlank() || it.second.contains(query, ignoreCase = true) }
-    val current = shown.find { it.first == category } ?: shown.firstOrNull()
+    val shown = categories.filter { query.isBlank() || it.label.contains(query, ignoreCase = true) }
+    // the heading is a place in the list, not a page; landing on it means landing on its first kind
+    val selectable = shown.filterNot { it.heading }
+    // "extensions" is where the rest of the app asks to be taken; it is a heading now, so it means
+    // the first kind under it rather than nothing
+    val requested = if (category == "extensions") "processors" else category
+    val current = selectable.find { it.key == requested } ?: selectable.firstOrNull()
 
     fun apply() {
         ws.lang = lang
@@ -650,8 +677,13 @@ fun SettingsScreen(ws: Workspace) {
             Column(Modifier.width(210.dp).fillMaxHeight().background(Palette.panelBg).padding(8.dp)) {
                 DtxField(query, { query = it })
                 Spacer(Modifier.height(8.dp))
-                shown.forEach { (key, label) ->
-                    CategoryRow(label, selected = current?.first == key) { category = key }
+                shown.forEach { item ->
+                    CategoryRow(
+                        item.label,
+                        selected = current?.key == item.key,
+                        heading = item.heading,
+                        nested = item.nested,
+                    ) { if (!item.heading) category = item.key }
                 }
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
@@ -659,11 +691,11 @@ fun SettingsScreen(ws: Workspace) {
                 Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
                     .padding(horizontal = 22.dp, vertical = 18.dp),
             ) {
-                Txt(current?.second ?: "", 14.sp, Palette.text, weight = FontWeight.SemiBold)
+                Txt(current?.label ?: "", 14.sp, Palette.text, weight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
                 Spacer(Modifier.height(16.dp))
-                when (current?.first) {
+                when (current?.key) {
                     "appearance" -> Column {
                         SettingRow(ws.t("language")) {
                             Segmented(listOf("ko" to "한국어", "en" to "English"), lang) { lang = it }
@@ -705,8 +737,9 @@ fun SettingsScreen(ws: Workspace) {
                             recording = null
                         }
                     }
-                    "extensions" -> ExtensionsSettings(ws)
-                    "views" -> ViewsSettings(ws)
+                    "inputs" -> InputsSettings(ws)
+                    "outputs" -> OutputsSettings(ws)
+                    "processors" -> ExtensionsSettings(ws)
                     "flows" -> FlowsSettings(ws)
                 }
             }
@@ -749,20 +782,43 @@ private fun ShortcutField(label: String, recording: Boolean, hint: String, onCli
 }
 
 @Composable
-private fun CategoryRow(label: String, selected: Boolean, onSelect: () -> Unit) {
+private fun CategoryRow(
+    label: String,
+    selected: Boolean,
+    heading: Boolean = false,
+    nested: Boolean = false,
+    onSelect: () -> Unit,
+) {
     val (src, hovered) = rememberHover()
     val bg = when {
         selected -> Palette.langActiveBg
-        hovered -> Palette.hoverBg
+        hovered && !heading -> Palette.hoverBg
         else -> androidx.compose.ui.graphics.Color.Transparent
     }
     Box(
         Modifier.fillMaxWidth().hoverable(src).background(bg, RoundedCornerShape(5.dp))
-            .plainClick(onSelect).padding(horizontal = 9.dp, vertical = 6.dp),
+            .then(if (heading) Modifier else Modifier.plainClick(onSelect))
+            .padding(start = if (nested) 20.dp else 9.dp, end = 9.dp, top = 6.dp, bottom = 6.dp),
     ) {
-        Txt(label, 12.5.sp, if (selected) Palette.text else Palette.menuText)
+        Txt(
+            label, 12.5.sp,
+            when {
+                heading -> Palette.subText
+                selected -> Palette.text
+                else -> Palette.menuText
+            },
+            weight = if (heading) FontWeight.Bold else FontWeight.Normal,
+        )
     }
 }
+
+/** A row in the settings category list: a page, or the heading a group of them sits under. */
+private data class Category(
+    val key: String,
+    val label: String,
+    val heading: Boolean = false,
+    val nested: Boolean = false,
+)
 
 // label column + control, like IntelliJ's option rows
 @Composable

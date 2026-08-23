@@ -1,7 +1,7 @@
 package flow.signature
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.security.KeyFactory
 import java.security.Signature
@@ -14,7 +14,7 @@ import java.security.spec.X509EncodedKeySpec
  * java.security.KeyPair.getPrivate()/getPublic().encoded already produce — e.g. the flow.keypairgen
  * module's raw output plugs straight into "key" here.
  */
-class SignatureExtension : ModuleExtension {
+class SignatureExtension : ProcessorExtension {
     override val id = "flow.signature"
     override val displayName = "Signature"
     override val inputs = listOf("in", "key", "signature") // full set; see inputsFor for the per-operation set

@@ -54,10 +54,12 @@ import flow.core.DataTab
 import flow.core.Workspace
 import flow.model.Port
 import flow.core.cinFileSize
-import flow.model.VIEW_PARAM
+import flow.model.INPUT_PARAM
+import flow.model.InputInfo
+import flow.model.OUTPUT_PARAM
 import flow.platform.Platform
-import flow.ui.views.ViewPicker
-import flow.ui.views.ViewSurface
+import flow.ui.io.EndPicker
+import flow.ui.io.OutputSurface
 import flow.platform.droppedFilePath
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -68,6 +70,7 @@ import flow.util.hexToBytes
 import flow.util.spliceBytes
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -85,6 +88,10 @@ import kotlinx.coroutines.withContext
 // buffer either — only held transiently while being spliced and written.
 private const val WINDOW_BYTES = 262_144 // 256 KiB shown/edited at once, scroll for the rest
 private const val SPILL_THRESHOLD_BYTES = 8 * 1024 * 1024 // 8 MiB — beyond this, don't keep it as one in-memory node value
+// how long typing settles before it is converted to bytes; one round trip per keystroke would show
+private const val COMMIT_DELAY_MS = 120L
+// the most clipboard text a paste will assemble before being converted
+private const val PASTE_TEXT_LIMIT = 32 * 1024 * 1024
 
 // Where windowed bytes come from: an in-memory value, or a range read straight off disk.
 private sealed class DataSource {
@@ -103,17 +110,15 @@ private fun DataSource.read(offset: Long, length: Int): ByteArray = when (this) 
     is DataSource.FileRange -> Platform.readFileRange(path, offset, length)
 }
 
-// Node params the editor owns. A view is handed the whole map — it is where its own state lives —
-// but these come back from the app's copy whatever it returns.
-private val EDITOR_PARAMS = setOf(VIEW_PARAM, "dataFmt", "dataFile")
+// Node params the editor owns. An output is handed the whole map — it is where its own state
+// lives — but these come back from the app's copy whatever it returns.
+private val EDITOR_PARAMS = setOf(OUTPUT_PARAM, INPUT_PARAM, "dataFile")
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DataEditor(ws: Workspace, tab: DataTab) {
     val node = tab.node ?: run { ws.closeDataTab(tab); return }
     val isOut = node.type == "cout"
-    val fmt = node.params["dataFmt"] ?: "hex"
-    val isHex = fmt == "hex"
     // cin value = its editable output-port bytes; cout value = the transient run output
     val bytes = if (isOut) (tab.doc.runOutputs[tab.nodeId] ?: ByteArray(0))
     else (node.outputs.firstOrNull()?.data ?: ByteArray(0))
@@ -125,12 +130,13 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val fileBacked = totalFileSize >= 0
     val editable = !isOut && !fileBacked
 
-    // an output can be read through a view; a cin is the user's own bytes and stays plain
-    val activeView = if (isOut) ws.viewFor(node) else null
+    // The two ends of a flow are shown by their extensions: an output draws what came out, an
+    // input decides how what goes in is written. Neither node does anything itself.
+    val activeOutput = if (isOut) ws.outputFor(node) else null
+    val activeInput = if (isOut) null else ws.inputFor(node)
+    val writing = remember(activeInput?.id, node.params) { Writing(activeInput, node.params) }
+    var problem by remember(tab) { mutableStateOf<String?>(null) }
 
-    fun switchTo(target: String) {
-        if (target != fmt) tab.doc.updateNode(node.id) { it.copy(params = it.params + ("dataFmt" to target)) }
-    }
     fun setParam(key: String, value: String?) = tab.doc.updateNode(node.id) {
         it.copy(params = if (value == null) it.params - key else it.params + (key to value))
     }
@@ -153,9 +159,10 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Txt(node.label, 15.sp, Palette.text, weight = FontWeight.SemiBold)
-            val portKind = if (node.type == "cin") ws.t("labelInputs") else ws.t("labelOutputs")
-            Box(Modifier.background(Palette.catIo.copy(alpha = 0.16f), RoundedCornerShape(4.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                Txt(portKind, 10.sp, Palette.catIo, weight = FontWeight.Medium)
+            val portKind = if (isOut) ws.t("labelOutputs") else ws.t("labelInputs")
+            val endColor = if (isOut) Palette.catOut else Palette.catIo
+            Box(Modifier.background(endColor.copy(alpha = 0.16f), RoundedCornerShape(4.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
+                Txt(portKind, 10.sp, endColor, weight = FontWeight.Medium)
             }
             if (isOut) Txt(ws.t("dataReadOnly"), 10.sp, Palette.dimText)
             Spacer(Modifier.weight(1f))
@@ -166,11 +173,25 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             } else {
                 ToolButton(ws.t("dataReadFile")) { Platform.pickFileRead()?.let { setParam("dataFile", it) } }
             }
-            if (isOut && ws.enabledViews.isNotEmpty()) {
-                ViewPicker(ws, node.params[VIEW_PARAM]?.takeIf { it.isNotBlank() }) { setParam(VIEW_PARAM, it) }
+            if (isOut) {
+                if (ws.enabledOutputs.isNotEmpty()) {
+                    EndPicker(
+                        ws, ws.t("outputLabel"),
+                        selected = node.params[OUTPUT_PARAM]?.takeIf { it.isNotBlank() },
+                        choices = ws.enabledOutputs.map { it.id to it.name },
+                        // an output can always be turned off to get back to the bytes themselves
+                        none = ws.t("viewRaw"),
+                    ) { setParam(OUTPUT_PARAM, it) }
+                }
+            } else if (ws.enabledInputs.isNotEmpty()) {
+                EndPicker(
+                    ws, ws.t("inputLabel"),
+                    selected = activeInput?.id,
+                    choices = ws.enabledInputs.map { it.id to it.name },
+                    // a value has to be written as something, so there is no "none" here
+                    none = null,
+                ) { setParam(INPUT_PARAM, it) }
             }
-            // hex and string are how the raw bytes are read; a view decides that for itself
-            if (activeView == null) FormatToggle(isHex) { hex -> switchTo(if (hex) "hex" else "string") }
         }
 
         // loaded-file banner (name + total size + clear)
@@ -186,7 +207,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             }
         }
 
-        var windowStart by remember(tab, isHex, filePath) { mutableStateOf(0L) }
+        var windowStart by remember(tab, writing.input?.id, filePath) { mutableStateOf(0L) }
         val maxStart = (totalSize - WINDOW_BYTES).coerceAtLeast(0)
         if (windowStart > maxStart) windowStart = maxStart
 
@@ -199,33 +220,32 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 .then(if (isOut) Modifier else Modifier.dragAndDropTarget(shouldStartDragAndDrop = { true }, target = dropTarget))
                 .padding(12.dp),
         ) {
-            if (activeView != null) {
-                // A view keeps what it needs to remember in the node's params, so a tree left
+            if (activeOutput != null) {
+                // An output keeps what it needs to remember in the node's params, so a tree left
                 // half-open stays that way — but the params the editor itself owns are not its to
-                // change, or a view could switch itself off or repoint the node at another file.
-                ViewSurface(ws, activeView.id, bytes, node.params, Modifier.fillMaxSize()) { next ->
+                // change, or an output could switch itself off or repoint the node at another file.
+                OutputSurface(ws, activeOutput.id, bytes, node.params, Modifier.fillMaxSize()) { next ->
                     tab.doc.updateNode(node.id) { n ->
                         n.copy(params = next - EDITOR_PARAMS + n.params.filterKeys { it in EDITOR_PARAMS })
                     }
                 }
             } else if (editable) {
-                EditableField(bytes, isHex, tab, node, windowStart) { windowStart = it }
+                EditableField(bytes, writing, tab, node, windowStart, { windowStart = it }) { problem = it }
             } else {
                 val source = if (fileBacked) DataSource.FileRange(filePath!!, totalFileSize) else DataSource.Memory(bytes)
-                ReadOnlyView(source, isHex, windowStart) { windowStart = it }
+                ReadOnlyView(source, writing, windowStart) { windowStart = it }
             }
 
-            if (totalSize == 0L && activeView == null) {
+            if (totalSize == 0L && activeOutput == null) {
                 Txt(
-                    when {
-                        isOut -> ws.t("dataNoOutput")
-                        isHex -> ws.t("dataHexHint")
-                        else -> ws.t("dataStringHint")
-                    },
+                    if (isOut) ws.t("dataNoOutput") else ws.t("dataTypeHint"),
                     13.sp, Palette.faintText, mono = true,
                 )
             }
         }
+
+        // what the input made of what is typed, said beside the value rather than in place of it
+        problem?.takeIf { activeOutput == null }?.let { Txt(it, 11.sp, Palette.errorSoft) }
 
         val windowEnd = minOf(windowStart + WINDOW_BYTES, totalSize)
         val label = if (totalSize > WINDOW_BYTES)
@@ -236,18 +256,53 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     }
 }
 
+// How a value is written, whichever way the user picked.
+//
+// The conversion belongs to the input extension — that is the whole of what an input is — but the
+// editor still has to work with none installed, so there is a plain hex fallback here. Bytes are
+// bytes; hex is the one way of writing them that needs nothing.
+private class Writing(val input: InputInfo?, val options: Map<String, String>) {
+    /** Characters per byte, for putting the caret on a byte without asking across the pipe. */
+    val charsPerByte: Int get() = input?.charsPerByte ?: 3
+
+    suspend fun format(bytes: ByteArray): String {
+        val id = input?.id ?: return bytesToHex(bytes)
+        return runCatching { Platform.inputFormat(id, bytes, options) }.getOrDefault("")
+    }
+
+    /** The bytes, and what is wrong with the text — both from one call across the pipe. */
+    suspend fun parse(text: String): Pair<ByteArray, String?> {
+        val id = input?.id ?: return hexToBytes(text) to null
+        return runCatching { Platform.inputParse(id, text, options) }
+            .getOrElse { ByteArray(0) to (it.message ?: "could not be read") }
+    }
+
+    /** Which byte a caret position falls on. */
+    fun byteAt(text: String, charPos: Int): Int {
+        val clamped = charPos.coerceIn(0, text.length)
+        // fixed-width writing divides out exactly; anything else is counted a character to a byte,
+        // which is right for the ASCII that a text value mostly is and close enough elsewhere
+        return if (charsPerByte > 0) clamped / charsPerByte else clamped
+    }
+}
+
 // Editable inline byte field (cin, not file-backed). Only ever holds up to WINDOW_BYTES of the
 // underlying value in the text field itself; edits splice back into the full byte array at the
 // window's absolute offset, and an oversized paste is committed in full but the displayed field
 // snaps back to a bounded slice (starting where the paste landed) rather than staying huge.
+//
+// Reading and writing the text both cross into the input extension's process, so they happen off
+// the keystroke: what is typed appears at once and is turned into bytes a moment later. Without
+// that, every character would wait on a round trip.
 @Composable
 private fun EditableField(
     bytes: ByteArray,
-    isHex: Boolean,
+    writing: Writing,
     tab: DataTab,
     node: flow.model.Node,
     windowStart: Long,
     onWindowStart: (Long) -> Unit,
+    onProblem: (String?) -> Unit,
 ) {
     val total = bytes.size
     val winStart = windowStart.toInt().coerceIn(0, total)
@@ -256,11 +311,24 @@ private fun EditableField(
         if (winSize <= 0) ByteArray(0) else bytes.copyOfRange(winStart, winStart + winSize)
     }
 
+    var field by remember(tab, writing.input?.id) { mutableStateOf(TextFieldValue("")) }
+    // the bytes the text in the field stands for. Re-formatting only when the value arrived from
+    // somewhere else is what stops the caret jumping to the end on every keystroke.
+    var shownKey by remember(tab, writing.input?.id) { mutableStateOf<String?>(null) }
+    // exactly what was put in the field, so that displaying a value is never mistaken for editing
+    // it. Not every way of writing bytes can carry every byte — text cannot hold what is not text —
+    // and without this, opening a binary value under a text input and touching nothing would write
+    // the replacement characters back over it.
+    var shownText by remember(tab, writing.input?.id) { mutableStateOf<String?>(null) }
+
     val canonicalKey = bytesToHex(windowBytes)
-    var field by remember(tab, isHex) { mutableStateOf(atEnd(viewOf(windowBytes, isHex))) }
-    var lastKey by remember(tab, isHex) { mutableStateOf(canonicalKey) }
-    LaunchedEffect(canonicalKey) {
-        if (canonicalKey != lastKey) { field = atEnd(viewOf(windowBytes, isHex)); lastKey = canonicalKey }
+    LaunchedEffect(canonicalKey, writing.input?.id, writing.options) {
+        if (canonicalKey != shownKey) {
+            val text = writing.format(windowBytes)
+            field = atEnd(text)
+            shownKey = canonicalKey
+            shownText = text
+        }
     }
 
     // spill this exact byte array to a temp file and switch the node to file-backed, reusing the
@@ -277,100 +345,97 @@ private fun EditableField(
         return path
     }
 
-    // splice the edited window back into the full array at its absolute offset, then re-clamp
-    // what's displayed to WINDOW_BYTES — a huge paste is fully committed but not fully shown
-    fun commit(newWindowBytes: ByteArray, caretInNewWindow: Int) {
+    // splice the edited window back into the full array at its absolute offset
+    fun commit(newWindowBytes: ByteArray) {
         val newFull = spliceWindow(bytes, winStart, winSize, newWindowBytes)
         if (newFull.size > SPILL_THRESHOLD_BYTES) {
-            // newFull is still momentarily whole here (spliceWindow/the paste itself already built
-            // it that large — this path is for typing/small in-field pastes only; see handlePaste
-            // below for the genuinely streamed path that never builds this in the first place)
             spillToFile(newFull)
             return
         }
+        // the field already shows this value, so record it before the node changes — otherwise the
+        // effect above would see new bytes arrive and re-format the text under the caret
+        shownKey = bytesToHex(
+            if (newWindowBytes.size <= WINDOW_BYTES) newWindowBytes else newWindowBytes.copyOfRange(0, WINDOW_BYTES),
+        )
+        shownText = field.text
         tab.doc.updateNode(node.id) { n ->
             val outs = n.outputs.toMutableList()
             if (outs.isEmpty()) outs.add(Port("out", newFull)) else outs[0] = outs[0].withData(newFull)
             n.copy(outputs = outs)
         }
-        // below the spill threshold but still possibly above WINDOW_BYTES (a few-MB paste): commit
-        // it in full above, but keep what's actually live in the field bounded
-        val bounded = if (newWindowBytes.size <= WINDOW_BYTES) newWindowBytes else newWindowBytes.copyOfRange(0, WINDOW_BYTES)
-        val text = viewOf(bounded, isHex)
-        field = if (newWindowBytes.size <= WINDOW_BYTES) TextFieldValue(text, TextRange(caretInNewWindow.coerceIn(0, text.length)))
-        else atEnd(text) // paste overflowed the window: show its start, caret at the end of what's shown
-        lastKey = bytesToHex(bounded)
     }
 
-    // land the window on `focusByteOffset` after a paste that went through the temp-file path,
-    // whether it ended up staying in memory (bytes read back) or file-backed (path only)
-    fun showAround(newTotal: Int, focusByteOffset: Int, source: DataSource) {
+    // Typing settles into bytes rather than converting on every keystroke: the conversion is a
+    // round trip to another process, and one per character would be felt.
+    LaunchedEffect(field.text, writing.input?.id, writing.options) {
+        // the field is showing the value, not being edited — leave it alone
+        if (field.text == shownText) return@LaunchedEffect
+        delay(COMMIT_DELAY_MS)
+        val (parsed, problem) = writing.parse(field.text)
+        onProblem(problem)
+        if (!parsed.contentEquals(windowBytes)) commit(parsed)
+    }
+
+    // land the window on `focusByteOffset` after a paste, whether the result stayed in memory or
+    // ended up file-backed
+    suspend fun showAround(newTotal: Int, focusByteOffset: Int, source: DataSource) {
         val newWinStart = (focusByteOffset - WINDOW_BYTES / 2).coerceIn(0, (newTotal - WINDOW_BYTES).coerceAtLeast(0))
         val newWinSize = minOf(WINDOW_BYTES, newTotal - newWinStart)
         val boundedWin = if (newWinSize <= 0) ByteArray(0) else source.read(newWinStart.toLong(), newWinSize)
         onWindowStart(newWinStart.toLong())
-        val text = viewOf(boundedWin, isHex)
+        val text = writing.format(boundedWin)
         field = atEnd(text)
-        lastKey = bytesToHex(boundedWin)
+        shownKey = bytesToHex(boundedWin)
+        shownText = text
     }
 
     val scope = rememberCoroutineScope()
     var pasting by remember(tab) { mutableStateOf(false) }
 
-    // Reads the clipboard in bounded chunks (Platform.pasteClipboardChunks) and appends each,
-    // converted to bytes, straight to a temp file that already has the pre-selection prefix
-    // written — the clipboard's own content is never held as one block, however large the paste
-    // is. If the final result turns out small after all, it's collapsed back into the simple
-    // in-memory case; only a genuinely large paste stays file-backed.
+    // Reads the clipboard in bounded chunks so it is never asked for as one string, but the text
+    // is assembled before being converted: only the input extension knows how its writing decodes,
+    // and a chunk boundary could fall in the middle of a byte. PASTE_TEXT_LIMIT is what keeps that
+    // assembly bounded — past it the paste is cut short rather than allowed to grow without end.
     fun handlePaste() {
         if (pasting) return
         val selStart = minOf(field.selection.start, field.selection.end)
         val selEnd = maxOf(field.selection.start, field.selection.end)
-        val localByteStart = charPosToByteOffset(field.text, selStart, isHex)
-        val localByteEnd = charPosToByteOffset(field.text, selEnd, isHex)
+        val localByteStart = writing.byteAt(field.text, selStart)
+        val localByteEnd = writing.byteAt(field.text, selEnd)
         val absStart = (winStart + localByteStart).coerceIn(0, total)
         val absEnd = (winStart + localByteEnd).coerceIn(absStart, total)
         val prefix = bytes.copyOfRange(0, absStart)
         val suffix = bytes.copyOfRange(absEnd, total)
         pasting = true
-        scope.launch(Dispatchers.IO) {
-            val path = Platform.createTempFile("flow-paste")
-            Platform.writeBytes(path, prefix)
-            val hexDecoder = HexStreamDecoder()
-            val strEncoder = Utf8StreamEncoder()
-            var written = prefix.size.toLong()
-            val got = Platform.pasteClipboardChunks(65536) { chunk ->
-                val chunkBytes = if (isHex) hexDecoder.decode(chunk) else strEncoder.encode(chunk)
-                if (chunkBytes.isNotEmpty()) { Platform.appendBytes(path, chunkBytes); written += chunkBytes.size }
-            }
-            val tail = if (isHex) hexDecoder.finish() else strEncoder.finish()
-            if (tail.isNotEmpty()) { Platform.appendBytes(path, tail); written += tail.size }
-            val pastedEnd = written
-            if (suffix.isNotEmpty()) { Platform.appendBytes(path, suffix); written += suffix.size }
-            val finalSize = if (got) written else -1L
-
-            withContext(Dispatchers.Main) {
-                pasting = false
-                if (finalSize >= 0) {
-                    if (finalSize <= SPILL_THRESHOLD_BYTES) {
-                        val newFull = Platform.readFileRange(path, 0, finalSize.toInt())
-                        tab.doc.updateNode(node.id) { n ->
-                            val outs = n.outputs.toMutableList()
-                            if (outs.isEmpty()) outs.add(Port("out", newFull)) else outs[0] = outs[0].withData(newFull)
-                            n.copy(outputs = outs)
-                        }
-                        showAround(newFull.size, pastedEnd.toInt(), DataSource.Memory(newFull))
-                    } else {
-                        // file at `path` already holds the full spliced result — just point the node at it
-                        tab.doc.updateNode(node.id) { n ->
-                            n.copy(
-                                params = n.params + ("dataFile" to path),
-                                outputs = listOf((n.outputs.firstOrNull() ?: Port("out")).withData(ByteArray(0))),
-                            )
-                        }
-                        showAround(finalSize.toInt(), pastedEnd.toInt(), DataSource.FileRange(path, finalSize))
-                    }
+        scope.launch {
+            val pasted = StringBuilder()
+            val got = withContext(Dispatchers.Default) {
+                Platform.pasteClipboardChunks(65536) { chunk ->
+                    if (pasted.length < PASTE_TEXT_LIMIT) pasted.append(chunk)
                 }
+            }
+            if (!got) { pasting = false; return@launch }
+            val (pastedBytes, problem) = writing.parse(pasted.toString())
+            onProblem(problem)
+
+            val newFull = ByteArray(prefix.size + pastedBytes.size + suffix.size)
+            prefix.copyInto(newFull)
+            pastedBytes.copyInto(newFull, prefix.size)
+            suffix.copyInto(newFull, prefix.size + pastedBytes.size)
+            val pastedEnd = prefix.size + pastedBytes.size
+
+            pasting = false
+            if (newFull.size > SPILL_THRESHOLD_BYTES) {
+                val path = spillToFile(newFull)
+                showAround(newFull.size, pastedEnd, DataSource.FileRange(path, newFull.size.toLong()))
+            } else {
+                shownKey = null // the window is about to move; let it be re-read for where it lands
+                tab.doc.updateNode(node.id) { n ->
+                    val outs = n.outputs.toMutableList()
+                    if (outs.isEmpty()) outs.add(Port("out", newFull)) else outs[0] = outs[0].withData(newFull)
+                    n.copy(outputs = outs)
+                }
+                showAround(newFull.size, pastedEnd, DataSource.Memory(newFull))
             }
         }
     }
@@ -379,23 +444,15 @@ private fun EditableField(
         val scroll = rememberScrollState()
         BasicTextField(
             value = field,
-            onValueChange = { v ->
-                if (isHex) {
-                    val formatted = formatHex(field, v)
-                    commit(hexToBytes(formatted.text), formatted.selection.end)
-                } else {
-                    val old = field.text
-                    val newWindowBytes = spliceBytes(windowBytes, old, v.text)
-                    commit(newWindowBytes, v.selection.end)
-                }
-            },
+            // what was typed shows straight away; turning it into bytes happens a moment later
+            onValueChange = { field = it },
             textStyle = TextStyle(color = Palette.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
             cursorBrush = SolidColor(Palette.text),
             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll)
                 .onPreviewKeyEvent { ev ->
-                    // intercept Cmd+V ourselves so a paste always goes through the streaming path
-                    // below (handlePaste) instead of Compose's native paste, which would first
-                    // materialize the whole clipboard as one in-memory String
+                    // intercept Cmd+V ourselves so a paste goes through the chunked read below
+                    // instead of Compose's native paste, which would first materialize the whole
+                    // clipboard as one in-memory String
                     if (ev.type == KeyEventType.KeyDown && ev.isMetaPressed && ev.key == Key.V) {
                         handlePaste()
                         true
@@ -410,15 +467,17 @@ private fun EditableField(
 
 // Read-only windowed view: cout output (in-memory) or a file-backed cin (read straight off disk).
 @Composable
-private fun ReadOnlyView(source: DataSource, isHex: Boolean, windowStart: Long, onWindowStart: (Long) -> Unit) {
+private fun ReadOnlyView(source: DataSource, writing: Writing, windowStart: Long, onWindowStart: (Long) -> Unit) {
     val total = source.totalSize
     val winSize = minOf(WINDOW_BYTES.toLong(), total - windowStart).coerceAtLeast(0)
     val windowBytes = remember(source, windowStart, winSize) { source.read(windowStart, winSize.toInt()) }
+    var text by remember { mutableStateOf("") }
+    LaunchedEffect(windowBytes, writing.input?.id, writing.options) { text = writing.format(windowBytes) }
 
     Row(Modifier.fillMaxSize()) {
         val scroll = rememberScrollState()
         BasicTextField(
-            value = viewOf(windowBytes, isHex),
+            value = text,
             onValueChange = {},
             readOnly = true,
             textStyle = TextStyle(color = Palette.subText, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
@@ -487,29 +546,6 @@ private fun ToolButton(label: String, onClick: () -> Unit) {
     }
 }
 
-@Composable
-private fun FormatToggle(isHex: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier.background(Palette.holeBg, RoundedCornerShape(6.dp)).border(1.dp, Palette.border, RoundedCornerShape(6.dp)).padding(2.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        Seg("HEX", active = isHex) { onChange(true) }
-        Seg("STRING", active = !isHex) { onChange(false) }
-    }
-}
-
-@Composable
-private fun Seg(label: String, active: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .background(if (active) Palette.accent else Color.Transparent, RoundedCornerShape(4.dp))
-            .plainClick(onClick)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-    ) {
-        Txt(label, 11.sp, if (active) Palette.holeBg else Palette.subText, weight = FontWeight.Medium, mono = true, maxLines = 1)
-    }
-}
-
 private fun hexVal(c: Char): Int = when (c) {
     in '0'..'9' -> c - '0'
     in 'a'..'f' -> c - 'a' + 10
@@ -517,96 +553,13 @@ private fun hexVal(c: Char): Int = when (c) {
     else -> 0
 }
 
-// Converts a stream of hex-digit text chunks (arbitrary spacing, e.g. clipboard content read in
-// bounded pieces) into bytes incrementally, carrying a leftover odd digit across chunk boundaries
-// so a byte pair split across two chunks still decodes correctly.
-internal class HexStreamDecoder {
-    private var pendingHi: Char? = null
-    fun decode(chunk: String): ByteArray {
-        val out = ArrayList<Byte>(chunk.length / 2 + 1)
-        var hi = pendingHi
-        for (c in chunk) {
-            if (!isHexDigit(c)) continue
-            if (hi == null) hi = c
-            else { out.add(((hexVal(hi) shl 4) or hexVal(c)).toByte()); hi = null }
-        }
-        pendingHi = hi
-        return out.toByteArray()
-    }
-    // a trailing lone digit (odd total count) becomes its own byte — matches hexToBytes's existing
-    // behavior for an odd-length token (e.g. "5" -> 0x05), rather than being silently dropped
-    fun finish(): ByteArray = pendingHi?.let { byteArrayOf(hexVal(it).toByte()) } ?: ByteArray(0)
-}
-
-// Converts a stream of text chunks to UTF-8 bytes incrementally, holding back a trailing high
-// surrogate so a character outside the BMP (e.g. an emoji) split across two chunks encodes
-// correctly instead of each half turning into a replacement character.
-internal class Utf8StreamEncoder {
-    private var pendingHighSurrogate: Char? = null
-    fun encode(chunk: String): ByteArray {
-        var s = chunk
-        pendingHighSurrogate?.let { s = it + s; pendingHighSurrogate = null }
-        if (s.isNotEmpty() && s.last().isHighSurrogate()) {
-            pendingHighSurrogate = s.last()
-            s = s.dropLast(1)
-        }
-        return s.encodeToByteArray()
-    }
-    fun finish(): ByteArray = pendingHighSurrogate?.let { it.toString().encodeToByteArray() } ?: ByteArray(0)
-}
-
-// How many bytes precede this character position in the given view (rounds down mid-pair for
-// hex). Used to translate the field's text-selection into an absolute byte offset for pasting.
-// Internal visibility (not private) so a headless check can verify it directly.
-internal fun charPosToByteOffset(text: String, charPos: Int, isHex: Boolean): Int {
-    val clamped = charPos.coerceIn(0, text.length)
-    return if (isHex) text.take(clamped).count { isHexDigit(it) } / 2
-    else text.take(clamped).encodeToByteArray().size
-}
-
-// Replace the [winStart, winStart+winSize) slice of `full` with `newWindowBytes` — the window's
-// edit result — leaving everything before/after the window untouched. Internal visibility (not
-// private) so a headless check can verify it directly.
+/** Splices an edited window back into the whole value at its absolute offset. */
 internal fun spliceWindow(full: ByteArray, winStart: Int, winSize: Int, newWindowBytes: ByteArray): ByteArray {
-    val windowEndAbs = winStart + winSize
-    return full.copyOfRange(0, winStart) + newWindowBytes + full.copyOfRange(windowEndAbs, full.size)
+    val out = ByteArray(winStart + newWindowBytes.size + (full.size - winStart - winSize))
+    full.copyInto(out, 0, 0, winStart)
+    newWindowBytes.copyInto(out, winStart)
+    full.copyInto(out, winStart + newWindowBytes.size, winStart + winSize, full.size)
+    return out
 }
 
-/* ───────── byte <-> view conversion (UTF-8) ───────── */
-
-private fun isHexDigit(c: Char) = c.isDigit() || c in 'a'..'f' || c in 'A'..'F'
-
-// a TextFieldValue with the caret at the end
 private fun atEnd(s: String) = TextFieldValue(s, TextRange(s.length))
-
-// Reformat free hex typing into space-separated "XX XX" pairs while keeping the caret
-// anchored to the same hex digit it was at (so it never drifts as spaces are inserted).
-//
-// `old` is the field's value just before this edit. Without it, deleting a single formatting
-// space (the char right at a pair boundary) is invisible: no digit was removed, so re-grouping
-// puts the identical space right back and Backspace looks like it did nothing. Detecting that
-// case and dropping the adjacent digit too makes every delete visibly remove something.
-internal fun formatHex(old: TextFieldValue, v: TextFieldValue): TextFieldValue {
-    val caret = v.selection.end.coerceIn(0, v.text.length)
-    var digits = v.text.filter { isHexDigit(it) }
-    var digitsBefore = v.text.take(caret).count { isHexDigit(it) }
-
-    val oldDigitCount = old.text.count { isHexDigit(it) }
-    // both selections collapsed (plain cursor) rules out "replace a selection" (paste or typing
-    // over a selection), which can shrink the text too but must never lose a pasted character here
-    val shrankWithNoDigitLoss = old.selection.collapsed && v.selection.collapsed &&
-        v.text.length < old.text.length && digits.length == oldDigitCount
-    if (shrankWithNoDigitLoss && digitsBefore > 0) {
-        digits = digits.removeRange(digitsBefore - 1, digitsBefore)
-        digitsBefore -= 1
-    }
-
-    val grouped = digits.uppercase().chunked(2).joinToString(" ")
-    // each completed pair before the caret adds one space; caret sits after `digitsBefore` digits
-    val pos = if (digitsBefore <= 0) 0 else (digitsBefore + (digitsBefore - 1) / 2).coerceAtMost(grouped.length)
-    return TextFieldValue(grouped, TextRange(pos))
-}
-
-// how the port bytes appear in the given view
-private fun viewOf(bytes: ByteArray, hex: Boolean): String =
-    if (hex) bytesToHex(bytes) else decodeUtf8Lossy(bytes).first

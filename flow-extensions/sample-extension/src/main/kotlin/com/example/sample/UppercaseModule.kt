@@ -1,10 +1,10 @@
 package com.example.sample
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 
 /** Module extension: converts the input text to upper case. */
-class UppercaseModule : ModuleExtension {
+class UppercaseModule : ProcessorExtension {
     override val id = "com.example.upper"
     override val displayName = "UPPER"
     override val inputs = listOf("in")

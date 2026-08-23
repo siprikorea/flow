@@ -1,7 +1,7 @@
 package flow.qr
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.awt.image.BufferedImage
 import java.io.ByteArrayOutputStream
@@ -13,7 +13,7 @@ import javax.imageio.ImageIO
  * The output is a PNG, which the Image View shows on the canvas — so a flow can end in something
  * that can be pointed a phone at rather than in bytes that have to be read somewhere else.
  */
-class QrExtension : ModuleExtension {
+class QrExtension : ProcessorExtension {
     override val id = "flow.qr"
     override val displayName = "QR Code"
     override val version = "1.0.0"

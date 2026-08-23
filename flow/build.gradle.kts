@@ -32,7 +32,8 @@ kotlin {
             implementation(project(":flow-extensions:jwt-extension"))
             implementation(project(":flow-extensions:json-extension"))
             implementation(project(":flow-extensions:qr-extension"))
-            implementation(project(":flow-extensions:view-extension"))
+            implementation(project(":flow-extensions:output-extension"))
+            implementation(project(":flow-extensions:input-extension"))
             implementation(project(":flow-extension-api"))
         }
     }

@@ -1,7 +1,7 @@
 package flow.keyfactory
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import javax.crypto.SecretKeyFactory
 import javax.crypto.spec.DESKeySpec
@@ -22,7 +22,7 @@ import javax.crypto.spec.PBEKeySpec
  *
  * "out" always carries the key's encoded form.
  */
-class KeyFactoryExtension : ModuleExtension {
+class KeyFactoryExtension : ProcessorExtension {
     override val id = "flow.keyfactory"
     override val displayName = "Key Factory"
     override val inputs = listOf("password", "salt", "key") // full set; see inputsFor

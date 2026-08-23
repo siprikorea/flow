@@ -1,7 +1,7 @@
 package flow.securerandom
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.security.SecureRandom
 
@@ -9,7 +9,7 @@ import java.security.SecureRandom
  * Random byte generator. Takes no input; each run produces "length" fresh random bytes on "out" —
  * plug it into flow.cipher's/flow.mac's "key" or "iv" input, or use as raw random data on its own.
  */
-class SecureRandomExtension : ModuleExtension {
+class SecureRandomExtension : ProcessorExtension {
     override val id = "flow.securerandom"
     override val displayName = "Secure Random"
     override val inputs = emptyList<String>()

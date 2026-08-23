@@ -34,7 +34,9 @@ import androidx.compose.ui.unit.sp
 import flow.core.DragModule
 import flow.core.Workspace
 import flow.model.CompDef
+import flow.model.INPUT_PARAM
 import flow.model.IO_DEFS
+import flow.model.OUTPUT_PARAM
 import flow.model.REGISTRY
 import flow.ui.common.KindBadge
 import flow.ui.common.Txt
@@ -50,11 +52,22 @@ internal fun ModulePalette(ws: Workspace) {
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        // order: input/output -> modules -> components; items share their category color
-        Section(ws, "io", ws.t("ioSection"), Palette.catIo) {
-            IO_DEFS.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catIo, it.ins.size, it.outs.size) }
+        // The two ends of a flow get a section each — they are what a flow is built between, and
+        // looking for the way in among a list of processors is looking in the wrong place. The
+        // boundary node comes first in each, then the installed extensions that give it a form.
+        Section(ws, "inputs", ws.t("inputSection"), Palette.catIo) {
+            IO_DEFS.filter { it.type == "cin" }.forEach {
+                PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catIo, it.ins.size, it.outs.size)
+            }
+            ws.enabledInputs.forEach { PaletteCard(ws, "cin", it.name, Palette.catIo, 0, 1, param = INPUT_PARAM to it.id) }
         }
-        Section(ws, "modules", ws.t("moduleList"), Palette.catTransform) {
+        Section(ws, "outputs", ws.t("outputSection"), Palette.catOut) {
+            IO_DEFS.filter { it.type == "cout" }.forEach {
+                PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catOut, it.ins.size, it.outs.size)
+            }
+            ws.enabledOutputs.forEach { PaletteCard(ws, "cout", it.name, Palette.catOut, 1, 0, param = OUTPUT_PARAM to it.id) }
+        }
+        Section(ws, "modules", ws.t("processorSection"), Palette.catTransform) {
             REGISTRY.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catTransform, it.ins.size, it.outs.size) }
             ws.installedModules.forEach { m ->
                 PaletteCard(ws, m.id, m.name, Palette.catTransform, m.inputs.size, m.outputs.size)
@@ -109,16 +122,19 @@ private fun PaletteCard(
     badgeColor: Color, // category color (same for all items in the category)
     ins: Int,
     outs: Int,
+    // seeds a param on the dropped node, so an input or output card lands as a boundary node
+    // already set to that way of writing or showing its value
+    param: Pair<String, String>? = null,
 ) {
     val (hoverSrc, hovered) = rememberHover()
     var origin by remember { mutableStateOf(Offset.Zero) }
     val borderColor = if (hovered) Color(0xFF3D4557) else Palette.border
-    // badge letter by kind (I/O/M/C); color comes from the category
+    // badge letter by kind (I/O/P/C); color comes from the category
     val letter = when {
         type == "cin" -> "I"
         type == "cout" -> "O"
         type.startsWith("comp:") -> "C"
-        else -> "M"
+        else -> "P"
     }
     Row(
         Modifier
@@ -127,7 +143,7 @@ private fun PaletteCard(
             .hoverable(hoverSrc)
             .background(Palette.dropdownBg, RoundedCornerShape(7.dp))
             .border(1.dp, borderColor, RoundedCornerShape(7.dp))
-            .pointerInput(type) {
+            .pointerInput(type, param) {
                 // drag -> update ws.dragModule -> drop onto the active document on release
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -137,7 +153,7 @@ private fun PaletteCard(
                     if (!ws.canvasOpen) return@awaitEachGesture
                     try {
                         drag(down.id) { ch ->
-                            ws.dragModule = DragModule(type, origin + ch.position)
+                            ws.dragModule = DragModule(type, origin + ch.position, param?.let { mapOf(it) }.orEmpty())
                             ch.consume()
                         }
                         ws.active?.dropModule()

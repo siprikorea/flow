@@ -35,7 +35,9 @@ import kotlin.math.hypot
 private const val HISTORY_MAX = 60
 
 data class Wire(val node: String, val port: String, val pos: Offset)
-data class DragModule(val type: String, val pos: Offset) // pos: window coordinates (px)
+// pos: window coordinates (px). `params` seeds the dropped node — how an "Hex Input" card and a
+// plain "Input" card both make a cin node while landing on different ways of writing its value.
+data class DragModule(val type: String, val pos: Offset, val params: Map<String, String> = emptyMap())
 
 // State of a single document (tab). Global UI (language, panels, menu) is delegated to Workspace.
 class EditorState(
@@ -299,7 +301,7 @@ class EditorState(
 
     /* ───────── node create/delete/edit ───────── */
 
-    fun addNodeAt(type: String, world: Offset) {
+    fun addNodeAt(type: String, world: Offset, seed: Map<String, String> = emptyMap()) {
         val label: String
         val ins: List<String>
         val outs: List<String>
@@ -333,7 +335,8 @@ class EditorState(
         nodes = nodes + Node(
             id = id, type = type, label = label,
             x = snapF(world.x - w / 2), y = snapF(world.y - 20f),
-            w = w, h = h, inputs = ins.map { Port(it) }, outputs = outs.map { Port(it) }, params = params,
+            w = w, h = h, inputs = ins.map { Port(it) }, outputs = outs.map { Port(it) },
+            params = params + seed,
         )
         seq += 1
         selectNode(id)
@@ -733,7 +736,7 @@ class EditorState(
         val local = d.pos - canvasOrigin
         val inCanvas = local.x >= 0 && local.y >= 0 &&
             local.x <= canvasSize.width && local.y <= canvasSize.height
-        if (inCanvas) addNodeAt(d.type, screenToWorld(local))
+        if (inCanvas) addNodeAt(d.type, screenToWorld(local), d.params)
     }
 }
 

@@ -1,13 +1,13 @@
 package flow.mac
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
 
 /** Keyed message digest (HMAC family) module. Outputs the lowercase hex MAC of "in" as ASCII bytes. */
-class MacExtension : ModuleExtension {
+class MacExtension : ProcessorExtension {
     override val id = "flow.mac"
     override val displayName = "MAC"
     override val inputs = listOf("in", "key")

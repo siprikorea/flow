@@ -1,7 +1,7 @@
 package flow.slice
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 
 /**
@@ -13,7 +13,7 @@ import flow.extension.OptionType
  * A negative offset counts back from the end; a blank length runs to the end. A range that doesn't
  * fit is an error rather than a short result, so a truncated key or IV can't slip downstream.
  */
-class SliceExtension : ModuleExtension {
+class SliceExtension : ProcessorExtension {
     override val id = "flow.slice"
     override val displayName = "Slice"
     override val inputs = listOf("in")

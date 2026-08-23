@@ -1,10 +1,10 @@
 package com.example.sample
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 
 /** Module extension: multiplies the numeric input by 3. */
-class Mul3Module : ModuleExtension {
+class Mul3Module : ProcessorExtension {
     override val id = "com.example.mul3"
     override val displayName = "×3"
     override val inputs = listOf("in")

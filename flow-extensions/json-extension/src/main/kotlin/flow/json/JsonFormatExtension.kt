@@ -1,7 +1,7 @@
 package flow.json
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 
 /**
@@ -11,7 +11,7 @@ import flow.extension.OptionType
  * to collide with. It is only asked to recognise well-formed JSON — anything it cannot read is
  * reported with the offset, which is more use than a generic "invalid JSON".
  */
-class JsonFormatExtension : ModuleExtension {
+class JsonFormatExtension : ProcessorExtension {
     override val id = "flow.json"
     override val displayName = "JSON Format"
     override val version = "1.0.0"

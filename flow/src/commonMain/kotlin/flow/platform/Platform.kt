@@ -4,7 +4,8 @@ import flow.model.Drawing
 import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
-import flow.model.ViewInfo
+import flow.model.InputInfo
+import flow.model.OutputInfo
 
 expect object Platform {
     // ── installed modules/components (each folder isolated by a classloader = sandbox) ──
@@ -19,11 +20,11 @@ expect object Platform {
     // options to show for the given values (a module may hide options another option makes moot)
     fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>?
     // ── installed views (the same extension store; a jar may provide modules, views or both) ──
-    fun installedViewInfos(): List<ViewInfo>
+    fun installedOutputInfos(): List<OutputInfo>
     // Asks a view to draw [data] into a strip [width] wide. Suspending for the same reason
     // moduleProcess is: a view is arbitrary code, and a drawing that never finishes has to be
     // cancellable. It draws as tall as it needs and the app scrolls the rest.
-    suspend fun drawView(
+    suspend fun drawOutput(
         id: String,
         data: ByteArray,
         options: Map<String, String>,
@@ -33,7 +34,7 @@ expect object Platform {
 
     // Reports what the user did on a view and returns the options to draw it with next — the same
     // ones back when the view makes nothing of it. Suspending like the rest: it runs the extension.
-    suspend fun viewEvent(
+    suspend fun outputEvent(
         id: String,
         kind: String,
         region: String?,
@@ -41,6 +42,14 @@ expect object Platform {
         y: Float,
         options: Map<String, String>,
     ): Map<String, String>
+
+    // ── installed inputs (how the bytes going into a flow are written) ──
+    fun installedInputInfos(): List<InputInfo>
+    // The bytes [text] stands for, and what is wrong with it — both from one call, because the
+    // editor needs both on the same keystroke.
+    suspend fun inputParse(id: String, text: String, options: Map<String, String>): Pair<ByteArray, String?>
+    // How [data] reads back in the editor.
+    suspend fun inputFormat(id: String, data: ByteArray, options: Map<String, String>): String
 
     fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?

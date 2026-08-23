@@ -51,6 +51,7 @@ class Scheme(
     val catTransform: Color,
     val catSink: Color,
     val catIo: Color,
+    val catOut: Color,
     val catComponent: Color,
     val catPlugin: Color,
     // Washes laid over a node header, one per node kind. Kept apart from the cat* colours because
@@ -117,7 +118,8 @@ val DarkScheme = Scheme(
     catSource = Color(0xFF22C3A6),
     catTransform = Color(0xFFB07BFF),
     catSink = Color(0xFFFF9D5C),
-    catIo = Color(0xFFF2C94C),         // input/output (yellow)
+    catIo = Color(0xFFF2C94C),         // input (yellow)
+    catOut = Color(0xFF4FA3FF),        // output (blue) — the far end reads as a different thing
     catComponent = Color(0xFF62C6FF),  // component instance node
     catPlugin = Color(0xFFEF7DBB),     // installed module plugin
     ioHeaderTint = Color(0xFFF2C94C).copy(alpha = 0.16f),
@@ -192,6 +194,7 @@ val LightScheme = Scheme(
     catTransform = Color(0xFF8446DE),
     catSink = Color(0xFFDD6E1F),
     catIo = Color(0xFFB88A08),
+    catOut = Color(0xFF1668C7),
     catComponent = Color(0xFF1789CE),
     catPlugin = Color(0xFFD1428D),
     // Nearly opaque pastels rather than a thin wash: a low-alpha tint over a cool grey header
@@ -266,6 +269,7 @@ object Palette {
     val catTransform get() = scheme.catTransform
     val catSink get() = scheme.catSink
     val catIo get() = scheme.catIo
+    val catOut get() = scheme.catOut
     val catComponent get() = scheme.catComponent
     val catPlugin get() = scheme.catPlugin
     val ioHeaderTint get() = scheme.ioHeaderTint
@@ -294,6 +298,7 @@ object Palette {
         "source" -> catSource
         "sink" -> catSink
         "io" -> catIo
+        "out" -> catOut
         "component" -> catComponent
         "pluginmod" -> catPlugin
         else -> catTransform

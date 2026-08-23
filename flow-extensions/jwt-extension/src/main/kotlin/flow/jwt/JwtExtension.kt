@@ -1,7 +1,7 @@
 package flow.jwt
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.security.MessageDigest
 import java.util.Base64
@@ -18,7 +18,7 @@ import javax.crypto.spec.SecretKeySpec
  *
  * Header and payload come out decoded, so they can go straight into a JSON formatter or a view.
  */
-class JwtExtension : ModuleExtension {
+class JwtExtension : ProcessorExtension {
     override val id = "flow.jwt"
     override val displayName = "JWT"
     override val version = "1.0.0"

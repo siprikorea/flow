@@ -1,7 +1,7 @@
 package flow.base64
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.util.Base64
 
@@ -11,7 +11,7 @@ import java.util.Base64
  * '='. Decoding accepts input with or without padding, so the padding option only applies to
  * encoding.
  */
-class Base64Extension : ModuleExtension {
+class Base64Extension : ProcessorExtension {
     override val id = "flow.base64"
     override val displayName = "Base64"
     override val inputs = listOf("in")

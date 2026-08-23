@@ -1,10 +1,10 @@
 package flow.split
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 
 /** Splits "in" by the "sep" separator into its two output ports (remainder in the last). */
-class SplitExtension : ModuleExtension {
+class SplitExtension : ProcessorExtension {
     override val id = "flow.split"
     override val displayName = "Split"
     override val inputs = listOf("in")

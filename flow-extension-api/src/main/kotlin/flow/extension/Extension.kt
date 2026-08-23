@@ -1,10 +1,19 @@
 package flow.extension
 
-/** The kind of editor a module option uses in the Flow property panel. */
+/**
+ * The four kinds of extension.
+ *
+ * An extension is anything that can be installed into Flow. A [ProcessorExtension] does the work in
+ * the middle of a flow, an [InputExtension] decides how the data going in is written, an
+ * [OutputExtension] how what comes out is shown, and a flow file installed as a component is the
+ * fourth — built in the tool rather than written in Kotlin, so it has no interface here.
+ */
+
+/** The kind of editor a processor option uses in the Flow property panel. */
 enum class OptionType { TEXT, NUMBER, SELECT }
 
 /**
- * A predefined module option the user can edit in the property panel.
+ * A predefined option the user can edit in the property panel.
  * `default` seeds the value on node creation; `choices` lists the allowed values for SELECT.
  */
 data class ExtensionOption(
@@ -15,14 +24,16 @@ data class ExtensionOption(
 )
 
 /**
- * A Flow module extension: implements the input → output processing of a custom module.
+ * A processor: the input → output work in the middle of a flow.
  *
- * Extensions provide modules only — components are built inside the Flow tool and added there.
+ * This is what most extensions are — a hash, a cipher, an encoder. [InputExtension] and
+ * [OutputExtension] are the two ends around it, and a component is a flow file installed as one
+ * rather than a class.
  *
  * Implementations must have a no-arg constructor and be registered under
- * `META-INF/services/flow.extension.ModuleExtension`.
+ * `META-INF/services/flow.extension.ProcessorExtension`.
  */
-interface ModuleExtension {
+interface ProcessorExtension {
     /** Identifier in package-name format (e.g. "com.example.base64"). */
     val id: String
 
@@ -74,3 +85,12 @@ interface ModuleExtension {
      */
     fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?>
 }
+
+/**
+ * What a processor was called before the four kinds had names.
+ *
+ * Kept so that an extension built against the older contract still loads: it is the same interface
+ * under a name that no longer says which of the four it is. Nothing new should implement it.
+ */
+@Deprecated("Renamed to ProcessorExtension", ReplaceWith("ProcessorExtension"))
+interface ModuleExtension : ProcessorExtension

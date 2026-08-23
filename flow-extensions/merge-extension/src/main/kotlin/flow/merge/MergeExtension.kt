@@ -1,10 +1,10 @@
 package flow.merge
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 
 /** Joins the connected inputs (in port order) with the "sep" separator. */
-class MergeExtension : ModuleExtension {
+class MergeExtension : ProcessorExtension {
     override val id = "flow.merge"
     override val displayName = "Merge"
     override val inputs = listOf("a", "b")

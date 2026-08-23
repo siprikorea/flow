@@ -1,6 +1,6 @@
 package flow.extension.host;
 
-import flow.extension.ViewCanvas;
+import flow.extension.OutputCanvas;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -8,17 +8,17 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 /**
- * The canvas a view is handed. It writes down each call rather than drawing it, so the drawing can
+ * The canvas an output is handed. It writes down each call rather than drawing it, so the drawing can
  * cross the pipe and be replayed by the app.
  *
- * The view is unaware of this — it draws, and what it drew arrives on screen. Recording is what
+ * The output is unaware of this — it draws, and what it drew arrives on screen. Recording is what
  * makes that work across the process boundary, and it is also what keeps text as text: the app
  * lays out the glyphs itself, at its own resolution, from the strings recorded here.
  *
- * A view is arbitrary code and may draw without ever stopping, so the number of calls is capped.
+ * An output is arbitrary code and may draw without ever stopping, so the number of calls is capped.
  * Hitting the cap fails the drawing instead of growing until the app runs out of memory.
  */
-final class RecordingCanvas implements ViewCanvas {
+final class RecordingCanvas implements OutputCanvas {
 
     /** Enough for a very long hex dump; far short of what it takes to exhaust a heap. */
     private static final int MAX_OPS = 200_000;
@@ -47,7 +47,7 @@ final class RecordingCanvas implements ViewCanvas {
 
     @Override
     public void contentHeight(float height) {
-        // the last word wins, so a view may revise it as it goes
+        // the last word wins, so an output may revise it as it goes
         contentHeight = Math.max(0f, height);
     }
 
@@ -135,7 +135,7 @@ final class RecordingCanvas implements ViewCanvas {
     private void begin(int op) {
         if (++ops > MAX_OPS) {
             throw new IllegalStateException(
-                "the view drew more than " + MAX_OPS + " times — it should show less of the data at once");
+                "the output drew more than " + MAX_OPS + " times — it should show less of the data at once");
         }
         write(o -> o.writeInt(op));
     }

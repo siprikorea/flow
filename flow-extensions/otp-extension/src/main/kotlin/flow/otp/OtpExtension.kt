@@ -1,7 +1,7 @@
 package flow.otp
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import javax.crypto.Mac
 import javax.crypto.spec.SecretKeySpec
@@ -67,7 +67,7 @@ internal object Otp {
 }
 
 /** Counter-based one-time password (RFC 4226). */
-class HotpExtension : ModuleExtension {
+class HotpExtension : ProcessorExtension {
     override val id = "flow.hotp"
     override val displayName = "HOTP"
     override val version = "1.0.0"
@@ -91,7 +91,7 @@ class HotpExtension : ModuleExtension {
  * The counter is the clock divided by the step, so the code changes on the step boundary rather
  * than a fixed interval after it is asked for — which is what makes two devices agree.
  */
-class TotpExtension : ModuleExtension {
+class TotpExtension : ProcessorExtension {
     override val id = "flow.totp"
     override val displayName = "TOTP"
     override val version = "1.0.0"

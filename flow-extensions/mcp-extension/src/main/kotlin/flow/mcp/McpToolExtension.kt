@@ -1,7 +1,7 @@
 package flow.mcp
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.io.BufferedReader
 import java.io.BufferedWriter
@@ -16,7 +16,7 @@ import java.util.concurrent.TimeUnit
  * object, and the tool's text content lands on "out". With "tool" left blank the module lists the
  * server's tools instead, which is the quickest way to see what a server offers.
  */
-class McpToolExtension : ModuleExtension {
+class McpToolExtension : ProcessorExtension {
     override val id = "flow.mcp"
     override val displayName = "MCP Tool"
     override val inputs = listOf("in")

@@ -1,12 +1,12 @@
 package flow.hash
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.security.MessageDigest
 
 /** Message digest module. Outputs the lowercase hex digest of "in" as ASCII bytes. */
-class HashExtension : ModuleExtension {
+class HashExtension : ProcessorExtension {
     override val id = "flow.hash"
     override val displayName = "Hash"
     override val inputs = listOf("in")

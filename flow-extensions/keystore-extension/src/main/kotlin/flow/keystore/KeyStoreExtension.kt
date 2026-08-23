@@ -1,7 +1,7 @@
 package flow.keystore
 
 import flow.extension.ExtensionOption
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 import java.io.ByteArrayInputStream
 import java.security.KeyStore
@@ -16,7 +16,7 @@ import java.security.KeyStore
  * entry that has a private key, which is what a single-key server store has; "keyPassword" covers
  * a JKS whose key is protected separately from the store.
  */
-class KeyStoreExtension : ModuleExtension {
+class KeyStoreExtension : ProcessorExtension {
     override val id = "flow.keystore"
     override val displayName = "Key Store"
     override val inputs = listOf("store", "password")

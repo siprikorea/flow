@@ -1,9 +1,11 @@
 package flow.extension.host;
 
 import flow.extension.ExtensionOption;
+import flow.extension.InputExtension;
 import flow.extension.ModuleExtension;
-import flow.extension.ViewEvent;
-import flow.extension.ViewExtension;
+import flow.extension.OutputEvent;
+import flow.extension.OutputExtension;
+import flow.extension.ProcessorExtension;
 
 import java.io.*;
 import java.net.URL;
@@ -61,7 +63,7 @@ public final class ExtensionWorker {
         int reqId, int op, DataInputStream in, Loaded loaded,
         DataOutputStream out, Object writeLock
     ) throws IOException {
-        Map<String, ModuleExtension> byId = loaded.modules;
+        Map<String, ProcessorExtension> byId = loaded.processors;
         switch (op) {
             case Wire.DESCRIBE:
                 return () -> reply(out, writeLock, reqId, o -> describe(byId, o));
@@ -71,7 +73,7 @@ public final class ExtensionWorker {
                 Map<String, String> options = Wire.readStringMap(in);
                 return () -> reply(out, writeLock, reqId, o -> {
                     Map<String, byte[]> r = need(byId, id).process(inputs, options);
-                    if (r == null) throw new IllegalStateException("module '" + id + "' returned no result");
+                    if (r == null) throw new IllegalStateException("processor '" + id + "' returned no result");
                     Wire.writeByteMap(o, r);
                 });
             }
@@ -79,7 +81,7 @@ public final class ExtensionWorker {
                 String id = Wire.readString(in);
                 Map<String, String> options = Wire.readStringMap(in);
                 return () -> reply(out, writeLock, reqId, o -> {
-                    ModuleExtension e = need(byId, id);
+                    ProcessorExtension e = need(byId, id);
                     Wire.writeStringList(o, e.inputsFor(options));
                     Wire.writeStringList(o, e.outputsFor(options));
                 });
@@ -89,23 +91,23 @@ public final class ExtensionWorker {
                 Map<String, String> values = Wire.readStringMap(in);
                 return () -> reply(out, writeLock, reqId, o -> writeOptions(o, need(byId, id).optionsFor(values)));
             }
-            case Wire.VIEW_DESCRIBE:
-                return () -> reply(out, writeLock, reqId, o -> describeViews(loaded.views, o));
-            case Wire.VIEW_DRAW: {
+            case Wire.OUTPUT_DESCRIBE:
+                return () -> reply(out, writeLock, reqId, o -> describeOutputs(loaded.outputs, o));
+            case Wire.OUTPUT_DRAW: {
                 String id = Wire.readString(in);
                 byte[] data = Wire.readBytes(in);
                 Map<String, String> options = Wire.readStringMap(in);
                 float width = in.readFloat();
                 float monoCharWidth = in.readFloat();
                 return () -> reply(out, writeLock, reqId, o -> {
-                    ViewExtension v = loaded.views.get(id);
-                    if (v == null) throw new IllegalStateException("view '" + id + "' is not in this extension");
+                    OutputExtension v = loaded.outputs.get(id);
+                    if (v == null) throw new IllegalStateException("output '" + id + "' is not in this extension");
                     RecordingCanvas canvas = new RecordingCanvas(width, monoCharWidth);
                     v.draw(canvas, data != null ? data : new byte[0], options);
                     o.write(canvas.finish());
                 });
             }
-            case Wire.VIEW_EVENT: {
+            case Wire.OUTPUT_EVENT: {
                 String id = Wire.readString(in);
                 String kind = Wire.readString(in);
                 String region = Wire.readString(in);
@@ -113,12 +115,35 @@ public final class ExtensionWorker {
                 float y = in.readFloat();
                 Map<String, String> options = Wire.readStringMap(in);
                 return () -> reply(out, writeLock, reqId, o -> {
-                    ViewExtension v = loaded.views.get(id);
-                    if (v == null) throw new IllegalStateException("view '" + id + "' is not in this extension");
+                    OutputExtension v = loaded.outputs.get(id);
+                    if (v == null) throw new IllegalStateException("output '" + id + "' is not in this extension");
                     // an empty region name means the click landed where the view claimed nothing
-                    ViewEvent event = new ViewEvent(kind, region.isEmpty() ? null : region, x, y);
+                    OutputEvent event = new OutputEvent(kind, region.isEmpty() ? null : region, x, y);
                     Map<String, String> next = v.onEvent(event, options);
                     Wire.writeStringMap(o, next != null ? next : options);
+                });
+            }
+            case Wire.INPUT_DESCRIBE:
+                return () -> reply(out, writeLock, reqId, o -> describeInputs(loaded.inputs, o));
+            case Wire.INPUT_PARSE: {
+                String id = Wire.readString(in);
+                String text = Wire.readString(in);
+                Map<String, String> options = Wire.readStringMap(in);
+                return () -> reply(out, writeLock, reqId, o -> {
+                    InputExtension v = needInput(loaded.inputs, id);
+                    byte[] bytes = v.parse(text, options);
+                    Wire.writeBytes(o, bytes != null ? bytes : new byte[0]);
+                    String problem = v.problem(text, options);
+                    Wire.writeString(o, problem != null ? problem : "");
+                });
+            }
+            case Wire.INPUT_FORMAT: {
+                String id = Wire.readString(in);
+                byte[] data = Wire.readBytes(in);
+                Map<String, String> options = Wire.readStringMap(in);
+                return () -> reply(out, writeLock, reqId, o -> {
+                    String text = needInput(loaded.inputs, id).format(data != null ? data : new byte[0], options);
+                    Wire.writeString(o, text != null ? text : "");
                 });
             }
             default:
@@ -159,15 +184,15 @@ public final class ExtensionWorker {
         }
     }
 
-    private static ModuleExtension need(Map<String, ModuleExtension> byId, String id) {
-        ModuleExtension e = byId.get(id);
-        if (e == null) throw new IllegalStateException("module '" + id + "' is not in this extension");
+    private static ProcessorExtension need(Map<String, ProcessorExtension> byId, String id) {
+        ProcessorExtension e = byId.get(id);
+        if (e == null) throw new IllegalStateException("processor '" + id + "' is not in this extension");
         return e;
     }
 
-    private static void describe(Map<String, ModuleExtension> byId, DataOutputStream o) throws IOException {
+    private static void describe(Map<String, ProcessorExtension> byId, DataOutputStream o) throws IOException {
         o.writeInt(byId.size());
-        for (ModuleExtension e : byId.values()) {
+        for (ProcessorExtension e : byId.values()) {
             Wire.writeString(o, e.getId());
             Wire.writeString(o, e.getDisplayName());
             Wire.writeString(o, e.getVersion());
@@ -177,9 +202,26 @@ public final class ExtensionWorker {
         }
     }
 
-    private static void describeViews(Map<String, ViewExtension> views, DataOutputStream o) throws IOException {
-        o.writeInt(views.size());
-        for (ViewExtension v : views.values()) {
+    private static InputExtension needInput(Map<String, InputExtension> inputs, String id) {
+        InputExtension e = inputs.get(id);
+        if (e == null) throw new IllegalStateException("input '" + id + "' is not in this extension");
+        return e;
+    }
+
+    private static void describeInputs(Map<String, InputExtension> inputs, DataOutputStream o) throws IOException {
+        o.writeInt(inputs.size());
+        for (InputExtension v : inputs.values()) {
+            Wire.writeString(o, v.getId());
+            Wire.writeString(o, v.getDisplayName());
+            Wire.writeString(o, v.getVersion());
+            o.writeInt(v.getCharsPerByte());
+            writeOptions(o, v.getOptions());
+        }
+    }
+
+    private static void describeOutputs(Map<String, OutputExtension> outputs, DataOutputStream o) throws IOException {
+        o.writeInt(outputs.size());
+        for (OutputExtension v : outputs.values()) {
             Wire.writeString(o, v.getId());
             Wire.writeString(o, v.getDisplayName());
             Wire.writeString(o, v.getVersion());
@@ -200,25 +242,35 @@ public final class ExtensionWorker {
 
     /** What one extension folder turned out to provide. */
     private static final class Loaded {
-        final Map<String, ModuleExtension> modules = new LinkedHashMap<>();
-        final Map<String, ViewExtension> views = new LinkedHashMap<>();
+        final Map<String, ProcessorExtension> processors = new LinkedHashMap<>();
+        final Map<String, OutputExtension> outputs = new LinkedHashMap<>();
+        final Map<String, InputExtension> inputs = new LinkedHashMap<>();
     }
 
     /**
      * Every jar named on the command line, loaded together as this one extension.
      *
-     * Modules and views are looked up separately but come from the same loader, so one extension
-     * may ship both — a module and the view that makes sense of what it produces.
+     * The three kinds are looked up separately but come from the same loader, so one extension may
+     * ship more than one — a processor and the output that makes sense of what it produces.
      */
+    @SuppressWarnings("deprecation")
     private static Loaded load(String[] jars) throws Exception {
         URL[] urls = new URL[jars.length];
         for (int i = 0; i < jars.length; i++) urls[i] = new File(jars[i]).toURI().toURL();
         // the contract comes from this process's own classpath; everything else from the jars
         URLClassLoader cl = new URLClassLoader(urls, ExtensionWorker.class.getClassLoader());
         Loaded loaded = new Loaded();
-        for (ModuleExtension e : ServiceLoader.load(ModuleExtension.class, cl)) loaded.modules.put(e.getId(), e);
-        // a jar with no views is the common case, and ServiceLoader is happy to find none
-        for (ViewExtension v : ServiceLoader.load(ViewExtension.class, cl)) loaded.views.put(v.getId(), v);
+        for (ProcessorExtension e : ServiceLoader.load(ProcessorExtension.class, cl)) {
+            loaded.processors.put(e.getId(), e);
+        }
+        // also under the name a processor used to have, so an extension built before the rename
+        // still loads without being rebuilt
+        for (ModuleExtension e : ServiceLoader.load(ModuleExtension.class, cl)) {
+            loaded.processors.putIfAbsent(e.getId(), e);
+        }
+        // a jar with no outputs or inputs is the common case, and ServiceLoader finds none happily
+        for (OutputExtension v : ServiceLoader.load(OutputExtension.class, cl)) loaded.outputs.put(v.getId(), v);
+        for (InputExtension v : ServiceLoader.load(InputExtension.class, cl)) loaded.inputs.put(v.getId(), v);
         return loaded;
     }
 }

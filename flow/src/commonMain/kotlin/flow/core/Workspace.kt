@@ -8,8 +8,10 @@ import androidx.compose.ui.geometry.Offset
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
-import flow.model.VIEW_PARAM
-import flow.model.ViewInfo
+import flow.model.INPUT_PARAM
+import flow.model.OUTPUT_PARAM
+import flow.model.InputInfo
+import flow.model.OutputInfo
 import flow.model.OptDef
 import flow.model.Node
 import flow.model.Session
@@ -204,9 +206,11 @@ class Workspace(private val scope: CoroutineScope) {
     var expandedDirs by mutableStateOf(setOf(""))
     var components by mutableStateOf<List<CompDef>>(emptyList())
     var installedModules by mutableStateOf<List<ModuleInfo>>(emptyList())
-    var installedViews by mutableStateOf<List<ViewInfo>>(emptyList())
+    var installedOutputs by mutableStateOf<List<OutputInfo>>(emptyList())
+    var installedInputs by mutableStateOf<List<InputInfo>>(emptyList())
     // switched off in Settings; still installed, just not offered
-    var disabledViews by mutableStateOf<Set<String>>(emptySet())
+    var disabledOutputs by mutableStateOf<Set<String>>(emptySet())
+    var disabledInputs by mutableStateOf<Set<String>>(emptySet())
     // the open folder, or null. Kept as state so the tree and the menus follow it.
     var projectRoot by mutableStateOf<String?>(null)
     val rootLabel: String get() = Platform.projectName() ?: ""
@@ -239,7 +243,8 @@ class Workspace(private val scope: CoroutineScope) {
         // sorted here rather than in each place that lists them: the install store hands them back
         // in whatever order the filesystem walked, which shuffles as extensions come and go
         installedModules = Platform.installedModuleInfos().sortedBy { it.name.lowercase() }
-        installedViews = Platform.installedViewInfos().sortedBy { it.name.lowercase() }
+        installedOutputs = Platform.installedOutputInfos().sortedBy { it.name.lowercase() }
+        installedInputs = Platform.installedInputInfos().sortedBy { it.name.lowercase() }
         // project components (flows/) + installed components (components/, read-only)
         val local = files.filter { it.endsWith(".flow") }.mapNotNull { name ->
             val raw = Platform.readFlow(name) ?: return@mapNotNull null
@@ -257,13 +262,34 @@ class Workspace(private val scope: CoroutineScope) {
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }
 
     /** The views on offer: everything installed that has not been switched off. */
-    val enabledViews: List<ViewInfo> get() = installedViews.filterNot { it.id in disabledViews }
+    val enabledOutputs: List<OutputInfo> get() = installedOutputs.filterNot { it.id in disabledOutputs }
 
-    fun setViewEnabled(id: String, enabled: Boolean) {
-        disabledViews = if (enabled) disabledViews - id else disabledViews + id
+    /** The inputs on offer, on the same terms. */
+    val enabledInputs: List<InputInfo> get() = installedInputs.filterNot { it.id in disabledInputs }
+
+    fun setOutputEnabled(id: String, enabled: Boolean) {
+        disabledOutputs = if (enabled) disabledOutputs - id else disabledOutputs + id
     }
 
-    fun viewInfo(id: String): ViewInfo? = installedViews.find { it.id == id }
+    fun setInputEnabled(id: String, enabled: Boolean) {
+        disabledInputs = if (enabled) disabledInputs - id else disabledInputs + id
+    }
+
+    fun inputInfo(id: String): InputInfo? = installedInputs.find { it.id == id }
+
+    /**
+     * The input a node's value is typed with.
+     *
+     * Unlike an output, an unnamed one falls back to whichever is installed first: a value has to
+     * be written as something, and leaving the user with no way to enter one at all would be worse
+     * than picking for them. Null only when nothing is installed, and then the editor's own plain
+     * hex stands in.
+     */
+    fun inputFor(node: Node): InputInfo? =
+        node.params[INPUT_PARAM]?.takeIf { it.isNotBlank() }?.let { id -> enabledInputs.find { it.id == id } }
+            ?: enabledInputs.firstOrNull()
+
+    fun outputInfo(id: String): OutputInfo? = installedOutputs.find { it.id == id }
 
     /**
      * The view a node is shown with, or null for the raw bytes.
@@ -272,8 +298,8 @@ class Workspace(private val scope: CoroutineScope) {
      * a flow saved on a machine with some view still opens on one without it, showing the data
      * plainly rather than an error where the data should be.
      */
-    fun viewFor(node: Node): ViewInfo? =
-        node.params[VIEW_PARAM]?.takeIf { it.isNotBlank() }?.let { id -> enabledViews.find { it.id == id } }
+    fun outputFor(node: Node): OutputInfo? =
+        node.params[OUTPUT_PARAM]?.takeIf { it.isNotBlank() }?.let { id -> enabledOutputs.find { it.id == id } }
 
     // options a module shows for the values a node currently holds
     fun moduleOptions(type: String, values: Map<String, String>): List<OptDef> =
@@ -328,7 +354,8 @@ class Workspace(private val scope: CoroutineScope) {
      */
     fun registryState(entry: RegistryEntry): RegistryState {
         val version = installedModules.find { it.id == entry.id }?.version
-            ?: installedViews.find { it.id == entry.id }?.version
+            ?: installedOutputs.find { it.id == entry.id }?.version
+            ?: installedInputs.find { it.id == entry.id }?.version
             ?: return RegistryState.AVAILABLE
         return if (compareVersions(entry.version, version) > 0) RegistryState.UPDATABLE
         else RegistryState.INSTALLED
@@ -707,7 +734,8 @@ class Workspace(private val scope: CoroutineScope) {
     fun settingsJson(): String = json.encodeToString(
         Settings(
             lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
-            disabledViews.sorted(),
+            disabledOutputs.sorted(),
+            disabledInputs.sorted(),
         )
     )
 
@@ -722,7 +750,8 @@ class Workspace(private val scope: CoroutineScope) {
             theme = saved.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
             animSeconds = saved.animSeconds.coerceIn(0.05f, 10f)
             registryUrl = saved.registryUrl.ifBlank { DEFAULT_REGISTRY_URL }
-            disabledViews = saved.disabledViews.toSet()
+            disabledOutputs = saved.disabledOutputs.toSet()
+            disabledInputs = saved.disabledInputs.toSet()
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }
