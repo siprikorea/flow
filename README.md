@@ -139,14 +139,18 @@ of `component.json`; without that distinction a component's bundled dependency w
 as an installed module. Each runs in a **sandbox**: an isolated classloader over just its own
 folder's JARs, so one extension's dependencies never clash with another's.
 
-Each extension loads its **own jars before the host's**, so a dependency it bundles is the one it
-gets rather than being silently replaced by whatever version the app happens to carry. Two things
-still come from the host and have to: the `flow.extension` contract, since both sides must mean the
-same `ModuleExtension` class, and anything the extension does not bundle — the shipped extensions
-are thin and use the host's Kotlin runtime.
+Each extension runs in **its own process**. The app starts a worker JVM per extension the first
+time it is used and keeps it for later calls; its classpath is the extension contract, the Kotlin
+runtime and that extension's own jars, and nothing else. So an extension's dependencies cannot meet
+the app's or another extension's, it cannot reach `flow.core` or `flow.platform`, and what it does
+to its own JVM stays there — an extension calling `Runtime.halt` takes down only its worker, and the
+next call starts a fresh one.
 
-This is classloader isolation, not process isolation: extensions run in the app's own JVM, so they
-can still reach its classes and a runaway one still shares its heap.
+It is also what makes **Stop** unconditional: a module spinning in a loop that ignores interruption
+cannot be stopped inside a shared JVM by any means the platform offers, but a process can be ended.
+
+The cost is a JVM per extension: the first scan pays their startup (about a second for fifteen), and
+port data crosses a pipe, so a very large payload is copied on the way in and out.
 
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 

@@ -1,7 +1,6 @@
 package flow.platform
 
 import flow.engine.FlowEngine
-import flow.extension.ModuleExtension
 import flow.model.FlowFile
 import flow.model.InstallResult
 import flow.model.ModuleInfo
@@ -9,8 +8,9 @@ import flow.model.OptDef
 import flow.model.OptType
 import kotlinx.serialization.json.Json
 import java.io.File
-import java.net.URLClassLoader
-import java.util.ServiceLoader
+import flow.extension.host.Wire
+import java.io.ByteArrayInputStream
+import java.io.DataInputStream
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
@@ -30,7 +30,6 @@ internal object ExtensionLoader {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
     private val extensionsDir = File(baseDir, "extensions")
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
-    private val apiClassLoader = ModuleExtension::class.java.classLoader
 
     private const val COMPONENT_FILE = "component.json"
 
@@ -67,96 +66,113 @@ internal object ExtensionLoader {
     private fun jarsIn(dir: File): Array<File> =
         dir.listFiles { f -> f.isFile && LOADABLE_SUFFIXES.any { s -> f.name.endsWith(s) } } ?: emptyArray()
 
-    private fun isolatedLoader(jars: Array<File>): URLClassLoader =
-        ExtensionClassLoader(jars.map { it.toURI().toURL() }.toTypedArray(), apiClassLoader)
+    /* ───────── installed modules (a process per extension) ───────── */
 
-    /**
-     * Loads an extension's own jars before falling back to the host's.
-     *
-     * A plain URLClassLoader asks its parent first, so an extension bundling a different version of
-     * a library the host also uses silently got the host's — the dependency it was built and tested
-     * against was ignored. Looking in its own jars first is what makes bundling a dependency mean
-     * anything.
-     *
-     * Two things still come from the host, and have to: the extension contract itself, since both
-     * sides must be talking about the same ModuleExtension class, and anything the extension does
-     * not carry — the shipped extensions are thin and rely on the host's Kotlin runtime.
-     */
-    private class ExtensionClassLoader(urls: Array<java.net.URL>, private val host: ClassLoader) :
-        URLClassLoader(urls, host) {
-        override fun loadClass(name: String, resolve: Boolean): Class<*> =
-            synchronized(getClassLoadingLock(name)) {
-                findLoadedClass(name)
-                    ?: if (name.startsWith("flow.extension.")) host.loadClass(name)
-                    else runCatching { findClass(name) }.getOrElse { super.loadClass(name, resolve) }
-            }
+    // what a worker told us about one module it serves
+    private class Loaded(val dir: File, val info: ModuleInfo)
 
-        // the same order for resources, so an extension's own META-INF/services and config win
-        override fun getResource(name: String): java.net.URL? = findResource(name) ?: super.getResource(name)
+    private val processes = LinkedHashMap<File, ExtensionProcess>()
+
+    private fun processFor(dir: File): ExtensionProcess = synchronized(processes) {
+        processes.getOrPut(dir) { ExtensionProcess(dir, jarsIn(dir).toList()) }
     }
 
-    // extension option specs -> the model's typed option specs (for palette/props)
-    private fun optDefs(ext: ModuleExtension): List<OptDef> = optDefs(ext.options)
-
-    private fun optDefs(options: List<flow.extension.ExtensionOption>): List<OptDef> = options.map {
-        OptDef(it.name, when (it.type) {
-            flow.extension.OptionType.NUMBER -> OptType.NUMBER
-            flow.extension.OptionType.SELECT -> OptType.SELECT
-            else -> OptType.TEXT
-        }, it.default, it.choices)
-    }
-
-    // Extension ports and the engine both carry raw bytes now, so no bridging is needed here.
-    // Exceptions (e.g. an invalid key/IV size) propagate to the caller, which attributes them to
-    // the specific node and surfaces them as that node's error status (see FlowEngine.evaluate).
-    private fun runExtension(ext: ModuleExtension, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
-        ext.process(inputs, options)
-
-    /* ───────── installed modules (isolated loader per folder) ───────── */
-
-    private class LoadedModule(val dir: File, val loader: URLClassLoader, val ext: ModuleExtension)
-
-    // scans one root (each subfolder = one module's jar(s), loaded via its own isolated classloader)
-    private fun scanModuleRoot(root: File?): Map<String, LoadedModule> {
-        val map = LinkedHashMap<String, LoadedModule>()
+    // Asks each extension folder what it provides. A folder that cannot answer — a broken jar, a
+    // worker that will not start — is left out rather than taking the scan down with it.
+    private fun scanModuleRoot(root: File?): Map<String, Loaded> {
+        val map = LinkedHashMap<String, Loaded>()
         root?.listFiles { f -> f.isDirectory }?.forEach { dir ->
             // a component's bundled dependency jars are not installed modules
             if (isComponentDir(dir)) return@forEach
-            val jars = jarsIn(dir)
-            if (jars.isEmpty()) return@forEach
-            val cl = isolatedLoader(jars)
-            val exts = runCatching { ServiceLoader.load(ModuleExtension::class.java, cl).toList() }.getOrDefault(emptyList())
-            val primary = exts.find { it.id == dir.name } ?: exts.firstOrNull()
-            if (primary != null) map[primary.id] = LoadedModule(dir, cl, primary)
+            if (jarsIn(dir).isEmpty()) return@forEach
+            runCatching { describe(processFor(dir)) }.getOrDefault(emptyList()).forEach { info ->
+                map[info.id] = Loaded(dir, info)
+            }
         }
         return map
     }
 
+    /** DESCRIBE: everything one worker serves. */
+    private fun describe(proc: ExtensionProcess): List<ModuleInfo> {
+        val reply = proc.request(Wire.DESCRIBE) {}
+        if (!reply.ok) return emptyList()
+        val input = DataInputStream(ByteArrayInputStream(reply.payload))
+        // read in the order the worker writes them, not the order ModuleInfo declares them
+        return (0 until input.readInt()).map {
+            val id = Wire.readString(input)
+            val name = Wire.readString(input)
+            val version = Wire.readString(input)
+            val inputs = Wire.readStringList(input)
+            val outputs = Wire.readStringList(input)
+            ModuleInfo(id, name, inputs, outputs, readOptions(input), version)
+        }
+    }
+
+    private fun readOptions(input: DataInputStream): List<OptDef> =
+        (0 until input.readInt()).map {
+            val name = Wire.readString(input)
+            val type = when (Wire.readString(input)) {
+                "NUMBER" -> OptType.NUMBER
+                "SELECT" -> OptType.SELECT
+                else -> OptType.TEXT
+            }
+            OptDef(name, type, Wire.readString(input), Wire.readStringList(input))
+        }
+
+    // a worker's failure is this call's failure, carrying whatever the extension said
+    private fun ExtensionProcess.Reply.orThrow(): DataInputStream {
+        if (!ok) error(payload.decodeToString())
+        return DataInputStream(ByteArrayInputStream(payload))
+    }
+
     // id -> loaded module, from the one install root.
-    private var moduleCache: Map<String, LoadedModule>? = null
-    private fun loadedModules(): Map<String, LoadedModule> {
+    private var moduleCache: Map<String, Loaded>? = null
+    private fun loadedModules(): Map<String, Loaded> {
         moduleCache?.let { return it }
         ensureDirs()
-        val map = LinkedHashMap<String, LoadedModule>()
+        val map = LinkedHashMap<String, Loaded>()
         map.putAll(scanModuleRoot(extensionsDir))
         moduleCache = map
         return map
     }
 
-    fun moduleInfos(): List<ModuleInfo> =
-        loadedModules().values.map { m ->
-            ModuleInfo(m.ext.id, m.ext.displayName, m.ext.inputs, m.ext.outputs, optDefs(m.ext), m.ext.version)
-        }
+    fun moduleInfos(): List<ModuleInfo> = loadedModules().values.map { it.info }
 
-    fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
-        loadedModules()[id]?.ext?.let { runExtension(it, inputs, options) } ?: emptyMap()
+    fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
+        val loaded = loadedModules()[id] ?: return emptyMap()
+        val reply = processFor(loaded.dir).request(Wire.PROCESS) { o ->
+            Wire.writeString(o, id)
+            Wire.writeByteMap(o, inputs)
+            Wire.writeStringMap(o, options)
+        }
+        return Wire.readByteMap(reply.orThrow())
+    }
 
     // ports for the given option values (null = id isn't a known module — the host treats a null
     // result differently from an empty port list, which is legitimate for a no-input generator)
-    fun inputsFor(id: String, options: Map<String, String>): List<String>? = loadedModules()[id]?.ext?.inputsFor(options)
-    fun outputsFor(id: String, options: Map<String, String>): List<String>? = loadedModules()[id]?.ext?.outputsFor(options)
-    fun optionsFor(id: String, values: Map<String, String>): List<OptDef>? =
-        loadedModules()[id]?.ext?.let { optDefs(it.optionsFor(values)) }
+    private fun ports(id: String, options: Map<String, String>): Pair<List<String>, List<String>>? {
+        val loaded = loadedModules()[id] ?: return null
+        val reply = processFor(loaded.dir).request(Wire.PORTS) { o ->
+            Wire.writeString(o, id)
+            Wire.writeStringMap(o, options)
+        }
+        if (!reply.ok) return loaded.info.inputs to loaded.info.outputs
+        val input = DataInputStream(ByteArrayInputStream(reply.payload))
+        return Wire.readStringList(input) to Wire.readStringList(input)
+    }
+
+    fun inputsFor(id: String, options: Map<String, String>): List<String>? = ports(id, options)?.first
+    fun outputsFor(id: String, options: Map<String, String>): List<String>? = ports(id, options)?.second
+
+    fun optionsFor(id: String, values: Map<String, String>): List<OptDef>? {
+        val loaded = loadedModules()[id] ?: return null
+        val reply = processFor(loaded.dir).request(Wire.OPTIONS) { o ->
+            Wire.writeString(o, id)
+            Wire.writeStringMap(o, values)
+        }
+        if (!reply.ok) return loaded.info.options
+        return readOptions(DataInputStream(ByteArrayInputStream(reply.payload)))
+    }
 
     /* ───────── installed components (per folder) ───────── */
 
@@ -178,18 +194,20 @@ internal object ExtensionLoader {
         if (!compFile.exists()) return emptyMap()
         val flow = runCatching { json.decodeFromString<FlowFile>(compFile.readText()) }.getOrNull() ?: return emptyMap()
 
-        val sandbox = HashMap<String, ModuleExtension>()
-        val jars = jarsIn(dir)
-        if (jars.isNotEmpty()) {
-            val cl = isolatedLoader(jars) // component-specific isolated loader
-            runCatching { ServiceLoader.load(ModuleExtension::class.java, cl).forEach { sandbox[it.id] = it } }
-        }
+        // the component's bundled jars get their own worker, same as an installed extension
+        val proc = processFor(dir)
+        val sandboxIds = runCatching { describe(proc).map { it.id }.toSet() }.getOrDefault(emptySet())
         val engine = FlowEngine(
             loadFlow = { ref -> readComponent(ref)?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() } },
-            moduleIds = sandbox.keys,
+            moduleIds = sandboxIds,
             moduleProcess = { mid, ins, params ->
                 runInterruptible(Dispatchers.Default) {
-                    sandbox[mid]?.let { runExtension(it, ins, params) } ?: emptyMap()
+                    val reply = proc.request(Wire.PROCESS) { o ->
+                        Wire.writeString(o, mid)
+                        Wire.writeByteMap(o, ins)
+                        Wire.writeStringMap(o, params)
+                    }
+                    Wire.readByteMap(reply.orThrow())
                 }
             },
         )
@@ -203,14 +221,21 @@ internal object ExtensionLoader {
     private fun safeId(id: String): Boolean =
         id.isNotBlank() && !id.contains('/') && !id.contains('\\') && id != "." && id != ".."
 
+    // the worker holds the jars open, so it has to go before the folder can be removed
+    private fun release(dir: File) {
+        synchronized(processes) { processes.remove(dir) }?.kill()
+    }
+
     fun uninstallModule(id: String) {
         if (!safeId(id)) return
+        release(File(extensionsDir, id))
         runCatching { File(extensionsDir, id).deleteRecursively() }
         moduleCache = null
     }
 
     fun uninstallComponent(id: String) {
         if (!safeId(id)) return
+        release(File(extensionsDir, id))
         runCatching { File(extensionsDir, id).deleteRecursively() }
     }
 
@@ -220,14 +245,21 @@ internal object ExtensionLoader {
     fun installJar(path: String, overwrite: Boolean): InstallResult {
         val jar = File(path).takeIf { it.isFile } ?: return InstallResult()
         ensureDirs()
-        val tmp = isolatedLoader(arrayOf(jar))
-        val mods = runCatching { ServiceLoader.load(ModuleExtension::class.java, tmp).toList() }.getOrDefault(emptyList())
+        // asked in a throwaway worker: finding out what a jar provides means running its code, and
+        // an installer should not be the one place that still does that in the app's own JVM
+        val probe = ExtensionProcess(jar.parentFile ?: extensionsDir, listOf(jar))
+        val mods = try {
+            runCatching { describe(probe) }.getOrDefault(emptyList())
+        } finally {
+            probe.kill()
+        }
         if (mods.isEmpty()) return InstallResult()
 
         val conflicts = mods.filter { File(extensionsDir, it.id).exists() }.map { it.id }
         if (conflicts.isNotEmpty() && !overwrite) return InstallResult(conflicts = conflicts)
 
         mods.forEach { m ->
+            release(File(extensionsDir, m.id))
             val d = File(extensionsDir, m.id).also { it.deleteRecursively(); it.mkdirs() }
             runCatching { jar.copyTo(File(d, "${m.id}$EXTENSION_SUFFIX"), overwrite = true) }
         }
