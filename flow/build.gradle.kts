@@ -22,6 +22,7 @@ kotlin {
             implementation(compose.desktop.currentOs)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
             implementation(project(":flow-extension-api"))
+            implementation(project(":flow-extension-host"))
         }
         jvmTest.dependencies {
             implementation(kotlin("test"))
@@ -96,7 +97,7 @@ tasks.register<JavaExec>("cli") {
 // The MCP/CLI path never touches Compose or Skiko, so only these dependency jars ship — keeping the
 // UI stack out takes the bundle well under 1MB now that no extension jars ride along either. A new
 // runtime dependency on that path needs its prefix added here (mcpbBundleVerify below catches a miss).
-val mcpbServerJars = listOf("kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-extension-api")
+val mcpbServerJars = listOf("kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-extension-api", "flow-extension-host")
 
 val mcpbStage = tasks.register<Copy>("mcpbStage") {
     group = "application"

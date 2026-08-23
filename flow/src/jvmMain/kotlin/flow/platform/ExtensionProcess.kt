@@ -39,8 +39,13 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
         synchronized(startLock) {
             process?.takeIf { it.isAlive }?.let { return }
             val java = File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
-            val classpath = listOfNotNull(jarOf(ModuleExtension::class.java), jarOf(Unit::class.java))
-                .joinToString(File.pathSeparator)
+            // exactly three things, and the app is not among them: the worker itself, the contract
+            // both sides have to agree on, and the Kotlin runtime the shipped extensions use
+            val classpath = listOfNotNull(
+                jarOf(ExtensionWorker::class.java),
+                jarOf(ModuleExtension::class.java),
+                jarOf(Unit::class.java),
+            ).distinct().joinToString(File.pathSeparator)
             val command = listOf(java, "-cp", classpath, ExtensionWorker::class.java.name) +
                 jars.map { it.absolutePath }
             val p = ProcessBuilder(command)

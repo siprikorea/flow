@@ -4,9 +4,9 @@
   "display_name": "Flow",
   "version": "1.0.0",
   "description": "Builds and edits Flow files from a description",
-  "long_description": "Lets Claude author the flows under ~/.flow/flows: describe what a flow should do and it is drafted from the installed Flow modules (hash, MAC, cipher, key generation, signature, base64, …) — wired up, laid out on the canvas, and saved as a .flow file. Existing flows can be read back for review, so bad wiring can be found and reconnected, then written out again. Modules and flows added while Claude Desktop is running are picked up without a restart.",
+  "long_description": "Lets Claude author Flow files: describe what a flow should do and it is drafted from the installed Flow modules (hash, MAC, cipher, key generation, signature, base64, …) — wired up, laid out on the canvas, and handed back as a .flow file to save. A flow in the folder Flow has open can be read back for review, so bad wiring can be found and reconnected. Modules and flows added while Claude Desktop is running are picked up without a restart.",
   "author": {
-    "name": "박찬봉"
+    "name": "siprikorea"
   },
   "icon": "icon.png",
   "server": {
@@ -21,8 +21,15 @@
     }
   },
   "compatibility": {
-    "platforms": ["darwin", "linux"]
+    "platforms": [
+      "darwin",
+      "linux"
+    ]
   },
-  "keywords": ["flow", "pipeline", "crypto"],
+  "keywords": [
+    "flow",
+    "pipeline",
+    "crypto"
+  ],
   "license": "MIT"
 }
