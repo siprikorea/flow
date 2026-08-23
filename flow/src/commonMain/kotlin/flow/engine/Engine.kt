@@ -29,9 +29,14 @@ class FlowEngine(
     // topological order. The canvas animation follows this so a node that really is working (a
     // sleep, a big file) is shown working, instead of the whole run waiting for the total.
     private val onNodeSettled: (String, String?) -> Unit = { _, _ -> },
+    // How many components deep this engine already is. A sub-component is evaluated by its own
+    // engine one level down, and past [MAX_COMPONENT_DEPTH] the nesting is refused — a component
+    // that names itself would otherwise recurse until the process dies.
+    private val depth: Int = 0,
 ) {
     // node id -> error message, from the most recent evaluate() call (run/runByNode)
-    private val _errors = LinkedHashMap<String, String>()
+    @Volatile
+    private var _errors: Map<String, String> = emptyMap()
     val errors: Map<String, String> get() = _errors
 
     /**
@@ -46,8 +51,10 @@ class FlowEngine(
      * expects: process() is handed everything it needs and keeps nothing between calls.
      */
     private suspend fun evaluate(flow: FlowFile, inputs: Map<String, ByteArray>): Map<Pair<String, String>, ByteArray?> = coroutineScope {
-        _errors.clear()
         val byId = flow.nodes.associateBy { it.id }
+        // built up here and published at the end, so a caller reading errors never sees a
+        // half-filled map and two runs cannot tread on each other's results
+        val errs = LinkedHashMap<String, String>()
         val outVals = HashMap<Pair<String, String>, ByteArray?>()
         // guards the three maps below; each node touches them only when it finishes, so the lock is
         // held briefly and never across a module call
@@ -56,6 +63,13 @@ class FlowEngine(
         // running those anyway would either fail again for a derived reason or, worse, succeed on
         // nulls. Branches that never touched the failure are unaffected.
         val blocked = HashSet<String>()
+
+        // Ports whose value goes to more than one input. Extensions are arbitrary code and some
+        // write through the arrays they are given; handing the same array to two nodes let one of
+        // them corrupt the other's input, differently on each run now that they overlap in time.
+        // Copying only where a value is actually shared keeps the common straight chain free of it.
+        val shared = flow.edges.groupBy { it.from.node to it.from.port }
+            .filterValues { it.size > 1 }.keys
 
         val started = LinkedHashMap<String, Deferred<Unit>>()
         // topological order only decides who waits for whom; it no longer decides who runs when
@@ -74,7 +88,9 @@ class FlowEngine(
                 val inVals: Map<String, ByteArray?> = lock.withLock {
                     node.inputs.associate { port ->
                         val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
-                        port.name to (if (e == null) null else outVals[e.from.node to e.from.port])
+                        val from = e?.let { it.from.node to it.from.port }
+                        val value = from?.let { outVals[it] }
+                        port.name to if (from in shared) value?.copyOf() else value
                     }
                 }
                 // a module throwing (bad key/IV size, etc.) is attributed to this node, not swallowed silently
@@ -83,7 +99,7 @@ class FlowEngine(
                 val result = outcome.getOrElse { node.outputs.associate { p -> p.name to null } }
                 lock.withLock {
                     if (error != null) {
-                        _errors[nid] = error
+                        errs[nid] = error
                         blocked += nid
                     }
                     result.forEach { (p, v) -> outVals[nid to p] = v }
@@ -92,6 +108,7 @@ class FlowEngine(
             }
         }
         started.values.forEach { it.await() }
+        _errors = errs
         outVals
     }
 
@@ -121,12 +138,35 @@ class FlowEngine(
             // cin labels (its public interface, see asComponent()), so that path stays label-keyed
             node.type == "cin" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to (externalInputs[node.id] ?: externalInputs[node.label]))
             node.type == "cout" -> emptyMap()
-            node.type in moduleIds -> moduleProcess(node.type, inVals, node.params) // installed module extension
+            node.type in moduleIds -> {
+                // declared non-null, but an extension is arbitrary code — one written in Java can
+                // hand back null, and letting that through took the whole run down with an NPE
+                // instead of failing the one node that broke its contract
+                val out: Map<String, ByteArray?>? = moduleProcess(node.type, inVals, node.params)
+                out ?: error("module '${node.type}' returned no result")
+            }
             isComp(node.type) -> {
-                val sub = loadFlow(compFile(node.type)) ?: return node.outputs.associate { it.name to null }
+                val file = compFile(node.type)
+                // a component that cannot be found is a broken reference, not an empty result
+                val sub = loadFlow(file) ?: error("component '$file' was not found")
+                require(depth < MAX_COMPONENT_DEPTH) {
+                    "component '$file' nests more than $MAX_COMPONENT_DEPTH deep — does it refer to itself?"
+                }
+                // Its own engine, one level down: errors, and the per-node callback the canvas
+                // follows, belong to the flow being run. Sharing them let a sub-flow wipe the
+                // parent's errors and report node ids the parent has never heard of.
+                val subEngine = FlowEngine(loadFlow, moduleIds, moduleProcess, depth = depth + 1)
                 // component input ports (node.inputs) = the sub-component's cin labels
                 val subInputs = node.inputs.associate { it.name to (inVals[it.name] ?: ByteArray(0)) }
-                val subOut = run(sub, subInputs)
+                val subOut = subEngine.run(sub, subInputs)
+                // a component that failed inside has not produced its outputs; say so here rather
+                // than handing on nulls that look like an answer. A failure that already names a
+                // component is passed along as it stands — it identifies the component and node
+                // that actually broke, and prefixing every level on the way out just buries it.
+                subEngine.errors.entries.firstOrNull()?.let { (nid, message) ->
+                    if (message.startsWith("component '")) error(message)
+                    error("component '$file' failed at '$nid': $message")
+                }
                 node.outputs.associate { it.name to subOut[it.name] }
             }
             node.outputs.isEmpty() -> emptyMap() // sink
@@ -135,6 +175,11 @@ class FlowEngine(
             // a flow missing its hash module would report the plaintext as the digest.
             else -> error("module '${node.type}' is not installed")
         }
+    }
+
+    private companion object {
+        // deep enough for any real composition, shallow enough to fail long before the stack does
+        const val MAX_COMPONENT_DEPTH = 16
     }
 
     // Kahn topological sort (cycles: append remaining nodes in arbitrary order)
