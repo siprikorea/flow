@@ -47,9 +47,9 @@
     {
       "id": "flow.hotp",
       "name": "HOTP",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Counter-based one-time password (RFC 4226). Takes a raw or base32 secret.",
-      "file": "extensions/flow.otp.flowext",
+      "file": "extensions/flow.hotp.flowext",
       "inputs": [
         "secret",
         "counter"
@@ -267,9 +267,9 @@
     {
       "id": "flow.totp",
       "name": "TOTP",
-      "version": "1.0.0",
+      "version": "1.1.0",
       "description": "Time-based one-time password (RFC 6238), with a configurable step and digit count.",
-      "file": "extensions/flow.otp.flowext",
+      "file": "extensions/flow.totp.flowext",
       "inputs": [
         "secret"
       ],

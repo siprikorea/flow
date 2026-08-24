@@ -22,18 +22,28 @@ import kotlin.test.assertTrue
  */
 class InputProcessTest {
 
-    private val jar: File = File("../flow-extensions/input-extension/build/libs/input-extension.jar")
-        .let { if (it.isFile) it else File("flow-extensions/input-extension/build/libs/input-extension.jar") }
+    // one jar per extension, which is what installing one of them gets you
+    private fun jarFor(module: String): File =
+        File("../flow-extensions/$module-extension/build/libs/$module-extension.jar")
+            .let { if (it.isFile) it else File("flow-extensions/$module-extension/build/libs/$module-extension.jar") }
 
-    private val worker by lazy { ExtensionProcess(jar.parentFile, listOf(jar)) }
+    private val workers = mutableMapOf<String, ExtensionProcess>()
+
+    private fun worker(module: String): ExtensionProcess = workers.getOrPut(module) {
+        val jar = jarFor(module)
+        assertTrue(jar.isFile, "run :flow-extensions:$module-extension:jar first — ${jar.absolutePath}")
+        ExtensionProcess(jar.parentFile, listOf(jar))
+    }
+
+    private fun moduleOf(id: String) = if (id == "flow.input.hex") "hexinput" else "stringinput"
 
     @AfterTest
     fun stop() {
-        worker.kill()
+        workers.values.forEach { it.kill() }
     }
 
     private fun parse(id: String, text: String, options: Map<String, String> = emptyMap()): Pair<ByteArray, String?> {
-        val reply = worker.request(Wire.INPUT_PARSE) { o ->
+        val reply = worker(moduleOf(id)).request(Wire.INPUT_PARSE) { o ->
             Wire.writeString(o, id)
             Wire.writeString(o, text)
             Wire.writeStringMap(o, options)
@@ -45,7 +55,7 @@ class InputProcessTest {
     }
 
     private fun format(id: String, data: ByteArray, options: Map<String, String> = emptyMap()): String {
-        val reply = worker.request(Wire.INPUT_FORMAT) { o ->
+        val reply = worker(moduleOf(id)).request(Wire.INPUT_FORMAT) { o ->
             Wire.writeString(o, id)
             Wire.writeBytes(o, data)
             Wire.writeStringMap(o, options)
@@ -55,29 +65,29 @@ class InputProcessTest {
     }
 
     @Test
-    fun `the jar the test drives was actually built`() {
-        assertTrue(jar.isFile, "run :flow-extensions:input-extension:jar first — ${jar.absolutePath}")
-    }
-
-    @Test
-    fun `the worker reports the inputs the jar provides, and how wide each writes`() {
-        val reply = worker.request(Wire.INPUT_DESCRIBE) {}
-        assertTrue(reply.ok, reply.payload.decodeToString())
-        val input = DataInputStream(ByteArrayInputStream(reply.payload))
-        val found = (0 until input.readInt()).map {
-            val id = Wire.readString(input)
-            Wire.readString(input) // name
-            Wire.readString(input) // version
-            val charsPerByte = input.readInt()
-            repeat(input.readInt()) { // options
-                Wire.readString(input); Wire.readString(input); Wire.readString(input)
-                Wire.readStringList(input)
+    fun `each jar provides exactly the one input it is named for, and says how wide it writes`() {
+        // a jar with two extensions in it cannot be installed by halves: the store keeps a folder
+        // per id and would take both. One each is what makes a row in the list mean what it says.
+        listOf(
+            Triple("hexinput", "flow.input.hex", 3),
+            Triple("stringinput", "flow.input.string", 0),
+        ).forEach { (module, expectedId, expectedWidth) ->
+            val reply = worker(module).request(Wire.INPUT_DESCRIBE) {}
+            assertTrue(reply.ok, reply.payload.decodeToString())
+            val input = DataInputStream(ByteArrayInputStream(reply.payload))
+            val found = (0 until input.readInt()).map {
+                val id = Wire.readString(input)
+                Wire.readString(input) // name
+                Wire.readString(input) // version
+                val charsPerByte = input.readInt()
+                repeat(input.readInt()) { // options
+                    Wire.readString(input); Wire.readString(input); Wire.readString(input)
+                    Wire.readStringList(input)
+                }
+                id to charsPerByte
             }
-            id to charsPerByte
-        }.toMap()
-        assertEquals(setOf("flow.input.string", "flow.input.hex"), found.keys)
-        assertEquals(3, found["flow.input.hex"], "the editor could not place a caret without this")
-        assertEquals(0, found["flow.input.string"])
+            assertEquals(listOf(expectedId to expectedWidth), found, "$module-extension.jar")
+        }
     }
 
     @Test
@@ -126,7 +136,7 @@ class InputProcessTest {
 
     @Test
     fun `asking for an input the jar does not have is an error, not a crash`() {
-        val reply = worker.request(Wire.INPUT_FORMAT) { o ->
+        val reply = worker("hexinput").request(Wire.INPUT_FORMAT) { o ->
             Wire.writeString(o, "com.example.nope")
             Wire.writeBytes(o, ByteArray(0))
             Wire.writeStringMap(o, emptyMap())

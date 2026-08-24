@@ -24,14 +24,22 @@ import kotlin.test.assertTrue
  */
 class OutputProcessTest {
 
-    private val jar: File = File("../flow-extensions/output-extension/build/libs/output-extension.jar")
-        .let { if (it.isFile) it else File("flow-extensions/output-extension/build/libs/output-extension.jar") }
+    // one jar per extension, which is what installing one of them gets you
+    private fun jarFor(module: String): File =
+        File("../flow-extensions/$module-extension/build/libs/$module-extension.jar")
+            .let { if (it.isFile) it else File("flow-extensions/$module-extension/build/libs/$module-extension.jar") }
 
-    private val worker by lazy { ExtensionProcess(jar.parentFile, listOf(jar)) }
+    private val workers = mutableMapOf<String, ExtensionProcess>()
+
+    private fun worker(module: String): ExtensionProcess = workers.getOrPut(module) {
+        val jar = jarFor(module)
+        assertTrue(jar.isFile, "run :flow-extensions:$module-extension:jar first — ${jar.absolutePath}")
+        ExtensionProcess(jar.parentFile, listOf(jar))
+    }
 
     @AfterTest
     fun stop() {
-        worker.kill()
+        workers.values.forEach { it.kill() }
     }
 
     private fun draw(
@@ -40,7 +48,7 @@ class OutputProcessTest {
         options: Map<String, String> = emptyMap(),
         width: Float = 800f,
     ): flow.model.Drawing {
-        val reply = worker.request(Wire.OUTPUT_DRAW) { o ->
+        val reply = worker(moduleOf(id)).request(Wire.OUTPUT_DRAW) { o ->
             Wire.writeString(o, id)
             Wire.writeBytes(o, data)
             Wire.writeStringMap(o, options)
@@ -51,31 +59,40 @@ class OutputProcessTest {
         return OutputWire.readDrawing(DataInputStream(ByteArrayInputStream(reply.payload)))
     }
 
-    @Test
-    fun `the jar the test drives was actually built`() {
-        assertTrue(jar.isFile, "run :flow-extensions:output-extension:jar first — ${jar.absolutePath}")
+    /** Which jar an output id lives in — one each, so installing one row installs one thing. */
+    private fun moduleOf(id: String) = when (id) {
+        "flow.output.string" -> "stringoutput"
+        "flow.output.hex" -> "hexoutput"
+        "flow.output.asn1" -> "asn1output"
+        else -> "imageoutput"
     }
 
     @Test
-    fun `the worker reports the views the jar provides`() {
-        val reply = worker.request(Wire.OUTPUT_DESCRIBE) {}
-        assertTrue(reply.ok, reply.payload.decodeToString())
-        val input = DataInputStream(ByteArrayInputStream(reply.payload))
-        val ids = (0 until input.readInt()).map {
-            val id = Wire.readString(input)
-            Wire.readString(input) // name
-            Wire.readString(input) // version
-            input.readBoolean() // wantsHover
-            repeat(input.readInt()) { // options
-                Wire.readString(input); Wire.readString(input); Wire.readString(input)
-                Wire.readStringList(input)
+    fun `each jar provides exactly the one output it is named for`() {
+        // a jar with two extensions in it cannot be installed by halves: the store keeps a folder
+        // per id and would take both. One each is what makes a row in the list mean what it says.
+        listOf(
+            "stringoutput" to "flow.output.string",
+            "hexoutput" to "flow.output.hex",
+            "asn1output" to "flow.output.asn1",
+            "imageoutput" to "flow.output.image",
+        ).forEach { (module, expected) ->
+            val reply = worker(module).request(Wire.OUTPUT_DESCRIBE) {}
+            assertTrue(reply.ok, reply.payload.decodeToString())
+            val input = DataInputStream(ByteArrayInputStream(reply.payload))
+            val ids = (0 until input.readInt()).map {
+                val id = Wire.readString(input)
+                Wire.readString(input) // name
+                Wire.readString(input) // version
+                input.readBoolean() // wantsHover
+                repeat(input.readInt()) { // options
+                    Wire.readString(input); Wire.readString(input); Wire.readString(input)
+                    Wire.readStringList(input)
+                }
+                id
             }
-            id
+            assertEquals(listOf(expected), ids, "$module-extension.jar")
         }
-        assertEquals(
-            listOf("flow.output.string", "flow.output.hex", "flow.output.asn1", "flow.output.image").sorted(),
-            ids.sorted(),
-        )
     }
 
     @Test
@@ -119,7 +136,7 @@ class OutputProcessTest {
 
     @Test
     fun `a view that throws fails the call rather than the worker`() {
-        val reply = worker.request(Wire.OUTPUT_DRAW) { o ->
+        val reply = worker("imageoutput").request(Wire.OUTPUT_DRAW) { o ->
             Wire.writeString(o, "flow.output.image")
             Wire.writeBytes(o, "not an image".encodeToByteArray())
             Wire.writeStringMap(o, emptyMap())
@@ -141,7 +158,7 @@ class OutputProcessTest {
         y: Float,
         options: Map<String, String>,
     ): Map<String, String> {
-        val reply = worker.request(Wire.OUTPUT_EVENT) { o ->
+        val reply = worker(moduleOf(id)).request(Wire.OUTPUT_EVENT) { o ->
             Wire.writeString(o, id)
             Wire.writeString(o, kind)
             Wire.writeString(o, region ?: "")
@@ -188,7 +205,7 @@ class OutputProcessTest {
 
     @Test
     fun `an event for a view the jar does not have is an error, not a crash`() {
-        val reply = worker.request(Wire.OUTPUT_EVENT) { o ->
+        val reply = worker("stringoutput").request(Wire.OUTPUT_EVENT) { o ->
             Wire.writeString(o, "com.example.nope")
             Wire.writeString(o, "click")
             Wire.writeString(o, "x")
@@ -205,7 +222,7 @@ class OutputProcessTest {
 
     @Test
     fun `asking for a view the jar does not have is an error, not a crash`() {
-        val reply = worker.request(Wire.OUTPUT_DRAW) { o ->
+        val reply = worker("stringoutput").request(Wire.OUTPUT_DRAW) { o ->
             Wire.writeString(o, "com.example.nope")
             Wire.writeBytes(o, ByteArray(0))
             Wire.writeStringMap(o, emptyMap())
