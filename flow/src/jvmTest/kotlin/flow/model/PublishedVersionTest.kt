@@ -55,6 +55,41 @@ class PublishedVersionTest {
         assertTrue(missing.isEmpty(), "published but not built here: $missing")
     }
 
+    /**
+     * The version each built jar reports, by id, read by loading it the way the app does.
+     *
+     * The source saying 2.2.0 is no help if the jar beside it was built before the edit — and it is
+     * the jar that gets published. Only the ones this module already builds are here, which is
+     * every extension whose behaviour is under test.
+     */
+    private fun builtVersions(): Map<String, String> {
+        val jars = extensionRoot().listFiles().orEmpty()
+            .mapNotNull { File(it, "build/libs").listFiles()?.firstOrNull { f -> f.extension == "jar" } }
+        return buildMap {
+            jars.forEach { jar ->
+                val loader = java.net.URLClassLoader(arrayOf(jar.toURI().toURL()), javaClass.classLoader)
+                java.util.ServiceLoader.load(flow.extension.ProcessorExtension::class.java, loader)
+                    .forEach { put(it.id, it.version) }
+                java.util.ServiceLoader.load(flow.extension.OutputExtension::class.java, loader)
+                    .forEach { put(it.id, it.version) }
+                java.util.ServiceLoader.load(flow.extension.InputExtension::class.java, loader)
+                    .forEach { put(it.id, it.version) }
+            }
+        }
+    }
+
+    @Test
+    fun `a jar that was built before the version was raised is not publishable`() {
+        val declared = declaredVersions()
+        val built = builtVersions()
+        assertTrue(built.size >= 6, "only ${built.size} extension jars were built to check")
+        val stale = built.mapNotNull { (id, version) ->
+            val source = declared[id] ?: return@mapNotNull null
+            if (source == version) null else "$id: source $source, jar $version"
+        }
+        assertEquals(emptyList(), stale, "these jars are older than the source they were built from")
+    }
+
     @Test
     fun `what the manifest offers is what the extension will report once installed`() {
         val declared = declaredVersions()
