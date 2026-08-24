@@ -363,6 +363,12 @@ class Workspace(private val scope: CoroutineScope) {
      * Views and modules share one install store and one registry, so both lists are searched: an
      * entry's own `kind` says where it is shown, not where it might be found.
      */
+    /** The version of [id] on disk, whichever kind it is, or null when it is not installed. */
+    fun installedVersion(id: String): String? =
+        installedModules.find { it.id == id }?.version
+            ?: installedOutputs.find { it.id == id }?.version
+            ?: installedInputs.find { it.id == id }?.version
+
     fun registryState(entry: RegistryEntry): RegistryState {
         val version = installedModules.find { it.id == entry.id }?.version
             ?: installedOutputs.find { it.id == entry.id }?.version

@@ -36,11 +36,17 @@ class Asn1Output : OutputExtension {
 
         // the tree needs to be wide enough to read and the hex needs whole rows; below that the two
         // together do not fit at all, and the tree is the half you steer from
-        val treeWidth = (canvas.width * 0.42f).coerceIn(200f, 520f)
-        val rows = drawTree(canvas, grid, shown, collapsed, selected, treeWidth)
+        // Sixteen bytes a row, always: an offset only reads at a glance when the low nibble is the
+        // column, and a dump that is eight wide one moment and sixteen the next cannot be scanned
+        // at all. When that leaves the tree too narrow to read, the characters column goes first —
+        // it is the one part of the dump the hex beside it already says.
+        val showText = canvas.width - COLUMNS_WITH_TEXT * grid.charWidth - grid.pad * 4 >= MIN_TREE_WIDTH
+        val detailWidth = (if (showText) COLUMNS_WITH_TEXT else COLUMNS_BARE) * grid.charWidth
+        val treeWidth = (canvas.width - detailWidth - grid.pad * 4).coerceIn(180f, canvas.width * 0.55f)
+        val rows = drawTree(canvas, grid, shown, collapsed, selected, treeWidth, items)
 
         val dividerX = treeWidth + grid.pad
-        val rightRows = drawDetail(canvas, grid, data, selected, dividerX + grid.pad * 2)
+        val rightRows = drawDetail(canvas, grid, data, selected, dividerX + grid.pad * 2, showText)
 
         // drawn last, once both sides have said how tall they are, so it runs the whole way down
         val height = grid.height(maxOf(rows, rightRows))
@@ -57,8 +63,28 @@ class Asn1Output : OutputExtension {
         collapsed: Set<Int>,
         selected: Item,
         width: Float,
+        all: List<Item>,
     ): Int {
-        shown.forEachIndexed { row, item ->
+        // Open and close everything, which is how you find your way around a certificate: shut it
+        // all and open the one branch you want. Closing everything needs to know what the branches
+        // are, and this is called again from scratch each time — so the offsets travel in the
+        // button's own name, the same way a hex row carries the layout that reads a click back.
+        val branches = all.filter { it.hasChildren }.joinToString(",") { it.offset.toString() }
+        val expandLabel = "[ + ] expand all"
+        canvas.text(grid.x(0), grid.y(0), expandLabel, grid.fontSize, OutputCanvas.ACCENT, mono = true)
+        canvas.region(0f, grid.y(0) - 2f, grid.charWidth * expandLabel.length, grid.lineHeight, EXPAND_ALL)
+
+        val collapseAt = expandLabel.length + 2
+        val collapseLabel = "[ - ] collapse all"
+        canvas.text(grid.x(collapseAt), grid.y(0), collapseLabel, grid.fontSize, OutputCanvas.ACCENT, mono = true)
+        canvas.region(
+            grid.x(collapseAt) - 2f, grid.y(0) - 2f,
+            grid.charWidth * collapseLabel.length, grid.lineHeight,
+            "$COLLAPSE_ALL$branches",
+        )
+
+        shown.forEachIndexed { index, item ->
+            val row = index + HEADER_ROWS
             val y = grid.y(row)
             if (item === selected) {
                 canvas.rect(0f, y - 2f, width, grid.lineHeight, OutputCanvas.SELECTION, filled = true)
@@ -87,7 +113,7 @@ class Asn1Output : OutputExtension {
                 mono = true,
             )
         }
-        return shown.size
+        return shown.size + HEADER_ROWS
     }
 
     private fun fit(text: String, columns: Int): String =
@@ -95,22 +121,27 @@ class Asn1Output : OutputExtension {
 
     /* ───────── the bytes, and what the header says about them ───────── */
 
-    private fun drawDetail(canvas: OutputCanvas, grid: Grid, data: ByteArray, item: Item, left: Float): Int {
+    private fun drawDetail(
+        canvas: OutputCanvas,
+        grid: Grid,
+        data: ByteArray,
+        item: Item,
+        left: Float,
+        showText: Boolean,
+    ): Int {
         fun x(column: Int) = left + column * grid.charWidth
         var row = 0
         fun line(text: String, color: Int, column: Int = 0) {
             canvas.text(x(column), grid.y(row), text, grid.fontSize, color, mono = true)
         }
 
-        val columns = ((canvas.width - left) / grid.charWidth).toInt()
-        // "OOOOOOOO  " then three characters a byte, a gap, then one character a byte
-        val perRow = if (columns >= OFFSET_COLUMNS + 1 + 16 * 4) 16 else 8
+        val perRow = 16
 
         line("Offset", OutputCanvas.MUTED_TEXT)
         (0 until perRow).forEach { i ->
             line("%2X".format(i), OutputCanvas.MUTED_TEXT, OFFSET_COLUMNS + i * 3)
         }
-        line("Text", OutputCanvas.MUTED_TEXT, OFFSET_COLUMNS + perRow * 3 + 1)
+        if (showText) line("Text", OutputCanvas.MUTED_TEXT, OFFSET_COLUMNS + perRow * 3 + 1)
         row += 2
 
         val end = minOf(item.end, data.size)
@@ -131,7 +162,7 @@ class Asn1Output : OutputExtension {
                 )
                 text.append(if (b in 0x20..0x7E) b.toChar() else '.')
             }
-            line(text.toString(), OutputCanvas.MUTED_TEXT, OFFSET_COLUMNS + perRow * 3 + 1)
+            if (showText) line(text.toString(), OutputCanvas.MUTED_TEXT, OFFSET_COLUMNS + perRow * 3 + 1)
             at = stop
             row++
         }
@@ -141,17 +172,13 @@ class Asn1Output : OutputExtension {
         }
         row++
 
+        // Only what the bytes above do not already say. The offset is the first column of the
+        // dump, the header is its first bytes in the accent colour, and the class and P/C bit are
+        // readable off the tag — so what is left is the tag's name and how much it wraps.
         val facts = buildList {
-            add("Offset" to "0x%08X  (${item.offset})".format(item.offset))
-            add("Header" to item.headerHex(data))
-            add("Class" to item.className)
-            add("P/C" to if (item.constructed) "Constructed" else "Primitive")
             add("Tag" to "0x%02X  %s".format(item.tag, item.typeName))
             add("Length" to "${item.end - item.contentStart} bytes")
-            add("Total" to "${item.end - item.offset} bytes (with the header)")
             item.oid?.let { add("OID" to it) }
-            // for an OID the value is the OID, and saying it twice says nothing the second time
-            item.value?.takeIf { it.isNotBlank() && it != item.oid }?.let { add("Value" to it) }
             item.error?.let { add("Problem" to it) }
         }
         val width = facts.maxOf { it.first.length } + 2
@@ -169,6 +196,13 @@ class Asn1Output : OutputExtension {
         if (event.kind != OutputEvent.CLICK) return options
         val region = event.region ?: return options
         return when {
+            region == EXPAND_ALL -> options - COLLAPSED
+            region.startsWith(COLLAPSE_ALL) -> {
+                val all = region.removePrefix(COLLAPSE_ALL)
+                // the outermost stays open, or closing everything would leave one unreadable line
+                val keptOpen = numbersIn(all).minOrNull()
+                options + (COLLAPSED to numbersIn(all).filter { it != keptOpen }.sorted().joinToString(","))
+            }
             region.startsWith(TOGGLE) -> {
                 val offset = region.removePrefix(TOGGLE).toIntOrNull() ?: return options
                 val collapsed = numbersIn(options[COLLAPSED]).toMutableSet()
@@ -208,9 +242,25 @@ class Asn1Output : OutputExtension {
 
         const val TOGGLE = "t"
         const val SELECT = "s"
+        const val EXPAND_ALL = "xa"
+        const val COLLAPSE_ALL = "ca"
+
+        /** The buttons, and the blank line under them. */
+        const val HEADER_ROWS = 2
+
+
 
         /** Eight offset digits and the two spaces after them. */
         const val OFFSET_COLUMNS = 10
+
+        /** Eight offset digits, two spaces, then three characters a byte. */
+        const val COLUMNS_BARE = OFFSET_COLUMNS + 16 * 3
+
+        /** The same, plus a gap and one character a byte for the characters column. */
+        const val COLUMNS_WITH_TEXT = COLUMNS_BARE + 1 + 16
+
+        /** Below this the tree stops being a tree and starts being a column of ellipses. */
+        const val MIN_TREE_WIDTH = 320f
 
         /** A key's modulus is thousands of bytes and nobody reads them all here. */
         const val MAX_DETAIL_BYTES = 2048

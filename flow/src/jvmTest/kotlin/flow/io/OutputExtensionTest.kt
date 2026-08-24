@@ -123,7 +123,8 @@ class OutputExtensionTest {
     @Test
     fun `a real public key is read as the structure it is`() {
         val key = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair().public
-        val canvas = FakeCanvas()
+        // wide enough that nothing is cut to fit: this is about what is read, not about layout
+        val canvas = FakeCanvas(width = 1600f)
         Asn1Output().draw(canvas, key.encoded, emptyMap())
         val text = canvas.lines.joinToString("\n")
         // SubjectPublicKeyInfo ::= SEQUENCE { algorithm AlgorithmIdentifier, subjectPublicKey BIT STRING }
@@ -136,7 +137,8 @@ class OutputExtensionTest {
     @Test
     fun `nesting is shown by indentation`() {
         val key = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair().public
-        val canvas = FakeCanvas()
+        // wide enough that nothing is cut to fit: this is about what is read, not about layout
+        val canvas = FakeCanvas(width = 1600f)
         Asn1Output().draw(canvas, key.encoded, emptyMap())
         val outer = canvas.texts.first { it.text.contains("SEQUENCE") }
         val inner = canvas.texts.first { it.text.contains("rsaEncryption") }

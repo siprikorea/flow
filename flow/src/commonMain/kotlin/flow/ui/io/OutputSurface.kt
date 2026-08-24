@@ -143,11 +143,11 @@ fun OutputSurface(
                             .height(maxOf(shown.contentHeight, viewportDp).dp)
                             .then(
                                 if (!interactive) Modifier
+                                // No double-tap handler: registering one makes every single tap
+                                // wait out the double-tap window before it is reported, which is a
+                                // third of a second of nothing happening on every click.
                                 else Modifier.pointerInput(shown, viewId, options) {
-                                    detectTapGestures(
-                                        onTap = { send(OutputEventKind.CLICK, it) },
-                                        onDoubleTap = { send(OutputEventKind.DOUBLE_CLICK, it) },
-                                    )
+                                    detectTapGestures(onTap = { send(OutputEventKind.CLICK, it) })
                                 },
                             )
                             .then(

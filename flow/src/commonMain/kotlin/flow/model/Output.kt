@@ -107,7 +107,6 @@ data class Drawing(
 /** What the user did on an output. Mirrors `flow.extension.OutputEvent`'s kinds. */
 object OutputEventKind {
     const val CLICK = "click"
-    const val DOUBLE_CLICK = "doubleClick"
     const val HOVER = "hover"
 }
 

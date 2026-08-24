@@ -142,7 +142,7 @@ interface OutputExtension {
  * which part was hit.
  */
 class OutputEvent(
-    /** One of [CLICK], [DOUBLE_CLICK] or [HOVER]. */
+    /** One of [CLICK] or [HOVER]. */
     val kind: String,
     /** The innermost region under the pointer, or null where the output declared none. */
     val region: String?,
@@ -151,7 +151,6 @@ class OutputEvent(
 ) {
     companion object {
         const val CLICK = "click"
-        const val DOUBLE_CLICK = "doubleClick"
 
         /** Only delivered to an output whose [OutputExtension.wantsHover] is true. */
         const val HOVER = "hover"

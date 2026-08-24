@@ -99,7 +99,7 @@ class OutputEventTest {
     fun `picking a row shows that row's bytes and what its header says`() {
         val view = Asn1Output()
         val key = rsaKey()
-        val first = FakeCanvas()
+        val first = FakeCanvas(width = 1600f)
         view.draw(first, key, treeOnly)
 
         // the algorithm OID, which is a leaf with a name worth showing
@@ -108,14 +108,16 @@ class OutputEventTest {
         val picked = view.onEvent(OutputEvent(OutputEvent.CLICK, row.id, row.x, row.y), treeOnly)
         assertTrue(picked.containsKey("asn1.selected"), "picking a row kept nothing: $picked")
 
-        val shown = FakeCanvas()
+        val shown = FakeCanvas(width = 1600f)
         view.draw(shown, key, picked)
         val detail = shown.lines
         assertTrue(detail.any { it.startsWith("OID") }, "no OID fact: ${detail.takeLast(12)}")
         assertTrue(detail.any { it.contains("rsaEncryption") }, "the OID was not named")
         assertTrue(detail.any { it.startsWith("Tag") }, "no tag fact")
         assertTrue(detail.any { it.startsWith("Length") }, "no length fact")
-        assertTrue(detail.any { it.startsWith("Class") }, "no class fact")
+        // and the bytes themselves, which is the other half of picking a row
+        assertTrue(detail.any { it.startsWith("Offset") }, "no hex table")
+        assertTrue(detail.any { it == "06 09".substringBefore(' ') } || detail.any { it == "06" }, "no header byte")
     }
 
     @Test

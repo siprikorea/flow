@@ -487,6 +487,9 @@ private fun EndExtensionRow(
         title = title,
         id = id,
         version = here?.version ?: entry?.version,
+        updateTo = entry?.version?.takeIf {
+            here != null && ws.registryState(entry) == flow.model.RegistryState.UPDATABLE
+        },
         note = if (here != null && !enabled) ws.t("viewDisabled") else note,
         busy = id in ws.registryBusy,
         onUpdate = if (entry != null && ws.registryState(entry) == flow.model.RegistryState.UPDATABLE) {
@@ -542,7 +545,10 @@ private fun ExtensionRow(ws: Workspace, entry: flow.model.RegistryEntry) {
         ws,
         title = entry.name.ifBlank { entry.id },
         id = entry.id,
-        version = entry.version,
+        // what is on disk, not what is on offer — the two differ exactly when there is an update,
+        // and showing the new number beside a row that has not taken it yet reads as if it had
+        version = ws.installedVersion(entry.id) ?: entry.version,
+        updateTo = entry.version.takeIf { state == flow.model.RegistryState.UPDATABLE },
         note = entry.description,
         busy = entry.id in ws.registryBusy,
         onUpdate = if (state == flow.model.RegistryState.UPDATABLE) ({ ws.installFromRegistry(entry) }) else null,
@@ -557,6 +563,8 @@ private fun ExtensionRow(
     title: String,
     id: String,
     version: String?,
+    // the version an update would move to, when one is on offer
+    updateTo: String? = null,
     note: String,
     busy: Boolean = false,
     onUpdate: (() -> Unit)? = null,
@@ -583,6 +591,9 @@ private fun ExtensionRow(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
                 if (version != null) Txt("v$version", 10.5.sp, Palette.dimText, mono = true)
+                if (updateTo != null) {
+                    Txt("→ $updateTo", 10.5.sp, Palette.warn, mono = true, weight = FontWeight.Medium)
+                }
             }
             Txt(id, 10.5.sp, Palette.dimText, mono = true, maxLines = 1)
             if (note.isNotBlank()) Txt(note, 11.sp, Palette.subText, maxLines = 2)
