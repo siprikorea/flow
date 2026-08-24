@@ -48,8 +48,16 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
                     jarOf(Unit::class.java),
                 ) + uiJars()
                 ).distinct().joinToString(File.pathSeparator)
-            val command = listOf(java, "-cp", classpath, ExtensionWorker::class.java.name) +
-                jars.map { it.absolutePath }
+            // A view opens a window from here, so this process has to be able to: named for the
+            // dock, and never headless. A worker that only computes never touches any of it.
+            val command = listOf(
+                java,
+                "-cp", classpath,
+                "-Djava.awt.headless=false",
+                "-Dapple.awt.application.name=${dir.name}",
+                "-Xdock:name=${dir.name}",
+                ExtensionWorker::class.java.name,
+            ) + jars.map { it.absolutePath }
             val p = ProcessBuilder(command)
                 .redirectError(ProcessBuilder.Redirect.INHERIT) // the worker's own logs stay visible
                 .start()
@@ -136,6 +144,10 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
      * choosing. What it does not cost is the isolation that matters: this is still another process,
      * so a view that hangs or crashes takes only itself, and everything else an extension depends on
      * is still its own.
+     *
+     * Named by prefix because the artifacts change between Compose versions — and getting the list
+     * wrong is quiet: a missing jar is a NoClassDefFoundError on the thread that was going to open
+     * the window, so nothing appears and nothing says why. UiClasspathTest is what checks it.
      */
     private fun uiJars(): List<String> =
         (System.getProperty("java.class.path") ?: "").split(File.pathSeparator)
@@ -148,8 +160,9 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
         // Compose and what it stands on. Named by prefix because the exact artifacts change between
         // Compose versions, and a view needs whichever ones this build happens to have.
         val UI_PREFIXES = listOf(
-            "compose-", "ui-", "foundation-", "runtime-", "animation-", "material-",
-            "skiko", "annotation-", "collection-", "lifecycle-", "kotlinx-coroutines-",
+            "compose-", "desktop-jvm", "ui-", "foundation-", "runtime-", "animation-", "material-",
+            "skiko", "annotation-", "annotations-", "collection-", "lifecycle-", "savedstate-",
+            "kotlinx-coroutines-", "atomicfu", "core-common", "jbr-api", "kotlin-stdlib",
         )
     }
 }

@@ -92,5 +92,25 @@ class ViewProcessTest {
         assertEquals(listOf("flow.view.asn1"), describe("asn1view").map { it[0] })
     }
 
+    /**
+     * Actually opens a window.
+     *
+     * Off unless VIEW_WINDOW is set, because it puts a window on the screen of whoever runs it. It
+     * is here because everything short of this passed while no window appeared: the classes that
+     * open one were missing from the worker's classpath, and the only way to know is to try.
+     */
+    @Test
+    fun `a view really opens a window`() {
+        if (System.getenv("VIEW_WINDOW") == null) return
+        val der = byteArrayOf(0x30, 0x03, 0x02, 0x01, 42)
+        val reply = worker("asn1view").request(Wire.VIEW_OPEN) { o ->
+            Wire.writeString(o, "flow.view.asn1")
+            Wire.writeBytes(o, der)
+            Wire.writeStringMap(o, mapOf("theme" to "dark"))
+        }
+        // the worker waits to see whether the window fails before answering, so OK means it is up
+        assertTrue(reply.ok, "no window: ${reply.payload.decodeToString()}")
+    }
+
     private operator fun <T> List<T>.component4(): T = this[3]
 }

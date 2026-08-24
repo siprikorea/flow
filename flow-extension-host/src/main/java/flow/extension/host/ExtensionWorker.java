@@ -25,6 +25,9 @@ import java.util.concurrent.*;
  */
 public final class ExtensionWorker {
 
+    /** Long enough for a window to fail, short enough not to be felt when it does not. */
+    private static final long WINDOW_GRACE_MS = 1500;
+
     public static void main(String[] args) throws Exception {
         // an extension printing to stdout would land in the middle of a frame
         PrintStream appStdout = System.out;
@@ -99,17 +102,28 @@ public final class ExtensionWorker {
                     ViewExtension v = loaded.views.get(id);
                     if (v == null) throw new IllegalStateException("view '" + id + "' is not in this extension");
                     // A window has its own life: opening one blocks for as long as it is up, and the
-                    // app is not waiting for it. So this returns as soon as the window is asked for,
-                    // and anything that goes wrong afterwards is the window's own business.
+                    // app is not waiting for it. So this returns as soon as the window is up, and
+                    // anything that happens afterwards is the window's own business.
+                    //
+                    // But it waits a moment first. Everything that stops a window appearing —
+                    // a class that is not there, a display that cannot be opened — happens at once,
+                    // and without this the call would report success while nothing appeared and the
+                    // reason sat in a log nobody reads.
+                    final Throwable[] failure = new Throwable[1];
                     Thread window = new Thread(() -> {
                         try {
                             v.open(data != null ? data : new byte[0], options);
                         } catch (Throwable t) {
-                            System.err.println("view '" + id + "' failed: " + t);
+                            failure[0] = t;
                         }
                     }, "view-" + id);
                     window.setDaemon(false);
                     window.start();
+                    window.join(WINDOW_GRACE_MS);
+                    if (failure[0] != null) {
+                        throw new IllegalStateException(
+                            "the view could not open a window: " + failure[0], failure[0]);
+                    }
                 });
             }
             default:
