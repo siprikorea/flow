@@ -81,12 +81,14 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
     // a module that threw while processing (bad key/IV size, etc.) on the last run — click the
     // node to see the full message in the properties panel
     val processError = state.nodeErrors[node.id]
+    // The border says what state the node is in — running, done, failed — so selection is not shown
+    // there: a selected node that has just failed still has to read as failed. It gets a ring drawn
+    // outside it instead, which is visible whatever the border is doing.
     val borderColor = when {
         processError != null -> Palette.error
         node.status == "running" -> Palette.accent
         node.status == "done" -> Palette.doneBorder
         node.status == "error" -> Palette.error
-        selected -> Palette.accentHover
         validationError != null -> Palette.error
         else -> Palette.nodeBorder
     }
@@ -126,6 +128,50 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             .offset(node.x.dp, node.y.dp)
             .size(node.w.dp, node.h.dp)
             .drawBehind {
+                // The selection ring sits outside the node, so it never competes with the border
+                // for what the node's own state is — a selected node that has just failed still
+                // reads as failed.
+                //
+                // It is a glow with a bright ring inside it rather than another crisp edge: a
+                // running node already has a crisp accent border, and selection has to be a
+                // different thing to look at, not the same thing in a slightly different blue.
+                if (selected) {
+                    // Handles at the corners, not another border. A running node already has an
+                    // accent border and a failed one a red border; one more coloured outline is one
+                    // more thin line to tell apart at a glance. A handle is a different shape
+                    // altogether, so a selected node is obvious whatever state it is in.
+                    val ring = 4f * density
+                    drawRoundRect(
+                        color = Palette.accentHover.copy(alpha = 0.6f),
+                        topLeft = Offset(-ring, -ring),
+                        size = Size(size.width + ring * 2, size.height + ring * 2),
+                        cornerRadius = CornerRadius(9f * density + ring),
+                        style = Stroke(1.5f * density),
+                    )
+                    val handle = 9f * density
+                    val half = handle / 2
+                    listOf(
+                        Offset(-ring, -ring),
+                        Offset(size.width + ring, -ring),
+                        Offset(-ring, size.height + ring),
+                        Offset(size.width + ring, size.height + ring),
+                    ).forEach { at ->
+                        // a ring of canvas colour around each, so a handle stays visible where it
+                        // happens to land on top of another node
+                        drawRoundRect(
+                            color = Palette.canvasBg,
+                            topLeft = Offset(at.x - half - density, at.y - half - density),
+                            size = Size(handle + density * 2, handle + density * 2),
+                            cornerRadius = CornerRadius(3f * density),
+                        )
+                        drawRoundRect(
+                            color = Palette.accentHover,
+                            topLeft = Offset(at.x - half, at.y - half),
+                            size = Size(handle, handle),
+                            cornerRadius = CornerRadius(2f * density),
+                        )
+                    }
+                }
                 // nodepulse: expanding border ring (1.2s)
                 if (node.status == "running") {
                     val p = (timeMs % 1200) / 1200f
@@ -139,10 +185,15 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                     )
                 }
             }
+            // a faint wash of the accent as well as the ring, so a selected node is still
+            // distinguishable where the ring is clipped — at the edge of the canvas, or under
+            // another node overlapping it
             .background(Palette.nodeBg, RoundedCornerShape(9.dp))
-            // selection gets a thicker border independent of status color, so a selected node
-            // stays visibly marked even while running/done/error (mirrors the edge treatment).
-            .border(if (selected) 2.5.dp else 1.5.dp, borderColor, RoundedCornerShape(9.dp))
+            .then(
+                if (!selected) Modifier
+                else Modifier.background(Palette.accent.copy(alpha = 0.13f), RoundedCornerShape(9.dp)),
+            )
+            .border(if (selected) 2.dp else 1.5.dp, borderColor, RoundedCornerShape(9.dp))
             .pointerHoverIcon(moveCursorIcon())
             .pointerInput(node.id, node.type) {
                 // whole node is draggable (ports/resize handle consume their own events):

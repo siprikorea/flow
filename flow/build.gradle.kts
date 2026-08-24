@@ -26,6 +26,8 @@ kotlin {
         }
         jvmTest.dependencies {
             implementation(kotlin("test"))
+            // renders a composable to an image without a window, for looking at what a change did
+            implementation(compose.desktop.uiTestJUnit4)
             // the shipped extensions are tested against their specs here, where a failure is loud;
             // in the app they are loaded from jars, so this is a compile dependency only
             implementation(project(":flow-extensions:hotp-extension"))
