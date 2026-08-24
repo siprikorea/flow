@@ -1,15 +1,21 @@
 package flow.ui.io
 
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,20 +26,12 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.drawscope.DrawScope
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.rememberTextMeasurer
-import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
@@ -41,24 +39,27 @@ import flow.model.DrawOp
 import flow.model.Drawing
 import flow.model.OutputColor
 import flow.model.OutputEventKind
+import flow.model.Region
 import flow.platform.Platform
 import flow.ui.common.Txt
+import flow.ui.common.plainClick
 import flow.ui.theme.Palette
 import kotlinx.coroutines.launch
 
 /**
- * Shows [data] using an installed view.
+ * Shows [data] using an installed output.
  *
- * The view runs in its own process and cannot reach this canvas, so it draws into one that records
- * the calls; what arrives here is that recording, replayed. Keeping it as calls rather than pixels
- * is what lets the text be laid out at this display's resolution and in the current theme.
+ * The output runs in its own process and cannot reach this screen, so it draws into a canvas that
+ * records the calls; what arrives here is that recording, and each call becomes a composable of its
+ * own. Nothing of the extension is composed — only what it said it wanted — which is what keeps the
+ * UI as separate as the process is.
  *
- * The view is told only how wide it may be. It draws as tall as the data needs and says so, and
+ * Realising the recording as composables rather than as one canvas is what makes the text
+ * selectable and the clickable parts hover: they are real Text and real clickable boxes, laid out
+ * where the output put them.
+ *
+ * The output is told only how wide it may be. It draws as tall as the data needs and says so, and
  * the extra is scrolled here — so scrolling costs nothing and never waits on the extension.
- *
- * Clicks go the other way. A view names the parts of its drawing that can be acted on, so the
- * hit-testing happens here and only a click that actually landed on something crosses the pipe;
- * what comes back is the options to draw it with next, which [onOptions] is handed to keep.
  */
 @Composable
 fun OutputSurface(
@@ -73,7 +74,7 @@ fun OutputSurface(
     val densityScope = LocalDensity.current
     val density = densityScope.density
 
-    // measured once in this app's own monospace font and handed to the view, which has no other
+    // measured once in this app's own monospace font and handed to the output, which has no other
     // way to know how many columns fit in the width it is given
     val monoCharWidth = remember(measurer, densityScope) {
         // measured at a large size and scaled down, so rounding in the layout costs two decimals
@@ -93,12 +94,11 @@ fun OutputSurface(
         var drawing by remember { mutableStateOf<Drawing?>(null) }
         var failure by remember { mutableStateOf<String?>(null) }
 
-        // Redrawn whenever any of what the view was given changes — including the width, since the
-        // view lays out to it. Rounded first so a drag that resizes by fractions of a point does
-        // not fire a request per frame.
+        // Redrawn whenever any of what the output was given changes — including the width, since it
+        // lays out to it. Rounded first so a drag that resizes by fractions of a point does not
+        // fire a request per frame. The revision is in here so that replacing the extension redraws
+        // what it had already drawn; nothing else about the request changes when an update lands.
         val widthKey = widthDp.toInt()
-        // the revision is in here so that replacing the extension redraws what it had already
-        // drawn — nothing else about the request changes when an update lands
         LaunchedEffect(viewId, data, options, widthKey, ws.extensionsRevision) {
             failure = null
             runCatching { Platform.drawOutput(viewId, data, options, widthKey.toFloat(), monoCharWidth) }
@@ -115,100 +115,150 @@ fun OutputSurface(
                 Txt(ws.t("viewDrawing"), 12.sp, Palette.faintText)
             }
             else -> {
-                val scroll = rememberScrollState()
-                // the images a drawing refers to are decoded once, not on every frame it is drawn
-                val images = remember(shown) {
-                    shown.ops.filterIsInstance<DrawOp.Image>().associateWith { decodePng(it.png) }
-                }
-
                 val scope = rememberCoroutineScope()
-                val interactive = onOptions != null && shown.regions.isNotEmpty()
                 val wantsHover = ws.outputInfo(viewId)?.wantsHover == true
 
-                fun send(kind: String, position: Offset) {
-                    val x = position.x / density
-                    val y = position.y / density
-                    val region = shown.regionAt(x, y)
-                    // a click on nothing is still worth reporting for hover, but not for a tap: a
-                    // view that named no region there has said it does not care
-                    if (kind != OutputEventKind.HOVER && region == null) return
+                fun send(kind: String, region: Region?) {
                     scope.launch {
-                        val next = runCatching { Platform.outputEvent(viewId, kind, region?.id, x, y, options) }
-                            .getOrDefault(options)
-                        if (next != options) onOptions!!(next)
+                        val next = runCatching {
+                            Platform.outputEvent(viewId, kind, region?.id, region?.x ?: 0f, region?.y ?: 0f, options)
+                        }.getOrDefault(options)
+                        if (next != options) onOptions?.invoke(next)
                     }
                 }
 
-                Box(Modifier.fillMaxSize().verticalScroll(scroll)) {
-                    Canvas(
-                        Modifier.fillMaxWidth()
-                            .height(maxOf(shown.contentHeight, viewportDp).dp)
-                            .then(
-                                if (!interactive) Modifier
-                                // No double-tap handler: registering one makes every single tap
-                                // wait out the double-tap window before it is reported, which is a
-                                // third of a second of nothing happening on every click.
-                                else Modifier.pointerInput(shown, viewId, options) {
-                                    detectTapGestures(onTap = { send(OutputEventKind.CLICK, it) })
-                                },
-                            )
-                            .then(
-                                if (!interactive || !wantsHover) Modifier
-                                else Modifier.pointerInput(shown, viewId, options) {
-                                    // only a move that leaves one region for another is worth a
-                                    // round trip; following the pointer pixel by pixel would be one
-                                    // per frame, and a highlight only changes when the region does
-                                    var last: String? = null
-                                    awaitPointerEventScope {
-                                        while (true) {
-                                            val event = awaitPointerEvent()
-                                            val at = event.changes.firstOrNull()?.position ?: continue
-                                            val here = shown.regionAt(at.x / density, at.y / density)?.id
-                                            if (here != last) {
-                                                last = here
-                                                send(OutputEventKind.HOVER, at)
-                                            }
-                                        }
-                                    }
-                                },
-                            ),
-                    ) {
-                        // only what the scroll has brought into view is worth drawing: a long hex
-                        // dump is tens of thousands of calls, and all but a screenful are off-screen
-                        val top = scroll.value / density
-                        val bottom = top + viewportDp
-                        shown.ops.forEach { op ->
-                            if (visible(op, top, bottom)) replay(op, measurer, density, images)
-                        }
-                    }
-                }
+                Drawing(
+                    drawing = shown,
+                    viewportDp = viewportDp,
+                    onClick = if (onOptions == null) null else ({ send(OutputEventKind.CLICK, it) }),
+                    onHover = if (onOptions == null || !wantsHover) null
+                    else ({ send(OutputEventKind.HOVER, it) }),
+                )
             }
         }
     }
 }
 
 /**
- * Replays a finished drawing onto a canvas of its own.
+ * Lays a drawing out as composables, at the positions the output gave them.
  *
- * Split out from [OutputSurface] so a drawing can be put on screen without the process that made
- * it — which is what lets a change to how an output looks be rendered and looked at.
+ * Everything is placed absolutely inside one tall box, which is what a recording describes. The
+ * whole of it sits in a [SelectionContainer], so a drag across a hex dump selects it and copies as
+ * the text it is.
  */
 @Composable
-internal fun DrawingCanvas(drawing: Drawing, viewportDp: Float, modifier: Modifier = Modifier) {
-    val measurer = rememberTextMeasurer()
+internal fun Drawing(
+    drawing: Drawing,
+    viewportDp: Float,
+    onClick: ((Region) -> Unit)? = null,
+    onHover: ((Region) -> Unit)? = null,
+    modifier: Modifier = Modifier,
+) {
+    val scroll = rememberScrollState()
     val density = LocalDensity.current.density
+    // the images a drawing refers to are decoded once, not on every frame it is shown
     val images = remember(drawing) {
         drawing.ops.filterIsInstance<DrawOp.Image>().associateWith { decodePng(it.png) }
     }
-    Canvas(modifier.fillMaxWidth().height(maxOf(drawing.contentHeight, viewportDp).dp)) {
-        drawing.ops.forEach { op -> replay(op, measurer, density, images) }
+
+    Box(modifier.fillMaxSize().verticalScroll(scroll)) {
+        Box(Modifier.height(maxOf(drawing.contentHeight, viewportDp).dp)) {
+            // Only what the scroll has brought into view is composed: a long hex dump is tens of
+            // thousands of calls, and all but a screenful are off-screen. Everything else would be
+            // a composable that is laid out, measured and never seen.
+            val top = scroll.value / density
+            val bottom = top + viewportDp
+
+            SelectionContainer {
+                Box(Modifier.fillMaxSize()) {
+                    drawing.ops.forEach { op -> if (visible(op, top, bottom)) Op(op, images) }
+                }
+            }
+
+            // the clickable parts go over the top, in the order they were declared, so the last one
+            // declared is the one on top — which is the rule the output was told
+            drawing.regions.forEach { region ->
+                if (region.y + region.h >= top && region.y <= bottom) {
+                    RegionBox(region, onClick, onHover)
+                }
+            }
+        }
     }
+}
+
+/** One recorded call, as the composable that shows it. */
+@Composable
+private fun Op(op: DrawOp, images: Map<DrawOp.Image, ImageBitmap?>) {
+    when (op) {
+        is DrawOp.Text -> Txt(
+            op.text,
+            op.size.sp,
+            colorOf(op.color),
+            mono = op.mono,
+            maxLines = 1,
+            modifier = Modifier.offset(op.x.dp, op.y.dp),
+        )
+        is DrawOp.Rect -> Box(
+            Modifier
+                .offset(op.x.dp, op.y.dp)
+                .size(op.w.dp, op.h.dp)
+                .then(
+                    if (op.filled) Modifier.background(colorOf(op.color))
+                    else Modifier.border(1.dp, colorOf(op.color)),
+                ),
+        )
+        is DrawOp.Line -> {
+            // a line the output drew is horizontal or vertical in every use there has been; a box
+            // one pixel across is what that is, and it composes like everything else here
+            val horizontal = kotlin.math.abs(op.y2 - op.y1) < kotlin.math.abs(op.x2 - op.x1)
+            Box(
+                Modifier
+                    .offset(minOf(op.x1, op.x2).dp, minOf(op.y1, op.y2).dp)
+                    .then(
+                        if (horizontal) {
+                            Modifier.width(kotlin.math.abs(op.x2 - op.x1).dp).height(op.stroke.dp)
+                        } else {
+                            Modifier.width(op.stroke.dp).height(kotlin.math.abs(op.y2 - op.y1).dp)
+                        },
+                    )
+                    .background(colorOf(op.color)),
+            )
+        }
+        is DrawOp.Image -> images[op]?.let { bitmap ->
+            Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                modifier = Modifier.offset(op.x.dp, op.y.dp).size(op.w.dp, op.h.dp),
+            )
+        }
+    }
+}
+
+/** A part the output said can be acted on: a real clickable box, so it hovers like anything else. */
+@Composable
+private fun RegionBox(region: Region, onClick: ((Region) -> Unit)?, onHover: ((Region) -> Unit)?) {
+    val source = remember { MutableInteractionSource() }
+    val hovered by source.collectIsHoveredAsState()
+    LaunchedEffect(hovered, region.id) { if (hovered) onHover?.invoke(region) }
+
+    Box(
+        Modifier
+            .offset(region.x.dp, region.y.dp)
+            .size(region.w.dp, region.h.dp)
+            .hoverable(source)
+            .then(if (onClick == null) Modifier else Modifier.plainClick { onClick(region) })
+            .then(
+                // a hint that it can be pressed, without the output having to say so
+                if (hovered && onClick != null) Modifier.background(Palette.hoverBg.copy(alpha = 0.4f))
+                else Modifier,
+            ),
+    )
 }
 
 /** Whether an op falls inside the scrolled window, in the output's own coordinates. */
 private fun visible(op: DrawOp, top: Float, bottom: Float): Boolean {
     val (a, b) = when (op) {
-        is DrawOp.Text -> op.y to op.y + op.size * 2f // generous: wrapping is the view's business
+        is DrawOp.Text -> op.y to op.y + op.size * 2f // generous: wrapping is the output's business
         is DrawOp.Rect -> op.y to op.y + op.h
         is DrawOp.Line -> minOf(op.y1, op.y2) to maxOf(op.y1, op.y2)
         is DrawOp.Image -> op.y to op.y + op.h
@@ -216,53 +266,9 @@ private fun visible(op: DrawOp, top: Float, bottom: Float): Boolean {
     return b >= top && a <= bottom
 }
 
-private fun DrawScope.replay(
-    op: DrawOp,
-    measurer: TextMeasurer,
-    density: Float,
-    images: Map<DrawOp.Image, ImageBitmap?>,
-) {
-    fun px(v: Float) = v * density
-    when (op) {
-        is DrawOp.Text -> drawText(
-            textMeasurer = measurer,
-            text = op.text,
-            topLeft = Offset(px(op.x), px(op.y)),
-            style = TextStyle(
-                color = colorOf(op.color),
-                // sized in the same units as the coordinates — via dp, so the em height is what the
-                // view asked for whatever the display's density or the system font scale
-                fontSize = op.size.dp.toSp(),
-                fontFamily = if (op.mono) FontFamily.Monospace else FontFamily.Default,
-            ),
-        )
-        is DrawOp.Rect -> drawRect(
-            color = colorOf(op.color),
-            topLeft = Offset(px(op.x), px(op.y)),
-            size = Size(px(op.w), px(op.h)),
-            style = if (op.filled) androidx.compose.ui.graphics.drawscope.Fill else Stroke(density),
-        )
-        is DrawOp.Line -> drawLine(
-            color = colorOf(op.color),
-            start = Offset(px(op.x1), px(op.y1)),
-            end = Offset(px(op.x2), px(op.y2)),
-            strokeWidth = px(op.stroke),
-        )
-        is DrawOp.Image -> images[op]?.let { bitmap ->
-            drawImage(
-                image = bitmap,
-                srcOffset = androidx.compose.ui.unit.IntOffset.Zero,
-                srcSize = IntSize(bitmap.width, bitmap.height),
-                dstOffset = androidx.compose.ui.unit.IntOffset(px(op.x).toInt(), px(op.y).toInt()),
-                dstSize = IntSize(px(op.w).toInt(), px(op.h).toInt()),
-            )
-        }
-    }
-}
-
 /**
- * A view may name one of the theme's colours instead of choosing an ARGB value, which is how it
- * stays legible when the user switches between light and dark.
+ * An output may name one of the theme's colours instead of choosing one, which is how it stays
+ * legible when the user switches between light and dark.
  */
 private fun colorOf(argb: Int): Color = when (argb) {
     OutputColor.DEFAULT_TEXT -> Palette.text

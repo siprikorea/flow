@@ -11,7 +11,7 @@ import androidx.compose.ui.unit.dp
 import flow.model.DrawOp
 import flow.model.Drawing
 import flow.model.Region
-import flow.ui.io.DrawingCanvas
+import flow.ui.io.Drawing as DrawingSurface
 import flow.ui.theme.ApplyTheme
 import flow.ui.theme.Palette
 import flow.ui.theme.Theme
@@ -65,7 +65,7 @@ class Asn1RenderProbe {
             val shutScene = ImageComposeScene((width * 2).toInt() + 40, 400, density = Density(2f)) {
                 ApplyTheme(theme)
                 Box(Modifier.fillMaxSize().background(Palette.holeBg).padding(6.dp)) {
-                    DrawingCanvas(shutCanvas.toDrawing(), viewportDp = 200f)
+                    DrawingSurface(shutCanvas.toDrawing(), viewportDp = 200f)
                 }
             }
             File(dir, "asn1-$theme-collapsed.png").writeBytes(
@@ -77,7 +77,7 @@ class Asn1RenderProbe {
             val scene = ImageComposeScene((width * 2).toInt() + 40, 1000, density = Density(2f)) {
                 ApplyTheme(theme)
                 Box(Modifier.fillMaxSize().background(Palette.holeBg).padding(6.dp)) {
-                    DrawingCanvas(drawing, viewportDp = 500f)
+                    DrawingSurface(drawing, viewportDp = 500f)
                 }
             }
             val out = File(dir, "asn1-$theme.png")
