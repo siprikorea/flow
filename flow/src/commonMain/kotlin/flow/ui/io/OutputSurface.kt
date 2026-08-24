@@ -97,7 +97,9 @@ fun OutputSurface(
         // view lays out to it. Rounded first so a drag that resizes by fractions of a point does
         // not fire a request per frame.
         val widthKey = widthDp.toInt()
-        LaunchedEffect(viewId, data, options, widthKey) {
+        // the revision is in here so that replacing the extension redraws what it had already
+        // drawn — nothing else about the request changes when an update lands
+        LaunchedEffect(viewId, data, options, widthKey, ws.extensionsRevision) {
             failure = null
             runCatching { Platform.drawOutput(viewId, data, options, widthKey.toFloat(), monoCharWidth) }
                 .onSuccess { drawing = it; failure = null }

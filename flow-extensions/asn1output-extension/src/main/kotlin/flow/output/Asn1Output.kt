@@ -19,7 +19,7 @@ import flow.extension.OutputExtension
 class Asn1Output : OutputExtension {
     override val id = "flow.output.asn1"
     override val displayName = "ASN.1 Output"
-    override val version = "2.0.0"
+    override val version = "2.1.0"
 
     override fun draw(canvas: OutputCanvas, data: ByteArray, options: Map<String, String>) {
         val grid = Grid(canvas)

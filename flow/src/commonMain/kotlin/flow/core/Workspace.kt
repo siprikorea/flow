@@ -219,6 +219,17 @@ class Workspace(private val scope: CoroutineScope) {
     var installedModules by mutableStateOf<List<ModuleInfo>>(emptyList())
     var installedOutputs by mutableStateOf<List<OutputInfo>>(emptyList())
     var installedInputs by mutableStateOf<List<InputInfo>>(emptyList())
+
+    /**
+     * Bumped whenever the install store has been read again.
+     *
+     * An output already on screen is drawn from a request made with the data, the options and the
+     * width — none of which change when the extension behind it is replaced. Without something that
+     * does, updating an extension leaves the old drawing sitting there and the update looks like it
+     * did nothing.
+     */
+    var extensionsRevision by mutableStateOf(0)
+        private set
     // switched off in Settings; still installed, just not offered
     var disabledOutputs by mutableStateOf<Set<String>>(emptySet())
     var disabledInputs by mutableStateOf<Set<String>>(emptySet())
@@ -256,6 +267,7 @@ class Workspace(private val scope: CoroutineScope) {
         installedModules = Platform.installedModuleInfos().sortedBy { it.name.lowercase() }
         installedOutputs = Platform.installedOutputInfos().sortedBy { it.name.lowercase() }
         installedInputs = Platform.installedInputInfos().sortedBy { it.name.lowercase() }
+        extensionsRevision++
         // project components (flows/) + installed components (components/, read-only)
         val local = files.filter { it.endsWith(".flow") }.mapNotNull { name ->
             val raw = Platform.readFlow(name) ?: return@mapNotNull null
