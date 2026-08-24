@@ -136,41 +136,27 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 // running node already has a crisp accent border, and selection has to be a
                 // different thing to look at, not the same thing in a slightly different blue.
                 if (selected) {
-                    // Handles at the corners, not another border. A running node already has an
-                    // accent border and a failed one a red border; one more coloured outline is one
-                    // more thin line to tell apart at a glance. A handle is a different shape
-                    // altogether, so a selected node is obvious whatever state it is in.
-                    val ring = 4f * density
+                    // A ring outside the node, not on it: the border says what state the node is
+                    // in — running, done, failed — and a selected node has to stay readable as
+                    // whichever of those it is. The gap in the canvas colour is what keeps the two
+                    // apart, so this reads as a halo rather than as a second border.
+                    val moat = 3f * density
+                    val ring = 6f * density
                     drawRoundRect(
-                        color = Palette.accentHover.copy(alpha = 0.6f),
+                        color = Palette.canvasBg,
+                        topLeft = Offset(-moat, -moat),
+                        size = Size(size.width + moat * 2, size.height + moat * 2),
+                        cornerRadius = CornerRadius(9f * density + moat),
+                        style = Stroke(3.5f * density),
+                    )
+                    drawRoundRect(
+                        // the lighter accent, so it is not the same blue as a running border
+                        color = Palette.accentHover,
                         topLeft = Offset(-ring, -ring),
                         size = Size(size.width + ring * 2, size.height + ring * 2),
                         cornerRadius = CornerRadius(9f * density + ring),
-                        style = Stroke(1.5f * density),
+                        style = Stroke(2.5f * density),
                     )
-                    val handle = 9f * density
-                    val half = handle / 2
-                    listOf(
-                        Offset(-ring, -ring),
-                        Offset(size.width + ring, -ring),
-                        Offset(-ring, size.height + ring),
-                        Offset(size.width + ring, size.height + ring),
-                    ).forEach { at ->
-                        // a ring of canvas colour around each, so a handle stays visible where it
-                        // happens to land on top of another node
-                        drawRoundRect(
-                            color = Palette.canvasBg,
-                            topLeft = Offset(at.x - half - density, at.y - half - density),
-                            size = Size(handle + density * 2, handle + density * 2),
-                            cornerRadius = CornerRadius(3f * density),
-                        )
-                        drawRoundRect(
-                            color = Palette.accentHover,
-                            topLeft = Offset(at.x - half, at.y - half),
-                            size = Size(handle, handle),
-                            cornerRadius = CornerRadius(2f * density),
-                        )
-                    }
                 }
                 // nodepulse: expanding border ring (1.2s)
                 if (node.status == "running") {
@@ -191,7 +177,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             .background(Palette.nodeBg, RoundedCornerShape(9.dp))
             .then(
                 if (!selected) Modifier
-                else Modifier.background(Palette.accent.copy(alpha = 0.13f), RoundedCornerShape(9.dp)),
+                else Modifier.background(Palette.accent.copy(alpha = 0.16f), RoundedCornerShape(9.dp)),
             )
             .border(if (selected) 2.dp else 1.5.dp, borderColor, RoundedCornerShape(9.dp))
             .pointerHoverIcon(moveCursorIcon())
