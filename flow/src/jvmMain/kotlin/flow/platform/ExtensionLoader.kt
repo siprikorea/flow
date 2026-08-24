@@ -6,9 +6,7 @@ import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
 import flow.model.OptType
-import flow.model.Drawing
-import flow.model.InputInfo
-import flow.model.OutputInfo
+import flow.model.ViewInfo
 import kotlinx.serialization.json.Json
 import java.io.File
 import flow.extension.host.Wire
@@ -81,33 +79,27 @@ internal object ExtensionLoader {
     }
 
     // what a worker told us about one output it serves
-    private class LoadedOutput(val dir: File, val info: OutputInfo)
+    private class LoadedView(val dir: File, val info: ViewInfo)
 
     // Asks each extension folder what it provides. A folder that cannot answer — a broken jar, a
     // worker that will not start — is left out rather than taking the scan down with it.
     //
     // Modules and views are collected together in one walk so the two can never disagree about
     // which folders exist, and so each worker is asked both questions while it is already up.
-    // what a worker told us about one input it serves
-    private class LoadedInput(val dir: File, val info: InputInfo)
-
     private fun scan() {
         ensureDirs()
         val processors = LinkedHashMap<String, Loaded>()
-        val outputs = LinkedHashMap<String, LoadedOutput>()
-        val inputs = LinkedHashMap<String, LoadedInput>()
+        val views = LinkedHashMap<String, LoadedView>()
         extensionsDir.listFiles { f -> f.isDirectory }?.forEach { dir ->
             // a component's bundled dependency jars are not installed processors
             if (isComponentDir(dir)) return@forEach
             if (jarsIn(dir).isEmpty()) return@forEach
             val proc = processFor(dir)
             runCatching { describe(proc) }.getOrDefault(emptyList()).forEach { processors[it.id] = Loaded(dir, it) }
-            runCatching { describeOutputs(proc) }.getOrDefault(emptyList()).forEach { outputs[it.id] = LoadedOutput(dir, it) }
-            runCatching { describeInputs(proc) }.getOrDefault(emptyList()).forEach { inputs[it.id] = LoadedInput(dir, it) }
+            runCatching { describeViews(proc) }.getOrDefault(emptyList()).forEach { views[it.id] = LoadedView(dir, it) }
         }
         processorCache = processors
-        outputCache = outputs
-        inputCache = inputs
+        viewCache = views
     }
 
     /** DESCRIBE: everything one worker serves. */
@@ -126,31 +118,16 @@ internal object ExtensionLoader {
         }
     }
 
-    /** OUTPUT_DESCRIBE: the outputs one worker serves, which for most extensions is none. */
-    private fun describeOutputs(proc: ExtensionProcess): List<OutputInfo> {
-        val reply = proc.request(Wire.OUTPUT_DESCRIBE) {}
+    /** VIEW_DESCRIBE: the views one worker serves, which for most extensions is none. */
+    private fun describeViews(proc: ExtensionProcess): List<ViewInfo> {
+        val reply = proc.request(Wire.VIEW_DESCRIBE) {}
         if (!reply.ok) return emptyList()
         val input = DataInputStream(ByteArrayInputStream(reply.payload))
         return (0 until input.readInt()).map {
             val id = Wire.readString(input)
             val name = Wire.readString(input)
             val version = Wire.readString(input)
-            val wantsHover = input.readBoolean()
-            OutputInfo(id, name, readOptions(input), version, wantsHover)
-        }
-    }
-
-    /** INPUT_DESCRIBE: the inputs one worker serves. */
-    private fun describeInputs(proc: ExtensionProcess): List<InputInfo> {
-        val reply = proc.request(Wire.INPUT_DESCRIBE) {}
-        if (!reply.ok) return emptyList()
-        val stream = DataInputStream(ByteArrayInputStream(reply.payload))
-        return (0 until stream.readInt()).map {
-            val id = Wire.readString(stream)
-            val name = Wire.readString(stream)
-            val version = Wire.readString(stream)
-            val charsPerByte = stream.readInt()
-            InputInfo(id, name, readOptions(stream), version, charsPerByte)
+            ViewInfo(id, name, Wire.readString(input), version)
         }
     }
 
@@ -173,104 +150,15 @@ internal object ExtensionLoader {
 
     // id -> what was loaded, from the one install root.
     private var processorCache: Map<String, Loaded>? = null
-    private var outputCache: Map<String, LoadedOutput>? = null
-    private var inputCache: Map<String, LoadedInput>? = null
+    private var viewCache: Map<String, LoadedView>? = null
 
     private fun loadedModules(): Map<String, Loaded> =
         processorCache ?: run { scan(); processorCache.orEmpty() }
 
-    private fun loadedOutputs(): Map<String, LoadedOutput> =
-        outputCache ?: run { scan(); outputCache.orEmpty() }
-
-    private fun loadedInputs(): Map<String, LoadedInput> =
-        inputCache ?: run { scan(); inputCache.orEmpty() }
+    private fun loadedViews(): Map<String, LoadedView> =
+        viewCache ?: run { scan(); viewCache.orEmpty() }
 
     fun moduleInfos(): List<ModuleInfo> = loadedModules().values.map { it.info }
-
-    fun outputInfos(): List<OutputInfo> = loadedOutputs().values.map { it.info }
-
-    fun inputInfos(): List<InputInfo> = loadedInputs().values.map { it.info }
-
-    /**
-     * Turns what the user typed into the bytes it stands for, and says what is wrong with it.
-     *
-     * Both come back from one call because the editor needs both on the same keystroke, and a
-     * second round trip to ask "and was that valid" would double the cost of typing.
-     */
-    fun inputParse(id: String, text: String, options: Map<String, String>): Pair<ByteArray, String?> {
-        val loaded = loadedInputs()[id] ?: return ByteArray(0) to null
-        val reply = processFor(loaded.dir).request(Wire.INPUT_PARSE) { o ->
-            Wire.writeString(o, id)
-            Wire.writeString(o, text)
-            Wire.writeStringMap(o, options)
-        }
-        val stream = reply.orThrow()
-        val bytes = Wire.readBytes(stream) ?: ByteArray(0)
-        return bytes to Wire.readString(stream).takeIf { it.isNotEmpty() }
-    }
-
-    /** How [data] reads back in the editor. */
-    fun inputFormat(id: String, data: ByteArray, options: Map<String, String>): String {
-        val loaded = loadedInputs()[id] ?: return ""
-        val reply = processFor(loaded.dir).request(Wire.INPUT_FORMAT) { o ->
-            Wire.writeString(o, id)
-            Wire.writeBytes(o, data)
-            Wire.writeStringMap(o, options)
-        }
-        return Wire.readString(reply.orThrow())
-    }
-
-    /**
-     * Asks an output to draw [data] into a strip [width] wide.
-     *
-     * The width is all the output is told about the space: it draws as tall as the data needs and
-     * says so, and the app scrolls what does not fit rather than asking again on every scroll.
-     */
-    fun drawOutput(
-        id: String,
-        data: ByteArray,
-        options: Map<String, String>,
-        width: Float,
-        monoCharWidth: Float,
-    ): Drawing {
-        val loaded = loadedOutputs()[id] ?: error("output '$id' is not installed")
-        val reply = processFor(loaded.dir).request(Wire.OUTPUT_DRAW) { o ->
-            Wire.writeString(o, id)
-            Wire.writeBytes(o, data)
-            Wire.writeStringMap(o, options)
-            o.writeFloat(width)
-            o.writeFloat(monoCharWidth)
-        }
-        return OutputWire.readDrawing(reply.orThrow())
-    }
-
-    /**
-     * Tells an output what the user did on it and returns the options to draw it with next.
-     *
-     * The same options come back when the output makes nothing of the event, which is how the app
-     * knows there is nothing to redraw.
-     */
-    fun outputEvent(
-        id: String,
-        kind: String,
-        region: String?,
-        x: Float,
-        y: Float,
-        options: Map<String, String>,
-    ): Map<String, String> {
-        val loaded = loadedOutputs()[id] ?: return options
-        val reply = processFor(loaded.dir).request(Wire.OUTPUT_EVENT) { o ->
-            Wire.writeString(o, id)
-            Wire.writeString(o, kind)
-            Wire.writeString(o, region ?: "")
-            o.writeFloat(x)
-            o.writeFloat(y)
-            Wire.writeStringMap(o, options)
-        }
-        // an output that fails on an event should not lose the drawing that is already on screen
-        if (!reply.ok) return options
-        return Wire.readStringMap(DataInputStream(ByteArrayInputStream(reply.payload)))
-    }
 
     fun process(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val loaded = loadedModules()[id] ?: return emptyMap()
@@ -282,7 +170,7 @@ internal object ExtensionLoader {
         return Wire.readByteMap(reply.orThrow())
     }
 
-    // ports for the given option values (null = id isn't a known module — the host treats a null
+    // ports for the given option values (null = id isn't a known processor — the host treats a null
     // result differently from an empty port list, which is legitimate for a no-input generator)
     private fun ports(id: String, options: Map<String, String>): Pair<List<String>, List<String>>? {
         val loaded = loadedModules()[id] ?: return null
@@ -306,6 +194,24 @@ internal object ExtensionLoader {
         }
         if (!reply.ok) return loaded.info.options
         return readOptions(DataInputStream(ByteArrayInputStream(reply.payload)))
+    }
+
+    fun viewInfos(): List<ViewInfo> = loadedViews().values.map { it.info }
+
+    /**
+     * Asks a view to open a window on [data].
+     *
+     * Returns as soon as the window has been asked for. A window belongs to the process that opened
+     * it and lives as long as it likes; the app is not waiting for it and cannot close it.
+     */
+    fun openView(id: String, data: ByteArray, options: Map<String, String>) {
+        val loaded = loadedViews()[id] ?: error("view '$id' is not installed")
+        val reply = processFor(loaded.dir).request(Wire.VIEW_OPEN) { o ->
+            Wire.writeString(o, id)
+            Wire.writeBytes(o, data)
+            Wire.writeStringMap(o, options)
+        }
+        if (!reply.ok) error(reply.payload.decodeToString())
     }
 
     /* ───────── installed components (per folder) ───────── */
@@ -375,8 +281,7 @@ internal object ExtensionLoader {
 
     private fun invalidate() {
         processorCache = null
-        outputCache = null
-        inputCache = null
+        viewCache = null
     }
 
     /* ───────── install ───────── */
@@ -388,11 +293,10 @@ internal object ExtensionLoader {
         // asked in a throwaway worker: finding out what a jar provides means running its code, and
         // an installer should not be the one place that still does that in the app's own JVM
         val probe = ExtensionProcess(jar.parentFile ?: extensionsDir, listOf(jar))
-        // a jar may provide processors, outputs or inputs — any of them is worth installing
+        // a jar may provide processors, views, or both — either is worth installing
         val ids = try {
             (runCatching { describe(probe) }.getOrDefault(emptyList()).map { it.id } +
-                runCatching { describeOutputs(probe) }.getOrDefault(emptyList()).map { it.id } +
-                runCatching { describeInputs(probe) }.getOrDefault(emptyList()).map { it.id }).distinct()
+                runCatching { describeViews(probe) }.getOrDefault(emptyList()).map { it.id }).distinct()
         } finally {
             probe.kill()
         }

@@ -24,8 +24,7 @@ data class RegistryEntry(
 )
 
 const val KIND_PROCESSOR = "processor"
-const val KIND_INPUT = "input"
-const val KIND_OUTPUT = "output"
+const val KIND_VIEW = "view"
 
 @Serializable
 data class RegistryIndex(

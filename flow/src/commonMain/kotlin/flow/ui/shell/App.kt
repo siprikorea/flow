@@ -54,8 +54,7 @@ import flow.core.DEFAULT_KEYMAP
 import flow.core.DragModule
 import flow.core.Shortcut
 import flow.core.Workspace
-import flow.model.KIND_INPUT
-import flow.model.KIND_OUTPUT
+import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
 import flow.model.findDef
 import flow.model.isComp
@@ -395,46 +394,10 @@ private fun ExtensionsSettings(ws: Workspace) {
     }
 }
 
-// The two ends of a flow, as Settings pages. They are the same shape — install one, switch it off
-// without removing it, remove it — so they are one function told which end it is showing.
-//
-// Switching one off leaves it installed: it stops being offered, and anything already using it
-// falls back, rather than the data becoming unreadable or unwritable.
+// Views, as a Settings page: the viewers that open a window of their own. Text and hex are the
+// app's own and are not listed here — there is nothing to install or remove about them.
 @Composable
-private fun OutputsSettings(ws: Workspace) = EndSettings(
-    ws,
-    kind = KIND_OUTPUT,
-    heading = ws.t("outputsSection"),
-    empty = ws.t("noOutputs"),
-    installed = ws.installedOutputs.map { EndRow(it.id, it.name, it.version) },
-    disabled = ws.disabledOutputs,
-    onEnabled = ws::setOutputEnabled,
-)
-
-@Composable
-private fun InputsSettings(ws: Workspace) = EndSettings(
-    ws,
-    kind = KIND_INPUT,
-    heading = ws.t("inputsSection"),
-    empty = ws.t("noInputs"),
-    installed = ws.installedInputs.map { EndRow(it.id, it.name, it.version) },
-    disabled = ws.disabledInputs,
-    onEnabled = ws::setInputEnabled,
-)
-
-/** What one end-of-flow extension shows in the list, whichever end it is. */
-private data class EndRow(val id: String, val name: String, val version: String)
-
-@Composable
-private fun EndSettings(
-    ws: Workspace,
-    kind: String,
-    heading: String,
-    empty: String,
-    installed: List<EndRow>,
-    disabled: Set<String>,
-    onEnabled: (String, Boolean) -> Unit,
-) {
+private fun ViewsSettings(ws: Workspace) {
     LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
         DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
@@ -442,64 +405,30 @@ private fun EndSettings(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Txt(heading.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            Txt(ws.t("viewsSection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
             Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
         }
 
-        // one list of every one there is — the registry's and any installed from a file — so a page
-        // that opens with nothing installed still says what could be
-        val offered = ws.registry.filter { it.kind == kind }
+        val offered = ws.registry.filter { it.kind == KIND_VIEW }
         val offeredIds = offered.map { it.id }.toSet()
-        val strays = installed.filterNot { it.id in offeredIds }
+        val strays = ws.installedViews.filterNot { it.id in offeredIds }
 
         when {
             ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
             ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-            offered.isEmpty() && strays.isEmpty() -> Txt(empty, 12.sp, Palette.faintText)
+            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("noViews"), 12.sp, Palette.faintText)
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            offered.forEach { entry ->
-                EndExtensionRow(ws, entry.id, entry.name.ifBlank { entry.id }, entry.description, entry, installed, disabled, onEnabled)
-            }
-            strays.forEach { row ->
-                EndExtensionRow(ws, row.id, row.name, ws.t("fromFile"), null, installed, disabled, onEnabled)
+            offered.forEach { entry -> ExtensionRow(ws, entry) }
+            strays.forEach { v ->
+                ExtensionRow(
+                    ws, title = v.name, id = v.id, version = v.version, note = ws.t("fromFile"),
+                    onUninstall = { ws.uninstallModule(v.id) },
+                )
             }
         }
     }
-}
-
-@Composable
-private fun EndExtensionRow(
-    ws: Workspace,
-    id: String,
-    title: String,
-    note: String,
-    entry: flow.model.RegistryEntry?,
-    installed: List<EndRow>,
-    disabled: Set<String>,
-    onEnabled: (String, Boolean) -> Unit,
-) {
-    val here = installed.find { it.id == id }
-    val enabled = id !in disabled
-    ExtensionRow(
-        ws,
-        title = title,
-        id = id,
-        version = here?.version ?: entry?.version,
-        updateTo = entry?.version?.takeIf {
-            here != null && ws.registryState(entry) == flow.model.RegistryState.UPDATABLE
-        },
-        note = if (here != null && !enabled) ws.t("viewDisabled") else note,
-        busy = id in ws.registryBusy,
-        onUpdate = if (entry != null && ws.registryState(entry) == flow.model.RegistryState.UPDATABLE) {
-            ({ ws.installFromRegistry(entry) })
-        } else null,
-        onInstall = if (here == null && entry != null) ({ ws.installFromRegistry(entry) }) else null,
-        onToggle = if (here != null) ({ onEnabled(id, !enabled) }) else null,
-        toggleLabel = ws.t(if (enabled) "viewDisable" else "viewEnable"),
-        onUninstall = if (here != null) ({ ws.uninstallModule(id) }) else null,
-    )
 }
 
 // The project's flows. This is where a flow lives — the project panel and the module palette read
@@ -646,8 +575,7 @@ fun SettingsScreen(ws: Workspace) {
         Category("appearance", ws.t("setAppearance")),
         Category("keymap", ws.t("setKeymap")),
         Category("extensions", ws.t("manageTitle"), heading = true),
-        Category("inputs", ws.t("setInputs"), nested = true),
-        Category("outputs", ws.t("setOutputs"), nested = true),
+        Category("views", ws.t("setViews"), nested = true),
         Category("processors", ws.t("setProcessors"), nested = true),
         Category("flows", ws.t("setFlows"), nested = true),
     )
@@ -748,8 +676,7 @@ fun SettingsScreen(ws: Workspace) {
                             recording = null
                         }
                     }
-                    "inputs" -> InputsSettings(ws)
-                    "outputs" -> OutputsSettings(ws)
+                    "views" -> ViewsSettings(ws)
                     "processors" -> ExtensionsSettings(ws)
                     "flows" -> FlowsSettings(ws)
                 }

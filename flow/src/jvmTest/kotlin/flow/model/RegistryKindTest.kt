@@ -25,11 +25,11 @@ class RegistryKindTest {
     }
 
     @Test
-    fun `an output says so`() {
+    fun `a view says so`() {
         val index = json.decodeFromString<RegistryIndex>(
-            """{"extensions":[{"id":"flow.output.hex","name":"Hex Output","kind":"output","file":"x.flowext"}]}""",
+            """{"extensions":[{"id":"flow.view.asn1","name":"ASN.1","kind":"view","file":"x.flowext"}]}""",
         )
-        assertEquals(KIND_OUTPUT, index.extensions.single().kind)
+        assertEquals(KIND_VIEW, index.extensions.single().kind)
     }
 
     @Test
@@ -46,8 +46,8 @@ class RegistryKindTest {
         val index = json.decodeFromString<RegistryIndex>(
             """{"extensions":[{"id":"flow.future","name":"F","kind":"gadget","file":"x"}]}""",
         )
-        // only KIND_OUTPUT moves an entry out of the modules list, so anything else stays visible
-        assertTrue(index.extensions.single().kind != KIND_OUTPUT)
+        // only KIND_VIEW moves an entry out of the modules list, so anything else stays visible
+        assertTrue(index.extensions.single().kind != KIND_VIEW)
     }
 
     @Test
@@ -55,22 +55,18 @@ class RegistryKindTest {
         // a copy of what the app actually downloads: a typo here breaks the Extensions screen for
         // everyone at once, and nothing else in the build would notice
         val index = json.decodeFromString<RegistryIndex>(manifest())
-        assertTrue(index.extensions.size >= 26, "only ${index.extensions.size} entries")
+        assertTrue(index.extensions.size >= 20, "only ${index.extensions.size} entries")
         index.extensions.forEach { e ->
             assertTrue(e.id.isNotBlank(), "an entry has no id")
             assertTrue(e.file.isNotBlank(), "${e.id} names no file")
             assertTrue(e.version.isNotBlank(), "${e.id} has no version")
-            assertTrue(
-                e.kind in listOf(KIND_PROCESSOR, KIND_INPUT, KIND_OUTPUT),
-                "${e.id} has kind '${e.kind}'",
-            )
+            assertTrue(e.kind in listOf(KIND_PROCESSOR, KIND_VIEW), "${e.id} has kind '${e.kind}'")
         }
         assertEquals(
             index.extensions.map { it.id }.distinct().size, index.extensions.size,
             "the manifest lists the same id twice",
         )
-        assertEquals(4, index.extensions.count { it.kind == KIND_OUTPUT })
-        assertEquals(2, index.extensions.count { it.kind == KIND_INPUT })
+        assertEquals(2, index.extensions.count { it.kind == KIND_VIEW })
     }
 
     @Test

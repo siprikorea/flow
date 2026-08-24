@@ -34,9 +34,7 @@ import androidx.compose.ui.unit.sp
 import flow.core.DragModule
 import flow.core.Workspace
 import flow.model.CompDef
-import flow.model.INPUT_PARAM
 import flow.model.IO_DEFS
-import flow.model.OUTPUT_PARAM
 import flow.model.REGISTRY
 import flow.ui.common.KindBadge
 import flow.ui.common.Txt
@@ -53,19 +51,16 @@ internal fun ModulePalette(ws: Workspace) {
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         // The two ends of a flow get a section each — they are what a flow is built between, and
-        // looking for the way in among a list of processors is looking in the wrong place. The
-        // boundary node comes first in each, then the installed extensions that give it a form.
+        // looking for the way in among a list of processors is looking in the wrong place.
         Section(ws, "inputs", ws.t("inputSection"), Palette.catIo) {
             IO_DEFS.filter { it.type == "cin" }.forEach {
                 PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catIo, it.ins.size, it.outs.size)
             }
-            ws.enabledInputs.forEach { PaletteCard(ws, "cin", it.name, Palette.catIo, 0, 1, param = INPUT_PARAM to it.id) }
         }
         Section(ws, "outputs", ws.t("outputSection"), Palette.catOut) {
             IO_DEFS.filter { it.type == "cout" }.forEach {
                 PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catOut, it.ins.size, it.outs.size)
             }
-            ws.enabledOutputs.forEach { PaletteCard(ws, "cout", it.name, Palette.catOut, 1, 0, param = OUTPUT_PARAM to it.id) }
         }
         Section(ws, "modules", ws.t("processorSection"), Palette.catTransform) {
             REGISTRY.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, Palette.catTransform, it.ins.size, it.outs.size) }

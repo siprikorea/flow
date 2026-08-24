@@ -70,9 +70,7 @@ class PublishedVersionTest {
                 val loader = java.net.URLClassLoader(arrayOf(jar.toURI().toURL()), javaClass.classLoader)
                 java.util.ServiceLoader.load(flow.extension.ProcessorExtension::class.java, loader)
                     .forEach { put(it.id, it.version) }
-                java.util.ServiceLoader.load(flow.extension.OutputExtension::class.java, loader)
-                    .forEach { put(it.id, it.version) }
-                java.util.ServiceLoader.load(flow.extension.InputExtension::class.java, loader)
+                java.util.ServiceLoader.load(flow.extension.ViewExtension::class.java, loader)
                     .forEach { put(it.id, it.version) }
             }
         }

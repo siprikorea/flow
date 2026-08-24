@@ -8,10 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
-import flow.model.INPUT_PARAM
-import flow.model.OUTPUT_PARAM
-import flow.model.InputInfo
-import flow.model.OutputInfo
+import flow.model.ViewInfo
 import flow.model.OptDef
 import flow.model.Node
 import flow.model.Session
@@ -217,22 +214,16 @@ class Workspace(private val scope: CoroutineScope) {
     var expandedDirs by mutableStateOf(setOf(""))
     var components by mutableStateOf<List<CompDef>>(emptyList())
     var installedModules by mutableStateOf<List<ModuleInfo>>(emptyList())
-    var installedOutputs by mutableStateOf<List<OutputInfo>>(emptyList())
-    var installedInputs by mutableStateOf<List<InputInfo>>(emptyList())
+    var installedViews by mutableStateOf<List<ViewInfo>>(emptyList())
 
     /**
      * Bumped whenever the install store has been read again.
      *
-     * An output already on screen is drawn from a request made with the data, the options and the
-     * width — none of which change when the extension behind it is replaced. Without something that
-     * does, updating an extension leaves the old drawing sitting there and the update looks like it
-     * did nothing.
+     * What is installed is read once and kept, so anything showing a list of extensions needs to
+     * be told when that list has moved.
      */
     var extensionsRevision by mutableStateOf(0)
         private set
-    // switched off in Settings; still installed, just not offered
-    var disabledOutputs by mutableStateOf<Set<String>>(emptySet())
-    var disabledInputs by mutableStateOf<Set<String>>(emptySet())
     // the open folder, or null. Kept as state so the tree and the menus follow it.
     var projectRoot by mutableStateOf<String?>(null)
     val rootLabel: String get() = Platform.projectName() ?: ""
@@ -265,8 +256,7 @@ class Workspace(private val scope: CoroutineScope) {
         // sorted here rather than in each place that lists them: the install store hands them back
         // in whatever order the filesystem walked, which shuffles as extensions come and go
         installedModules = Platform.installedModuleInfos().sortedBy { it.name.lowercase() }
-        installedOutputs = Platform.installedOutputInfos().sortedBy { it.name.lowercase() }
-        installedInputs = Platform.installedInputInfos().sortedBy { it.name.lowercase() }
+        installedViews = Platform.installedViewInfos().sortedBy { it.name.lowercase() }
         extensionsRevision++
         // project components (flows/) + installed components (components/, read-only)
         val local = files.filter { it.endsWith(".flow") }.mapNotNull { name ->
@@ -284,45 +274,22 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }
 
-    /** The views on offer: everything installed that has not been switched off. */
-    val enabledOutputs: List<OutputInfo> get() = installedOutputs.filterNot { it.id in disabledOutputs }
-
-    /** The inputs on offer, on the same terms. */
-    val enabledInputs: List<InputInfo> get() = installedInputs.filterNot { it.id in disabledInputs }
-
-    fun setOutputEnabled(id: String, enabled: Boolean) {
-        disabledOutputs = if (enabled) disabledOutputs - id else disabledOutputs + id
-    }
-
-    fun setInputEnabled(id: String, enabled: Boolean) {
-        disabledInputs = if (enabled) disabledInputs - id else disabledInputs + id
-    }
-
-    fun inputInfo(id: String): InputInfo? = installedInputs.find { it.id == id }
+    fun viewInfo(id: String): ViewInfo? = installedViews.find { it.id == id }
 
     /**
-     * The input a node's value is typed with.
+     * Opens a view on [data], in the view's own window.
      *
-     * Unlike an output, an unnamed one falls back to whichever is installed first: a value has to
-     * be written as something, and leaving the user with no way to enter one at all would be worse
-     * than picking for them. Null only when nothing is installed, and then the editor's own plain
-     * hex stands in.
+     * The theme goes with it so the window can open in the same colours as the app that opened it.
+     * Nothing comes back: a window belongs to the process that opened it, and lives as long as it
+     * likes.
      */
-    fun inputFor(node: Node): InputInfo? =
-        node.params[INPUT_PARAM]?.takeIf { it.isNotBlank() }?.let { id -> enabledInputs.find { it.id == id } }
-            ?: enabledInputs.firstOrNull()
-
-    fun outputInfo(id: String): OutputInfo? = installedOutputs.find { it.id == id }
-
-    /**
-     * The view a node is shown with, or null for the raw bytes.
-     *
-     * Null is also the answer when the named view is not installed here or has been switched off:
-     * a flow saved on a machine with some view still opens on one without it, showing the data
-     * plainly rather than an error where the data should be.
-     */
-    fun outputFor(node: Node): OutputInfo? =
-        node.params[OUTPUT_PARAM]?.takeIf { it.isNotBlank() }?.let { id -> enabledOutputs.find { it.id == id } }
+    fun openView(id: String, data: ByteArray, params: Map<String, String>) {
+        scope.launch {
+            runCatching {
+                withContext(Dispatchers.Default) { Platform.openView(id, data, params + ("theme" to theme)) }
+            }.onFailure { showError(it.message ?: t("viewFailed")) }
+        }
+    }
 
     // options a module shows for the values a node currently holds
     fun moduleOptions(type: String, values: Map<String, String>): List<OptDef> =
@@ -377,15 +344,10 @@ class Workspace(private val scope: CoroutineScope) {
      */
     /** The version of [id] on disk, whichever kind it is, or null when it is not installed. */
     fun installedVersion(id: String): String? =
-        installedModules.find { it.id == id }?.version
-            ?: installedOutputs.find { it.id == id }?.version
-            ?: installedInputs.find { it.id == id }?.version
+        installedModules.find { it.id == id }?.version ?: installedViews.find { it.id == id }?.version
 
     fun registryState(entry: RegistryEntry): RegistryState {
-        val version = installedModules.find { it.id == entry.id }?.version
-            ?: installedOutputs.find { it.id == entry.id }?.version
-            ?: installedInputs.find { it.id == entry.id }?.version
-            ?: return RegistryState.AVAILABLE
+        val version = installedVersion(entry.id) ?: return RegistryState.AVAILABLE
         return if (compareVersions(entry.version, version) > 0) RegistryState.UPDATABLE
         else RegistryState.INSTALLED
     }
@@ -763,8 +725,6 @@ class Workspace(private val scope: CoroutineScope) {
     fun settingsJson(): String = json.encodeToString(
         Settings(
             lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
-            disabledOutputs.sorted(),
-            disabledInputs.sorted(),
         )
     )
 
@@ -779,8 +739,6 @@ class Workspace(private val scope: CoroutineScope) {
             theme = saved.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
             animSeconds = saved.animSeconds.coerceIn(0.05f, 10f)
             registryUrl = saved.registryUrl.ifBlank { DEFAULT_REGISTRY_URL }
-            disabledOutputs = saved.disabledOutputs.toSet()
-            disabledInputs = saved.disabledInputs.toSet()
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }

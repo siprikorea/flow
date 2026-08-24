@@ -42,13 +42,16 @@ fun EndPicker(
     selected: String?,
     choices: List<Pair<String, String>>,
     none: String?,
+    // shown when nothing is selected and there is no "none" to fall back to — a menu that does
+    // something rather than one that holds a value
+    placeholder: String? = null,
     onSelect: (String?) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     val options: List<Pair<String?, String>> =
         (if (none != null) listOf<Pair<String?, String>>(null to none) else emptyList()) + choices
     val shown = options.find { it.first == selected }?.second
-        ?: none ?: choices.firstOrNull()?.second.orEmpty()
+        ?: placeholder ?: none ?: choices.firstOrNull()?.second.orEmpty()
 
     androidx.compose.foundation.layout.Box {
         Row(

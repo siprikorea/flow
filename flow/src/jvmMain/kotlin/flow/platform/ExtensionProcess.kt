@@ -1,6 +1,6 @@
 package flow.platform
 
-import flow.extension.ModuleExtension
+import flow.extension.ProcessorExtension
 import flow.extension.host.ExtensionWorker
 import flow.extension.host.Wire
 import java.io.BufferedInputStream
@@ -41,11 +41,13 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
             val java = File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
             // exactly three things, and the app is not among them: the worker itself, the contract
             // both sides have to agree on, and the Kotlin runtime the shipped extensions use
-            val classpath = listOfNotNull(
-                jarOf(ExtensionWorker::class.java),
-                jarOf(ModuleExtension::class.java),
-                jarOf(Unit::class.java),
-            ).distinct().joinToString(File.pathSeparator)
+            val classpath = (
+                listOfNotNull(
+                    jarOf(ExtensionWorker::class.java),
+                    jarOf(ProcessorExtension::class.java),
+                    jarOf(Unit::class.java),
+                ) + uiJars()
+                ).distinct().joinToString(File.pathSeparator)
             val command = listOf(java, "-cp", classpath, ExtensionWorker::class.java.name) +
                 jars.map { it.absolutePath }
             val p = ProcessBuilder(command)
@@ -122,4 +124,32 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
 
     private fun jarOf(c: Class<*>): String? =
         runCatching { File(c.protectionDomain.codeSource.location.toURI()).absolutePath }.getOrNull()
+
+    /**
+     * The app's own Compose, handed to the worker so a view can open a window.
+     *
+     * A view extension could carry its own, but Compose's rendering half ships a native library per
+     * platform and a jar that bundled them all would be a hundred megabytes — for every view, in a
+     * registry served out of a git repository. So the app lends its copy.
+     *
+     * What that costs is that a view is built against the app's Compose rather than one of its
+     * choosing. What it does not cost is the isolation that matters: this is still another process,
+     * so a view that hangs or crashes takes only itself, and everything else an extension depends on
+     * is still its own.
+     */
+    private fun uiJars(): List<String> =
+        (System.getProperty("java.class.path") ?: "").split(File.pathSeparator)
+            .filter { path ->
+                val name = File(path).name.lowercase()
+                UI_PREFIXES.any { name.startsWith(it) }
+            }
+
+    private companion object {
+        // Compose and what it stands on. Named by prefix because the exact artifacts change between
+        // Compose versions, and a view needs whichever ones this build happens to have.
+        val UI_PREFIXES = listOf(
+            "compose-", "ui-", "foundation-", "runtime-", "animation-", "material-",
+            "skiko", "annotation-", "collection-", "lifecycle-", "kotlinx-coroutines-",
+        )
+    }
 }

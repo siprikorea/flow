@@ -54,12 +54,9 @@ import flow.core.DataTab
 import flow.core.Workspace
 import flow.model.Port
 import flow.core.cinFileSize
-import flow.model.INPUT_PARAM
-import flow.model.InputInfo
-import flow.model.OUTPUT_PARAM
 import flow.platform.Platform
+import flow.ui.io.Builtin
 import flow.ui.io.EndPicker
-import flow.ui.io.OutputSurface
 import flow.platform.droppedFilePath
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -110,9 +107,11 @@ private fun DataSource.read(offset: Long, length: Int): ByteArray = when (this) 
     is DataSource.FileRange -> Platform.readFileRange(path, offset, length)
 }
 
-// Node params the editor owns. An output is handed the whole map — it is where its own state
-// lives — but these come back from the app's copy whatever it returns.
-private val EDITOR_PARAMS = setOf(OUTPUT_PARAM, INPUT_PARAM, "dataFile")
+/** How the value is written: one of Builtin.ALL. Saved with the flow, like any other node param. */
+private const val FORMAT_PARAM = "format"
+
+/** Which encoding, when it is written as text. */
+private const val CHARSET_PARAM = "charset"
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -130,11 +129,12 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val fileBacked = totalFileSize >= 0
     val editable = !isOut && !fileBacked
 
-    // The two ends of a flow are shown by their extensions: an output draws what came out, an
-    // input decides how what goes in is written. Neither node does anything itself.
-    val activeOutput = if (isOut) ws.outputFor(node) else null
-    val activeInput = if (isOut) null else ws.inputFor(node)
-    val writing = remember(activeInput?.id, node.params) { Writing(activeInput, node.params) }
+    // Text or hex, and which encoding when it is text. Both ends read and write the same two ways
+    // — an output is the same bytes, only not editable — and anything richer than this is a view
+    // extension, which opens a window of its own rather than living in this panel.
+    val format = node.params[FORMAT_PARAM]?.takeIf { it in Builtin.ALL } ?: Builtin.STRING
+    val charset = node.params[CHARSET_PARAM] ?: "UTF-8"
+    val writing = remember(format, charset) { Writing(format, charset) }
     var problem by remember(tab) { mutableStateOf<String?>(null) }
 
     fun setParam(key: String, value: String?) = tab.doc.updateNode(node.id) {
@@ -173,25 +173,31 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             } else {
                 ToolButton(ws.t("dataReadFile")) { Platform.pickFileRead()?.let { setParam("dataFile", it) } }
             }
-            if (isOut) {
-                if (ws.enabledOutputs.isNotEmpty()) {
-                    EndPicker(
-                        ws, ws.t("outputLabel"),
-                        selected = node.params[OUTPUT_PARAM]?.takeIf { it.isNotBlank() },
-                        choices = ws.enabledOutputs.map { it.id to it.name },
-                        // an output can always be turned off to get back to the bytes themselves
-                        none = ws.t("viewRaw"),
-                    ) { setParam(OUTPUT_PARAM, it) }
-                }
-            } else if (ws.enabledInputs.isNotEmpty()) {
+            // a view extension is not one of these: it is a viewer of its own, opened beside the
+            // editor rather than swapped into it
+            if (ws.installedViews.isNotEmpty()) {
                 EndPicker(
-                    ws, ws.t("inputLabel"),
-                    selected = activeInput?.id,
-                    choices = ws.enabledInputs.map { it.id to it.name },
-                    // a value has to be written as something, so there is no "none" here
+                    ws, ws.t("viewIn"),
+                    selected = null,
+                    choices = ws.installedViews.map { it.id to it.name },
                     none = null,
-                ) { setParam(INPUT_PARAM, it) }
+                    placeholder = ws.t("viewInPick"),
+                ) { id -> id?.let { ws.openView(it, bytes, node.params) } }
             }
+            if (format == Builtin.STRING) {
+                EndPicker(
+                    ws, ws.t("encodingLabel"),
+                    selected = charset,
+                    choices = Platform.charsetNames().map { it to it },
+                    none = null,
+                ) { setParam(CHARSET_PARAM, it) }
+            }
+            EndPicker(
+                ws, ws.t("formatLabel"),
+                selected = format,
+                choices = Builtin.ALL.map { it to Builtin.name(it) },
+                none = null,
+            ) { setParam(FORMAT_PARAM, it) }
         }
 
         // loaded-file banner (name + total size + clear)
@@ -207,7 +213,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             }
         }
 
-        var windowStart by remember(tab, writing.input?.id, filePath) { mutableStateOf(0L) }
+        var windowStart by remember(tab, writing.format, writing.charset, filePath) { mutableStateOf(0L) }
         val maxStart = (totalSize - WINDOW_BYTES).coerceAtLeast(0)
         if (windowStart > maxStart) windowStart = maxStart
 
@@ -220,26 +226,14 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 .then(if (isOut) Modifier else Modifier.dragAndDropTarget(shouldStartDragAndDrop = { true }, target = dropTarget))
                 .padding(12.dp),
         ) {
-            if (activeOutput != null) {
-                // The output is given the node's options with whatever it has made of being
-                // clicked on laid over them, and what it returns goes back into that overlay — not
-                // into the node. Which branch of a tree is open is not part of the flow, and making
-                // it one turned every click into a document edit.
-                OutputSurface(
-                    ws, activeOutput.id, bytes,
-                    node.params + tab.outputState,
-                    Modifier.fillMaxSize(),
-                ) { next ->
-                    tab.outputState = next.filterNot { (key, value) -> node.params[key] == value }
-                }
-            } else if (editable) {
+            if (editable) {
                 EditableField(bytes, writing, tab, node, windowStart, { windowStart = it }) { problem = it }
             } else {
                 val source = if (fileBacked) DataSource.FileRange(filePath!!, totalFileSize) else DataSource.Memory(bytes)
                 ReadOnlyView(source, writing, windowStart) { windowStart = it }
             }
 
-            if (totalSize == 0L && activeOutput == null) {
+            if (totalSize == 0L) {
                 Txt(
                     if (isOut) ws.t("dataNoOutput") else ws.t("dataTypeHint"),
                     13.sp, Palette.faintText, mono = true,
@@ -248,7 +242,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
         }
 
         // what the input made of what is typed, said beside the value rather than in place of it
-        problem?.takeIf { activeOutput == null }?.let { Txt(it, 11.sp, Palette.errorSoft) }
+        problem?.let { Txt(it, 11.sp, Palette.errorSoft) }
 
         val windowEnd = minOf(windowStart + WINDOW_BYTES, totalSize)
         val label = if (totalSize > WINDOW_BYTES)
@@ -259,32 +253,24 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     }
 }
 
-// How a value is written, whichever way the user picked.
+// How a value is written: text in some encoding, or hex.
 //
-// The conversion belongs to the input extension — that is the whole of what an input is — but the
-// editor still has to work with none installed, so there is a plain hex fallback here. Bytes are
-// bytes; hex is the one way of writing them that needs nothing.
-private class Writing(val input: InputInfo?, val options: Map<String, String>) {
-    /** Characters per byte, for putting the caret on a byte without asking across the pipe. */
-    val charsPerByte: Int get() = input?.charsPerByte ?: 3
+// Both are the app's own, so this is a plain call — no process, no round trip, nothing to wait for.
+// Typing used to go out to an extension and come back, which is why the editor had a settle delay;
+// it does not any more.
+private class Writing(val format: String, val charset: String) {
+    val charsPerByte: Int get() = Builtin.charsPerByte(format)
 
-    suspend fun format(bytes: ByteArray): String {
-        val id = input?.id ?: return bytesToHex(bytes)
-        return runCatching { Platform.inputFormat(id, bytes, options) }.getOrDefault("")
-    }
+    fun format(bytes: ByteArray): String = Builtin.format(format, bytes, charset)
 
-    /** The bytes, and what is wrong with the text — both from one call across the pipe. */
-    suspend fun parse(text: String): Pair<ByteArray, String?> {
-        val id = input?.id ?: return hexToBytes(text) to null
-        return runCatching { Platform.inputParse(id, text, options) }
-            .getOrElse { ByteArray(0) to (it.message ?: "could not be read") }
-    }
+    /** The bytes, and what is wrong with the text — a note beside the value, not a failure. */
+    fun parse(text: String): Pair<ByteArray, String?> = Builtin.parse(format, text, charset)
 
     /** Which byte a caret position falls on. */
     fun byteAt(text: String, charPos: Int): Int {
         val clamped = charPos.coerceIn(0, text.length)
-        // fixed-width writing divides out exactly; anything else is counted a character to a byte,
-        // which is right for the ASCII that a text value mostly is and close enough elsewhere
+        // fixed-width writing divides out exactly; text is counted a character to a byte, which is
+        // right for the ASCII it mostly is and close enough elsewhere
         return if (charsPerByte > 0) clamped / charsPerByte else clamped
     }
 }
@@ -314,18 +300,18 @@ private fun EditableField(
         if (winSize <= 0) ByteArray(0) else bytes.copyOfRange(winStart, winStart + winSize)
     }
 
-    var field by remember(tab, writing.input?.id) { mutableStateOf(TextFieldValue("")) }
+    var field by remember(tab, writing.format, writing.charset) { mutableStateOf(TextFieldValue("")) }
     // the bytes the text in the field stands for. Re-formatting only when the value arrived from
     // somewhere else is what stops the caret jumping to the end on every keystroke.
-    var shownKey by remember(tab, writing.input?.id) { mutableStateOf<String?>(null) }
+    var shownKey by remember(tab, writing.format, writing.charset) { mutableStateOf<String?>(null) }
     // exactly what was put in the field, so that displaying a value is never mistaken for editing
     // it. Not every way of writing bytes can carry every byte — text cannot hold what is not text —
     // and without this, opening a binary value under a text input and touching nothing would write
     // the replacement characters back over it.
-    var shownText by remember(tab, writing.input?.id) { mutableStateOf<String?>(null) }
+    var shownText by remember(tab, writing.format, writing.charset) { mutableStateOf<String?>(null) }
 
     val canonicalKey = bytesToHex(windowBytes)
-    LaunchedEffect(canonicalKey, writing.input?.id, writing.options) {
+    LaunchedEffect(canonicalKey, writing.format, writing.charset) {
         if (canonicalKey != shownKey) {
             val text = writing.format(windowBytes)
             field = atEnd(text)
@@ -370,7 +356,7 @@ private fun EditableField(
 
     // Typing settles into bytes rather than converting on every keystroke: the conversion is a
     // round trip to another process, and one per character would be felt.
-    LaunchedEffect(field.text, writing.input?.id, writing.options) {
+    LaunchedEffect(field.text, writing.format, writing.charset) {
         // the field is showing the value, not being edited — leave it alone
         if (field.text == shownText) return@LaunchedEffect
         delay(COMMIT_DELAY_MS)
@@ -475,7 +461,7 @@ private fun ReadOnlyView(source: DataSource, writing: Writing, windowStart: Long
     val winSize = minOf(WINDOW_BYTES.toLong(), total - windowStart).coerceAtLeast(0)
     val windowBytes = remember(source, windowStart, winSize) { source.read(windowStart, winSize.toInt()) }
     var text by remember { mutableStateOf("") }
-    LaunchedEffect(windowBytes, writing.input?.id, writing.options) { text = writing.format(windowBytes) }
+    LaunchedEffect(windowBytes, writing.format, writing.charset) { text = writing.format(windowBytes) }
 
     Row(Modifier.fillMaxSize()) {
         val scroll = rememberScrollState()

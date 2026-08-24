@@ -293,52 +293,20 @@
       ]
     },
     {
-      "id": "flow.output.string",
-      "name": "String Output",
-      "version": "1.1.0",
-      "kind": "output",
-      "description": "Show a result as text, in a choice of encodings.",
-      "file": "extensions/flow.output.string.flowext"
+      "id": "flow.view.asn1",
+      "name": "ASN.1",
+      "version": "3.0.0",
+      "kind": "view",
+      "description": "Read DER — certificates, keys, PKCS — as a tree beside its bytes.",
+      "file": "extensions/flow.view.asn1.flowext"
     },
     {
-      "id": "flow.output.hex",
-      "name": "Hex Output",
-      "version": "1.1.0",
-      "kind": "output",
-      "description": "Show a result as a hex dump with offsets and characters; click a byte to identify it.",
-      "file": "extensions/flow.output.hex.flowext"
-    },
-    {
-      "id": "flow.output.asn1",
-      "name": "ASN.1 Output",
-      "version": "2.2.0",
-      "kind": "output",
-      "description": "Read DER — certificates, keys, PKCS — as a tree, with the bytes and header of whatever you pick beside it.",
-      "file": "extensions/flow.output.asn1.flowext"
-    },
-    {
-      "id": "flow.output.image",
-      "name": "Image Output",
-      "version": "1.1.0",
-      "kind": "output",
+      "id": "flow.view.image",
+      "name": "Image",
+      "version": "2.0.0",
+      "kind": "view",
       "description": "Show a result as a picture, for processors that produce an image.",
-      "file": "extensions/flow.output.image.flowext"
-    },
-    {
-      "id": "flow.input.string",
-      "name": "String Input",
-      "version": "1.0.0",
-      "kind": "input",
-      "description": "Write a value as text, in a choice of encodings.",
-      "file": "extensions/flow.input.string.flowext"
-    },
-    {
-      "id": "flow.input.hex",
-      "name": "Hex Input",
-      "version": "1.0.0",
-      "kind": "input",
-      "description": "Write a value as hex digits — how you type a key, an IV, a digest.",
-      "file": "extensions/flow.input.hex.flowext"
+      "file": "extensions/flow.view.image.flowext"
     }
   ]
 }

@@ -1,11 +1,9 @@
 package flow.platform
 
 import flow.model.InstallResult
-import flow.model.Drawing
 import flow.model.ModuleInfo
 import flow.model.OptDef
-import flow.model.InputInfo
-import flow.model.OutputInfo
+import flow.model.ViewInfo
 import java.awt.FileDialog
 import java.awt.Frame
 import java.io.File
@@ -80,30 +78,22 @@ actual object Platform {
     actual fun moduleInputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.inputsFor(id, options)
     actual fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.outputsFor(id, options)
     actual fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>? = ExtensionLoader.optionsFor(id, values)
-    actual fun installedOutputInfos(): List<OutputInfo> = ExtensionLoader.outputInfos()
-    // same reasoning as moduleProcess: a view is arbitrary code, so the wait for it is interruptible
-    actual suspend fun drawOutput(
-        id: String,
-        data: ByteArray,
-        options: Map<String, String>,
-        width: Float,
-        monoCharWidth: Float,
-    ): Drawing =
-        runInterruptible(Dispatchers.Default) { ExtensionLoader.drawOutput(id, data, options, width, monoCharWidth) }
-    actual suspend fun outputEvent(
-        id: String,
-        kind: String,
-        region: String?,
-        x: Float,
-        y: Float,
-        options: Map<String, String>,
-    ): Map<String, String> =
-        runInterruptible(Dispatchers.Default) { ExtensionLoader.outputEvent(id, kind, region, x, y, options) }
-    actual fun installedInputInfos(): List<InputInfo> = ExtensionLoader.inputInfos()
-    actual suspend fun inputParse(id: String, text: String, options: Map<String, String>): Pair<ByteArray, String?> =
-        runInterruptible(Dispatchers.Default) { ExtensionLoader.inputParse(id, text, options) }
-    actual suspend fun inputFormat(id: String, data: ByteArray, options: Map<String, String>): String =
-        runInterruptible(Dispatchers.Default) { ExtensionLoader.inputFormat(id, data, options) }
+    actual fun installedViewInfos(): List<ViewInfo> = ExtensionLoader.viewInfos()
+    actual suspend fun openView(id: String, data: ByteArray, options: Map<String, String>) =
+        runInterruptible(Dispatchers.Default) { ExtensionLoader.openView(id, data, options) }
+    actual fun encodeText(text: String, charset: String): ByteArray =
+        text.toByteArray(charsetOf(charset))
+    actual fun decodeText(bytes: ByteArray, charset: String): String =
+        String(bytes, charsetOf(charset))
+    actual fun charsetNames(): List<String> = CHARSETS
+
+    // an encoding this build does not know falls back rather than failing: the value is still bytes
+    private fun charsetOf(name: String) =
+        runCatching { java.nio.charset.Charset.forName(name) }
+            .getOrDefault(java.nio.charset.StandardCharsets.UTF_8)
+
+    private val CHARSETS = listOf("UTF-8", "US-ASCII", "ISO-8859-1", "UTF-16", "UTF-16BE", "UTF-16LE", "EUC-KR")
+
     actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
     actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
     actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)
