@@ -1,5 +1,6 @@
 package flow.io
 
+import flow.extension.OutputCanvas
 import flow.extension.OutputEvent
 import flow.output.Asn1Output
 import flow.output.HexOutput
@@ -26,19 +27,23 @@ class OutputEventTest {
     private fun rsaKey() =
         KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair().public.encoded
 
-    // the offset column is drawn as its own text, so counting rows means turning it off
-    private val treeOnly = mapOf("showOffsets" to "false")
+    private val treeOnly = emptyMap<String, String>()
 
-    /* ───────── ASN.1: collapsing a branch ───────── */
+    /* ───────── ASN.1: the tree, and what picking a row shows ───────── */
+
+    /** The rows of the tree, as the regions that make each one clickable. */
+    private fun rows(canvas: FakeCanvas) = canvas.regions.filter { it.id.startsWith("s") }
+
+    private fun toggles(canvas: FakeCanvas) = canvas.regions.filter { it.id.startsWith("t") }
 
     @Test
-    fun `every branch with children is clickable, and nothing else is`() {
+    fun `every row can be picked, and only the branches can be opened`() {
         val canvas = FakeCanvas()
-        Asn1Output().draw(canvas, rsaKey(), emptyMap())
-        assertTrue(canvas.regions.isNotEmpty(), "no branch was made clickable")
-        // a leaf has nothing to open, so it claims nothing
-        val branchRows = canvas.texts.count { it.text.startsWith("▼") || it.text.startsWith("▶") }
-        assertEquals(branchRows, canvas.regions.size)
+        Asn1Output().draw(canvas, rsaKey(), treeOnly)
+        assertTrue(rows(canvas).isNotEmpty(), "no row was made clickable")
+        // a leaf has nothing to open, so it claims no toggle
+        assertTrue(toggles(canvas).size < rows(canvas).size, "every row claimed a toggle")
+        assertTrue(toggles(canvas).isNotEmpty(), "no branch could be opened")
     }
 
     @Test
@@ -49,14 +54,13 @@ class OutputEventTest {
         view.draw(open, key, treeOnly)
 
         // the outermost SEQUENCE is the first branch drawn
-        val region = open.regions.first()
-        val collapsed = view.onEvent(OutputEvent(OutputEvent.CLICK, region.id, region.x, region.y), treeOnly)
-        assertTrue(collapsed != treeOnly, "the click changed nothing")
+        val marker = toggles(open).first()
+        val collapsed = view.onEvent(OutputEvent(OutputEvent.CLICK, marker.id, marker.x, marker.y), treeOnly)
+        assertTrue(collapsed.containsKey("asn1.collapsed"), "the click changed nothing: $collapsed")
 
         val shut = FakeCanvas()
         view.draw(shut, key, collapsed)
-        assertEquals(1, shut.lines.size, "closing the outermost branch left ${shut.lines.size} rows")
-        assertTrue(shut.lines.single().startsWith("▶"), shut.lines.single())
+        assertEquals(1, rows(shut).size, "closing the outermost branch left ${rows(shut).size} rows")
     }
 
     @Test
@@ -65,15 +69,13 @@ class OutputEventTest {
         val key = rsaKey()
         val open = FakeCanvas()
         view.draw(open, key, treeOnly)
-        val region = open.regions.first()
-        val event = OutputEvent(OutputEvent.CLICK, region.id, region.x, region.y)
+        val marker = toggles(open).first()
+        val event = OutputEvent(OutputEvent.CLICK, marker.id, marker.x, marker.y)
 
-        val closed = view.onEvent(event, treeOnly)
-        val reopened = view.onEvent(event, closed)
-
+        val reopened = view.onEvent(event, view.onEvent(event, treeOnly))
         val again = FakeCanvas()
         view.draw(again, key, reopened)
-        assertEquals(open.lines, again.lines, "opening it again did not restore the tree")
+        assertEquals(rows(open).map { it.id }, rows(again).map { it.id }, "the tree did not come back")
     }
 
     @Test
@@ -83,27 +85,70 @@ class OutputEventTest {
         val open = FakeCanvas()
         view.draw(open, key, treeOnly)
         // the AlgorithmIdentifier sequence, inside the outer one
-        val inner = open.regions[1]
+        val inner = toggles(open)[1]
         val next = view.onEvent(OutputEvent(OutputEvent.CLICK, inner.id, inner.x, inner.y), treeOnly)
 
         val shut = FakeCanvas()
         view.draw(shut, key, next)
-        assertTrue(shut.lines.size in 2 until open.lines.size, "got ${shut.lines.size} of ${open.lines.size} rows")
+        assertTrue(rows(shut).size in 2 until rows(open).size, "got ${rows(shut).size} of ${rows(open).size}")
         assertTrue(shut.lines.none { it.contains("rsaEncryption") }, "the closed branch still shows its children")
         assertTrue(shut.lines.any { it.contains("BIT STRING") }, "a sibling disappeared too")
     }
 
     @Test
-    fun `what is closed survives being written out and read back`() {
+    fun `picking a row shows that row's bytes and what its header says`() {
+        val view = Asn1Output()
+        val key = rsaKey()
+        val first = FakeCanvas()
+        view.draw(first, key, treeOnly)
+
+        // the algorithm OID, which is a leaf with a name worth showing
+        val oidRow = first.texts.first { it.text.contains("rsaEncryption") }
+        val row = rows(first).first { it.y <= oidRow.y && oidRow.y < it.y + it.h }
+        val picked = view.onEvent(OutputEvent(OutputEvent.CLICK, row.id, row.x, row.y), treeOnly)
+        assertTrue(picked.containsKey("asn1.selected"), "picking a row kept nothing: $picked")
+
+        val shown = FakeCanvas()
+        view.draw(shown, key, picked)
+        val detail = shown.lines
+        assertTrue(detail.any { it.startsWith("OID") }, "no OID fact: ${detail.takeLast(12)}")
+        assertTrue(detail.any { it.contains("rsaEncryption") }, "the OID was not named")
+        assertTrue(detail.any { it.startsWith("Tag") }, "no tag fact")
+        assertTrue(detail.any { it.startsWith("Length") }, "no length fact")
+        assertTrue(detail.any { it.startsWith("Class") }, "no class fact")
+    }
+
+    @Test
+    fun `the detail is drawn beside the tree, not under it`() {
+        val view = Asn1Output()
+        val canvas = FakeCanvas(width = 1200f)
+        view.draw(canvas, rsaKey(), treeOnly)
+        val treeRight = rows(canvas).maxOf { it.x + it.w }
+        val facts = canvas.texts.filter { it.text.startsWith("Offset") || it.text.startsWith("Tag") }
+        assertTrue(facts.isNotEmpty(), "the detail panel drew nothing")
+        assertTrue(facts.all { it.x > treeRight }, "the detail overlaps the tree")
+    }
+
+    @Test
+    fun `the picked row is marked`() {
+        val view = Asn1Output()
+        val canvas = FakeCanvas()
+        view.draw(canvas, rsaKey(), treeOnly)
+        val marks = canvas.ops.filterIsInstance<FakeCanvas.Rect>()
+        assertEquals(1, marks.size, "expected exactly one row marked, got ${marks.size}")
+        assertEquals(OutputCanvas.SELECTION, marks.single().color)
+    }
+
+    @Test
+    fun `what is closed and what is picked survive being written out and read back`() {
         val view = Asn1Output()
         val key = rsaKey()
         val open = FakeCanvas()
         view.draw(open, key, treeOnly)
-        val region = open.regions[1]
-        val saved = view.onEvent(OutputEvent(OutputEvent.CLICK, region.id, region.x, region.y), treeOnly)
+        val marker = toggles(open)[1]
+        val saved = view.onEvent(OutputEvent(OutputEvent.CLICK, marker.id, marker.x, marker.y), treeOnly)
 
-        // the options are a plain string map because they are saved with the flow; nothing in here
-        // may depend on an object that only exists while the app is running
+        // the options are a plain string map because they outlive any one drawing
         saved.forEach { (k, v) -> assertTrue(k.isNotBlank() && v.isNotBlank(), "$k=$v") }
         val restored = FakeCanvas()
         view.draw(restored, key, saved.toMap())

@@ -70,6 +70,12 @@ interface OutputCanvas {
         const val ERROR = 0x0100_0004
         const val SURFACE = 0x0100_0005
         const val BORDER = 0x0100_0006
+
+        /**
+         * The app's own selection wash, for marking the row or cell the user picked. Translucent,
+         * so what is drawn underneath still shows — which is why an output cannot mix it itself.
+         */
+        const val SELECTION = 0x0100_0007
     }
 }
 

@@ -17,7 +17,6 @@ rootProject.name = "flow"
 include(":flow")
 include(":flow-extension-api")
 include(":flow-extension-host")
-include(":flow-extensions:sample-extension")
 include(":flow-extensions:base64-extension")
 include(":flow-extensions:cipher-extension")
 include(":flow-extensions:hash-extension")

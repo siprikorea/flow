@@ -171,29 +171,38 @@ class OutputProcessTest {
     }
 
     @Test
-    fun `a view names the parts of its drawing that can be clicked`() {
-        val drawing = draw("flow.output.asn1", derSequence())
-        assertTrue(drawing.regions.isNotEmpty(), "no region crossed the pipe")
-        // regions are not drawing calls and must not be replayed as any
-        assertTrue(drawing.ops.none { it is DrawOp.Rect }, "a region was mistaken for something to draw")
+    fun `what the output declared is exactly what arrives`() {
+        // the same output, drawn once in this process and once in the worker's, at the same size.
+        // Anything the pipe drops, reorders or mangles shows up as a difference here — which is the
+        // only way to know the two halves of the protocol still agree.
+        val der = derSequence()
+        val here = FakeCanvas(width = 800f, monoCharWidth = 0.6f)
+        flow.output.Asn1Output().draw(here, der, emptyMap())
+        val there = draw("flow.output.asn1", der)
+
+        assertTrue(here.regions.isNotEmpty(), "the output named nothing clickable")
+        assertEquals(here.regions.map { it.id }, there.regions.map { it.id }, "regions")
+        assertEquals(
+            here.ops.count { it !is FakeCanvas.Region }, there.ops.size,
+            "a drawing call was lost or invented on the way",
+        )
+        assertEquals(here.height, there.contentHeight, "the height did not survive")
     }
 
     @Test
-    fun `clicking through the pipe changes what the view draws next`() {
+    fun `clicking through the pipe changes what the output draws next`() {
         val der = derSequence()
-        val open = draw("flow.output.asn1", der, mapOf("showOffsets" to "false"))
-        val region = open.regions.first()
+        val open = draw("flow.output.asn1", der)
+        // "t…" is a branch marker; "s…" picks a row
+        val marker = open.regions.first { it.id.startsWith("t") }
 
-        val next = event(
-            "flow.output.asn1", "click", region.id, region.x, region.y,
-            mapOf("showOffsets" to "false"),
-        )
-        assertTrue(next.containsKey("asn1.collapsed"), "the view kept nothing about the click: $next")
+        val next = event("flow.output.asn1", "click", marker.id, marker.x, marker.y, emptyMap())
+        assertTrue(next.containsKey("asn1.collapsed"), "the output kept nothing about the click: $next")
 
         val shut = draw("flow.output.asn1", der, next)
         assertTrue(
-            shut.ops.size < open.ops.size,
-            "closing the branch drew ${shut.ops.size} calls against ${open.ops.size}",
+            shut.regions.count { it.id.startsWith("s") } < open.regions.count { it.id.startsWith("s") },
+            "closing the branch left as many rows as before",
         )
     }
 

@@ -221,13 +221,16 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                 .padding(12.dp),
         ) {
             if (activeOutput != null) {
-                // An output keeps what it needs to remember in the node's params, so a tree left
-                // half-open stays that way — but the params the editor itself owns are not its to
-                // change, or an output could switch itself off or repoint the node at another file.
-                OutputSurface(ws, activeOutput.id, bytes, node.params, Modifier.fillMaxSize()) { next ->
-                    tab.doc.updateNode(node.id) { n ->
-                        n.copy(params = next - EDITOR_PARAMS + n.params.filterKeys { it in EDITOR_PARAMS })
-                    }
+                // The output is given the node's options with whatever it has made of being
+                // clicked on laid over them, and what it returns goes back into that overlay — not
+                // into the node. Which branch of a tree is open is not part of the flow, and making
+                // it one turned every click into a document edit.
+                OutputSurface(
+                    ws, activeOutput.id, bytes,
+                    node.params + tab.outputState,
+                    Modifier.fillMaxSize(),
+                ) { next ->
+                    tab.outputState = next.filterNot { (key, value) -> node.params[key] == value }
                 }
             } else if (editable) {
                 EditableField(bytes, writing, tab, node, windowStart, { windowStart = it }) { problem = it }

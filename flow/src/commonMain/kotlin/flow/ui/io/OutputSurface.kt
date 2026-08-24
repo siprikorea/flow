@@ -185,7 +185,25 @@ fun OutputSurface(
     }
 }
 
-/** Whether an op falls inside the scrolled window, in the view's own coordinates. */
+/**
+ * Replays a finished drawing onto a canvas of its own.
+ *
+ * Split out from [OutputSurface] so a drawing can be put on screen without the process that made
+ * it — which is what lets a change to how an output looks be rendered and looked at.
+ */
+@Composable
+internal fun DrawingCanvas(drawing: Drawing, viewportDp: Float, modifier: Modifier = Modifier) {
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current.density
+    val images = remember(drawing) {
+        drawing.ops.filterIsInstance<DrawOp.Image>().associateWith { decodePng(it.png) }
+    }
+    Canvas(modifier.fillMaxWidth().height(maxOf(drawing.contentHeight, viewportDp).dp)) {
+        drawing.ops.forEach { op -> replay(op, measurer, density, images) }
+    }
+}
+
+/** Whether an op falls inside the scrolled window, in the output's own coordinates. */
 private fun visible(op: DrawOp, top: Float, bottom: Float): Boolean {
     val (a, b) = when (op) {
         is DrawOp.Text -> op.y to op.y + op.size * 2f // generous: wrapping is the view's business
@@ -251,5 +269,6 @@ private fun colorOf(argb: Int): Color = when (argb) {
     OutputColor.ERROR -> Palette.errorSoft
     OutputColor.SURFACE -> Palette.holeBg
     OutputColor.BORDER -> Palette.border
+    OutputColor.SELECTION -> Palette.accent.copy(alpha = 0.22f)
     else -> Color(argb)
 }

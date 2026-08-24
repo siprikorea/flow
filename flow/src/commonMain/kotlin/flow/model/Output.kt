@@ -123,9 +123,10 @@ object OutputColor {
     const val ERROR = 0x0100_0004
     const val SURFACE = 0x0100_0005
     const val BORDER = 0x0100_0006
+    const val SELECTION = 0x0100_0007
 
     /** True for any of the above: the app substitutes its own colour rather than reading ARGB. */
-    fun isThemeColor(argb: Int) = argb in DEFAULT_TEXT..BORDER
+    fun isThemeColor(argb: Int) = argb in DEFAULT_TEXT..SELECTION
 }
 
 /**

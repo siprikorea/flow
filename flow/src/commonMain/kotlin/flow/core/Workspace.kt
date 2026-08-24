@@ -44,6 +44,17 @@ class InstallPending(val label: String, val commit: () -> Unit)
 class DataTab(val doc: EditorState, val nodeId: String) {
     val node: Node? get() = doc.nodeById(nodeId)
     val title: String get() = node?.label ?: "?"
+
+    /**
+     * What an output has made of being clicked on: which branch is open, which row is picked.
+     *
+     * It lives here rather than in the node because it is not part of the flow. Putting it there
+     * made every click on a tree a document edit — marking the file changed, redrawing the canvas,
+     * and re-serialising the whole flow to see whether it still matched what was saved — which is
+     * a great deal of work for opening a row. It lasts as long as the tab is open, which is as long
+     * as it means anything.
+     */
+    var outputState by mutableStateOf<Map<String, String>>(emptyMap())
 }
 
 // Workspace: global UI state + open documents (tabs) + project file list + component registry

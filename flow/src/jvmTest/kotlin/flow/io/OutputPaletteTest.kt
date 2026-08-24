@@ -23,13 +23,14 @@ class OutputPaletteTest {
         assertEquals(OutputCanvas.ERROR, OutputColor.ERROR)
         assertEquals(OutputCanvas.SURFACE, OutputColor.SURFACE)
         assertEquals(OutputCanvas.BORDER, OutputColor.BORDER)
+        assertEquals(OutputCanvas.SELECTION, OutputColor.SELECTION)
     }
 
     @Test
     fun `every declared colour is recognised as a theme colour`() {
         listOf(
             OutputCanvas.DEFAULT_TEXT, OutputCanvas.MUTED_TEXT, OutputCanvas.ACCENT,
-            OutputCanvas.ERROR, OutputCanvas.SURFACE, OutputCanvas.BORDER,
+            OutputCanvas.ERROR, OutputCanvas.SURFACE, OutputCanvas.BORDER, OutputCanvas.SELECTION,
         ).forEach { assertTrue(OutputColor.isThemeColor(it), "$it was not recognised") }
     }
 

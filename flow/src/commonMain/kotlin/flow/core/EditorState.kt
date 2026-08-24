@@ -183,7 +183,27 @@ class EditorState(
      * empty canvas never does: a blank document that was never drawn on has nothing to lose, and
      * asking about it turns closing a stray tab into a dialog.
      */
-    val dirty: Boolean get() = !isEmpty && (!persisted || flowJson() != savedSig)
+    // The saved-comparison signature, remembered against the lists it was made from. `dirty` is
+    // read on every recomposition — the tab bar shows it for every open document — and building it
+    // means serialising the whole flow, so doing that again for state that has not moved is work
+    // repeated on every frame.
+    private var sigNodes: List<Node>? = null
+    private var sigEdges: List<Edge>? = null
+    private var sigSeq: Int = -1
+    private var sigCache: String = ""
+
+    private fun signature(): String {
+        // compared by identity: an edit replaces the list, it never mutates one in place
+        if (sigNodes !== nodes || sigEdges !== edges || sigSeq != seq) {
+            sigCache = flowJson()
+            sigNodes = nodes
+            sigEdges = edges
+            sigSeq = seq
+        }
+        return sigCache
+    }
+
+    val dirty: Boolean get() = !isEmpty && (!persisted || signature() != savedSig)
 
     // Blocking error: a component needs at least one input and one output boundary node.
     fun validateComponent(): String? {
