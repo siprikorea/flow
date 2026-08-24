@@ -132,13 +132,18 @@ class OutputEventTest {
     }
 
     @Test
-    fun `the picked row is marked`() {
+    fun `the picked row is marked, and only that row`() {
         val view = Asn1Output()
         val canvas = FakeCanvas()
         view.draw(canvas, rsaKey(), treeOnly)
+
+        val picked = rows(canvas).first()
         val marks = canvas.ops.filterIsInstance<FakeCanvas.Rect>()
-        assertEquals(1, marks.size, "expected exactly one row marked, got ${marks.size}")
-        assertEquals(OutputCanvas.SELECTION, marks.single().color)
+            .filter { it.filled && it.color == OutputCanvas.SELECTION }
+        // the buttons are drawn as boxes too, so this is about which rows are marked
+        val overRows = marks.filter { mark -> rows(canvas).any { it.y == mark.y } }
+        assertEquals(1, overRows.size, "expected exactly one row marked, got ${overRows.size}")
+        assertEquals(picked.y, overRows.single().y, 0.01f)
     }
 
     @Test

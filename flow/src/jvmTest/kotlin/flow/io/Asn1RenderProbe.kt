@@ -54,6 +54,25 @@ class Asn1RenderProbe {
             val selected = mapOf("asn1.selected" to row.id.removePrefix("s"))
             flow.output.Asn1Output().draw(canvas, key, selected)
 
+            // and the same after pressing collapse all, which is the button under test
+            val collapseRegion = probe.regions.first { it.id.startsWith("ca") }
+            val shutOptions = flow.output.Asn1Output().onEvent(
+                flow.extension.OutputEvent(flow.extension.OutputEvent.CLICK, collapseRegion.id, 0f, 0f),
+                selected,
+            )
+            val shutCanvas = FakeCanvas(width = width, monoCharWidth = 0.6f)
+            flow.output.Asn1Output().draw(shutCanvas, key, shutOptions)
+            val shutScene = ImageComposeScene((width * 2).toInt() + 40, 400, density = Density(2f)) {
+                ApplyTheme(theme)
+                Box(Modifier.fillMaxSize().background(Palette.holeBg).padding(6.dp)) {
+                    DrawingCanvas(shutCanvas.toDrawing(), viewportDp = 200f)
+                }
+            }
+            File(dir, "asn1-$theme-collapsed.png").writeBytes(
+                shutScene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes,
+            )
+            shutScene.close()
+
             val drawing = canvas.toDrawing()
             val scene = ImageComposeScene((width * 2).toInt() + 40, 1000, density = Density(2f)) {
                 ApplyTheme(theme)

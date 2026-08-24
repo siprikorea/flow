@@ -19,7 +19,7 @@ import flow.extension.OutputExtension
 class Asn1Output : OutputExtension {
     override val id = "flow.output.asn1"
     override val displayName = "ASN.1 Output"
-    override val version = "2.1.0"
+    override val version = "2.2.0"
 
     override fun draw(canvas: OutputCanvas, data: ByteArray, options: Map<String, String>) {
         val grid = Grid(canvas)
@@ -70,18 +70,9 @@ class Asn1Output : OutputExtension {
         // are, and this is called again from scratch each time — so the offsets travel in the
         // button's own name, the same way a hex row carries the layout that reads a click back.
         val branches = all.filter { it.hasChildren }.joinToString(",") { it.offset.toString() }
-        val expandLabel = "[ + ] expand all"
-        canvas.text(grid.x(0), grid.y(0), expandLabel, grid.fontSize, OutputCanvas.ACCENT, mono = true)
-        canvas.region(0f, grid.y(0) - 2f, grid.charWidth * expandLabel.length, grid.lineHeight, EXPAND_ALL)
-
-        val collapseAt = expandLabel.length + 2
-        val collapseLabel = "[ - ] collapse all"
-        canvas.text(grid.x(collapseAt), grid.y(0), collapseLabel, grid.fontSize, OutputCanvas.ACCENT, mono = true)
-        canvas.region(
-            grid.x(collapseAt) - 2f, grid.y(0) - 2f,
-            grid.charWidth * collapseLabel.length, grid.lineHeight,
-            "$COLLAPSE_ALL$branches",
-        )
+        var at = 0f
+        at = button(canvas, grid, at, "expand all", EXPAND_ALL)
+        button(canvas, grid, at + grid.charWidth, "collapse all", "$COLLAPSE_ALL$branches")
 
         shown.forEachIndexed { index, item ->
             val row = index + HEADER_ROWS
@@ -114,6 +105,24 @@ class Asn1Output : OutputExtension {
             )
         }
         return shown.size + HEADER_ROWS
+    }
+
+    /**
+     * A button, drawn as one: a filled box with a border and a label, and a region over it.
+     *
+     * Text alone reads as a line of the tree rather than as something to press, which is what it
+     * was mistaken for. Returns where the next one starts.
+     */
+    private fun button(canvas: OutputCanvas, grid: Grid, x: Float, label: String, region: String): Float {
+        val pad = grid.charWidth
+        val width = label.length * grid.charWidth + pad * 2
+        val height = grid.lineHeight
+        val y = grid.y(0) - 3f
+        canvas.rect(x, y, width, height, OutputCanvas.SELECTION, filled = true)
+        canvas.rect(x, y, width, height, OutputCanvas.BORDER, filled = false)
+        canvas.text(x + pad, grid.y(0), label, grid.fontSize, OutputCanvas.ACCENT, mono = true)
+        canvas.region(x, y, width, height, region)
+        return x + width
     }
 
     private fun fit(text: String, columns: Int): String =
@@ -198,10 +207,10 @@ class Asn1Output : OutputExtension {
         return when {
             region == EXPAND_ALL -> options - COLLAPSED
             region.startsWith(COLLAPSE_ALL) -> {
-                val all = region.removePrefix(COLLAPSE_ALL)
-                // the outermost stays open, or closing everything would leave one unreadable line
-                val keptOpen = numbersIn(all).minOrNull()
-                options + (COLLAPSED to numbersIn(all).filter { it != keptOpen }.sorted().joinToString(","))
+                // everything, the outermost included: one closed row is what "collapse all" means,
+                // and opening it again is one click
+                val all = numbersIn(region.removePrefix(COLLAPSE_ALL))
+                options + (COLLAPSED to all.sorted().joinToString(","))
             }
             region.startsWith(TOGGLE) -> {
                 val offset = region.removePrefix(TOGGLE).toIntOrNull() ?: return options

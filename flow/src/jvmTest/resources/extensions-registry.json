@@ -311,7 +311,7 @@
     {
       "id": "flow.output.asn1",
       "name": "ASN.1 Output",
-      "version": "2.1.0",
+      "version": "2.2.0",
       "kind": "output",
       "description": "Read DER — certificates, keys, PKCS — as a tree, with the bytes and header of whatever you pick beside it.",
       "file": "extensions/flow.output.asn1.flowext"
