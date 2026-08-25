@@ -50,6 +50,8 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.EditorState
+import flow.core.PORT_INSET
+import flow.core.PORT_SIZE
 import flow.core.portPos
 import flow.core.portY
 import flow.core.snapF
@@ -431,7 +433,3 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
         )
     }
 }
-
-/** The port circle, and how far in from the node's edge it sits. */
-internal const val PORT_SIZE = 15f
-internal const val PORT_INSET = 3f

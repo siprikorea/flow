@@ -15,12 +15,21 @@ fun snapF(v: Float): Float = round(v / GRID) * GRID
 fun portY(node: Node, count: Int, idx: Int): Float =
     node.y + 28f + (node.h - 34f) * (idx + 1) / (count + 1) + 3f
 
+/**
+ * The port circle, and how far in from the node's edge it sits.
+ *
+ * Here rather than beside the drawing, because where the circle is and where an edge ends have to
+ * be the same number — they are drawn by different code and would drift apart as two.
+ */
+const val PORT_SIZE = 15f
+const val PORT_INSET = 8f
+
 fun portPos(node: Node, kind: String, idx: Int): Offset {
     val list = if (kind == "in") node.inputs else node.outputs
     // the centre of the port circle, which sits inside the node — an edge that stopped at the
     // node's edge would stop short of the thing it connects to
-    val inset = 3f + 15f / 2f
-    val x = if (kind == "in") node.x + inset else node.x + node.w - inset
+    val centre = PORT_INSET + PORT_SIZE / 2f
+    val x = if (kind == "in") node.x + centre else node.x + node.w - centre
     return Offset(x, portY(node, list.size, idx))
 }
 
