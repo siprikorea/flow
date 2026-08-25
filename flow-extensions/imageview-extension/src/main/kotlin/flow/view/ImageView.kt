@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,7 +37,7 @@ import kotlin.concurrent.thread
 class ImageView : ViewExtension {
     override val id = "flow.view.image"
     override val displayName = "Image"
-    override val version = "2.0.0"
+    override val version = "2.0.1"
     override val description = "Show a result as a picture, for processors that produce an image."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -57,6 +58,8 @@ class ImageView : ViewExtension {
                     ),
                     title = "Image",
                 ) {
+                    // asked for a moment ago, so it belongs in front rather than behind what asked
+                    LaunchedEffect(Unit) { window.toFront(); window.requestFocus() }
                     Content(data, background, muted)
                 }
             }

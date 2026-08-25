@@ -48,14 +48,16 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
                     jarOf(Unit::class.java),
                 ) + uiJars()
                 ).distinct().joinToString(File.pathSeparator)
-            // A view opens a window from here, so this process has to be able to: named for the
-            // dock, and never headless. A worker that only computes never touches any of it.
+            // A view opens a window from here, so this process has to be able to. UIElement is
+            // what keeps it from looking like a second program: the window appears and can be used,
+            // but there is no dock icon and no menu bar of its own — an extension is part of Flow,
+            // not something the user started. A worker that only computes never touches any of it.
             val command = listOf(
                 java,
                 "-cp", classpath,
                 "-Djava.awt.headless=false",
-                "-Dapple.awt.application.name=${dir.name}",
-                "-Xdock:name=${dir.name}",
+                "-Dapple.awt.UIElement=true",
+                "-Dapple.awt.application.name=Flow",
                 ExtensionWorker::class.java.name,
             ) + jars.map { it.absolutePath }
             val p = ProcessBuilder(command)

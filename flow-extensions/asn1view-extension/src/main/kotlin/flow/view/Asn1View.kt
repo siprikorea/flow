@@ -27,6 +27,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -68,7 +69,7 @@ import kotlin.concurrent.thread
 class Asn1View : ViewExtension {
     override val id = "flow.view.asn1"
     override val displayName = "ASN.1"
-    override val version = "3.0.0"
+    override val version = "3.0.1"
     override val description = "Read DER — certificates, keys, PKCS — as a tree beside its bytes."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -376,6 +377,9 @@ private object Windows {
                         ),
                         title = "ASN.1",
                     ) {
+                        // asked for a moment ago, so it belongs in front rather than behind what
+                        // asked — a UIElement process does not come forward on its own
+                        LaunchedEffect(Unit) { window.toFront(); window.requestFocus() }
                         pane.content()
                     }
                 }
