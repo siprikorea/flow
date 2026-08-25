@@ -138,7 +138,7 @@ private fun PaletteCard(
             .hoverable(hoverSrc)
             .background(Palette.dropdownBg, RoundedCornerShape(7.dp))
             .border(1.dp, borderColor, RoundedCornerShape(7.dp))
-            .pointerInput(type, param) {
+            .pointerInput(type, param, label) {
                 // drag -> update ws.dragModule -> drop onto the active document on release
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -148,7 +148,9 @@ private fun PaletteCard(
                     if (!ws.canvasOpen) return@awaitEachGesture
                     try {
                         drag(down.id) { ch ->
-                            ws.dragModule = DragModule(type, origin + ch.position, param?.let { mapOf(it) }.orEmpty())
+                            ws.dragModule = DragModule(
+                                type, origin + ch.position, param?.let { mapOf(it) }.orEmpty(), label,
+                            )
                             ch.consume()
                         }
                         ws.active?.dropModule()

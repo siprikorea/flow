@@ -37,11 +37,18 @@ import kotlin.concurrent.thread
 class ImageView : ViewExtension {
     override val id = "flow.view.image"
     override val displayName = "Image"
-    override val version = "2.1.0"
+    override val version = "2.2.0"
     override val description = "Show a result as a picture, for processors that produce an image."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
+        // The title bar is the system's, and its colour comes from the appearance the process is
+        // running in — so a viewer opened from a dark Flow on a light Mac would wear a light title
+        // bar over dark contents. Set before any window exists, which is when it is read.
         val dark = options["theme"] != "light"
+        System.setProperty(
+            "apple.awt.application.appearance",
+            if (dark) "NSAppearanceNameDarkAqua" else "NSAppearanceNameAqua",
+        )
         val background = if (dark) Color(0xFF14171F) else Color(0xFFF7F8FA)
         val muted = if (dark) Color(0xFF8A93A6) else Color(0xFF6B7484)
         val size = 720f
@@ -62,7 +69,7 @@ class ImageView : ViewExtension {
                     // icon is a background one as far as macOS is concerned, and toFront alone
                     // does not lift a background app's window above the app that is in front —
                     // raising it on top and letting go immediately does.
-                    LaunchedEffect(Unit) { window.matchTitleBar(); window.bringForward() }
+                    LaunchedEffect(Unit) { window.bringForward() }
                     Content(data, background, muted)
                 }
             }
@@ -74,12 +81,7 @@ class ImageView : ViewExtension {
 private fun Content(data: ByteArray, background: Color, muted: Color) {
     // decoded once: the bytes do not change while the window is up
     val bitmap = remember(data) { decode(data) }
-    // the title bar is transparent and the content runs to the top, so the caption leaves the
-    // close and zoom buttons somewhere to be
-    Column(
-        Modifier.fillMaxSize().background(background)
-            .padding(start = 78.dp, top = 10.dp, end = 12.dp, bottom = 12.dp),
-    ) {
+    Column(Modifier.fillMaxSize().background(background).padding(12.dp)) {
         if (bitmap == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
@@ -107,13 +109,7 @@ private fun Content(data: ByteArray, background: Color, muted: Color) {
 private fun decode(data: ByteArray): ImageBitmap? =
     runCatching { org.jetbrains.skia.Image.makeFromEncoded(data).toComposeImageBitmap() }.getOrNull()
 
-/**
- * Brings a window to the front from a process that has no dock icon.
- *
- * Such a process is a background one to macOS, and a background app cannot simply put itself in
- * front of the one that is. Raising the window above everything and letting go at once leaves it
- * where it was raised to, without leaving it stuck there.
- */
+/** Brings a window to the front from a process that has no dock icon. */
 private fun java.awt.Window.bringForward() {
     // A process with no dock icon is a background app to macOS, and a background app's window does
     // not come out in front of the one that is — not by toFront, and not by being briefly pinned on
@@ -126,20 +122,4 @@ private fun java.awt.Window.bringForward() {
     }
     toFront()
     requestFocus()
-}
-
-/**
- * The same title bar Flow has: the app's own colours running to the top of the window, with the
- * close and zoom buttons still where macOS puts them.
- *
- * Without this a viewer wears the system's title bar while Flow wears its own, and two windows of
- * one program look like two programs.
- */
-private fun java.awt.Window.matchTitleBar() {
-    val root = (this as? javax.swing.RootPaneContainer)?.rootPane ?: return
-    runCatching {
-        root.putClientProperty("apple.awt.fullWindowContent", true)
-        root.putClientProperty("apple.awt.transparentTitleBar", true)
-        root.putClientProperty("apple.awt.windowTitleVisible", false)
-    }
 }

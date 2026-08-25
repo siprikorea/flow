@@ -302,13 +302,11 @@ private fun EmptyEditor(ws: Workspace) {
 @Composable
 private fun DragGhost(d: DragModule) {
     val comp = isComp(d.type)
-    val def = findDef(d.type)
-    val label = when {
-        comp -> d.type.removePrefix("comp:").removeSuffix(".flow").removeSuffix(".json")
-        def != null -> def.name["en"] ?: def.type
-        else -> d.type
+    val cat = when {
+        comp -> "component"
+        d.type == "cout" -> "out"
+        else -> findDef(d.type)?.cat ?: "transform"
     }
-    val cat = if (comp) "component" else def?.cat ?: "transform"
     Box(
         Modifier
             .offset { IntOffset(d.pos.x.roundToInt() + 8, d.pos.y.roundToInt() + 8) }
@@ -318,7 +316,7 @@ private fun DragGhost(d: DragModule) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Box(Modifier.size(10.dp).background(Palette.catColor(cat), RoundedCornerShape(3.dp)))
-            Txt(label, 12.sp, Palette.text)
+            Txt(d.label, 12.sp, Palette.text)
         }
     }
 }

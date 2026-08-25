@@ -69,12 +69,20 @@ import kotlin.concurrent.thread
 class Asn1View : ViewExtension {
     override val id = "flow.view.asn1"
     override val displayName = "ASN.1"
-    override val version = "3.1.0"
+    override val version = "3.2.0"
     override val description = "Read DER — certificates, keys, PKCS — as a tree beside its bytes."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
+        // The title bar is the system's, and its colour comes from the appearance the process runs
+        // in — so a viewer opened from a dark Flow on a light Mac would wear a light title bar over
+        // dark contents. Set before any window exists, which is when it is read.
+        val dark = options["theme"] != "light"
+        System.setProperty(
+            "apple.awt.application.appearance",
+            if (dark) "NSAppearanceNameDarkAqua" else "NSAppearanceNameAqua",
+        )
         Windows.open(
-            dark = options["theme"] != "light",
+            dark = dark,
             corner = ViewWindow.centeredOn(options, Windows.WIDTH, Windows.HEIGHT),
         ) { Asn1Window(data) }
     }
@@ -148,9 +156,7 @@ private fun Asn1Window(data: ByteArray) {
             },
     ) {
         Row(
-            // the title bar is transparent and the content runs to the top of the window, so the
-            // first row has to leave the close and zoom buttons somewhere to be
-            Modifier.fillMaxWidth().padding(start = TRAFFIC_LIGHTS.dp, top = 9.dp, end = 10.dp, bottom = 9.dp),
+            Modifier.fillMaxWidth().padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -383,7 +389,7 @@ private object Windows {
                         // icon is a background one as far as macOS is concerned, and toFront alone
                         // does not lift a background app's window above the app that is in front —
                         // raising it on top and letting go immediately does.
-                        LaunchedEffect(Unit) { window.matchTitleBar(); window.bringForward() }
+                        LaunchedEffect(Unit) { window.bringForward() }
                         pane.content()
                     }
                 }
@@ -393,13 +399,7 @@ private object Windows {
     }
 }
 
-/**
- * Brings a window to the front from a process that has no dock icon.
- *
- * Such a process is a background one to macOS, and a background app cannot simply put itself in
- * front of the one that is. Raising the window above everything and letting go at once leaves it
- * where it was raised to, without leaving it stuck there.
- */
+/** Brings a window to the front from a process that has no dock icon. */
 private fun java.awt.Window.bringForward() {
     // A process with no dock icon is a background app to macOS, and a background app's window does
     // not come out in front of the one that is — not by toFront, and not by being briefly pinned on
@@ -413,22 +413,3 @@ private fun java.awt.Window.bringForward() {
     toFront()
     requestFocus()
 }
-
-/**
- * The same title bar Flow has: the app's own colours running to the top of the window, with the
- * close and zoom buttons still where macOS puts them.
- *
- * Without this a viewer wears the system's title bar while Flow wears its own, and two windows of
- * one program look like two programs.
- */
-private fun java.awt.Window.matchTitleBar() {
-    val root = (this as? javax.swing.RootPaneContainer)?.rootPane ?: return
-    runCatching {
-        root.putClientProperty("apple.awt.fullWindowContent", true)
-        root.putClientProperty("apple.awt.transparentTitleBar", true)
-        root.putClientProperty("apple.awt.windowTitleVisible", false)
-    }
-}
-
-/** Room for the close, minimise and zoom buttons macOS draws over the top-left of the window. */
-private const val TRAFFIC_LIGHTS = 78f

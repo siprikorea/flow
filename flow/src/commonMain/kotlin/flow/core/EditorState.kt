@@ -37,7 +37,15 @@ private const val HISTORY_MAX = 60
 data class Wire(val node: String, val port: String, val pos: Offset)
 // pos: window coordinates (px). `params` seeds the dropped node — how an "Hex Input" card and a
 // plain "Input" card both make a cin node while landing on different ways of writing its value.
-data class DragModule(val type: String, val pos: Offset, val params: Map<String, String> = emptyMap())
+data class DragModule(
+    val type: String,
+    val pos: Offset,
+    val params: Map<String, String> = emptyMap(),
+    // what the palette called it. Worth carrying rather than looking up: an installed extension is
+    // not in the app's own registry, so looking it up by type finds nothing and falls back to the
+    // id — which is a package name, not a name.
+    val label: String = type,
+)
 
 // State of a single document (tab). Global UI (language, panels, menu) is delegated to Workspace.
 class EditorState(
