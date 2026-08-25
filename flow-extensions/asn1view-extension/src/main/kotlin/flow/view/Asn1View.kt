@@ -69,7 +69,7 @@ import kotlin.concurrent.thread
 class Asn1View : ViewExtension {
     override val id = "flow.view.asn1"
     override val displayName = "ASN.1"
-    override val version = "3.0.1"
+    override val version = "3.0.2"
     override val description = "Read DER — certificates, keys, PKCS — as a tree beside its bytes."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -377,9 +377,11 @@ private object Windows {
                         ),
                         title = "ASN.1",
                     ) {
-                        // asked for a moment ago, so it belongs in front rather than behind what
-                        // asked — a UIElement process does not come forward on its own
-                        LaunchedEffect(Unit) { window.toFront(); window.requestFocus() }
+                        // Asked for a moment ago, so it belongs in front. A process with no dock
+                        // icon is a background one as far as macOS is concerned, and toFront alone
+                        // does not lift a background app's window above the app that is in front —
+                        // raising it on top and letting go immediately does.
+                        LaunchedEffect(Unit) { window.bringForward() }
                         pane.content()
                     }
                 }
@@ -387,4 +389,18 @@ private object Windows {
             synchronized(this) { running = false }
         }
     }
+}
+
+/**
+ * Brings a window to the front from a process that has no dock icon.
+ *
+ * Such a process is a background one to macOS, and a background app cannot simply put itself in
+ * front of the one that is. Raising the window above everything and letting go at once leaves it
+ * where it was raised to, without leaving it stuck there.
+ */
+private fun java.awt.Window.bringForward() {
+    isAlwaysOnTop = true
+    toFront()
+    requestFocus()
+    isAlwaysOnTop = false
 }

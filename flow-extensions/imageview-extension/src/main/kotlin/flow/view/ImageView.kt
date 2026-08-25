@@ -37,7 +37,7 @@ import kotlin.concurrent.thread
 class ImageView : ViewExtension {
     override val id = "flow.view.image"
     override val displayName = "Image"
-    override val version = "2.0.1"
+    override val version = "2.0.2"
     override val description = "Show a result as a picture, for processors that produce an image."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -58,8 +58,11 @@ class ImageView : ViewExtension {
                     ),
                     title = "Image",
                 ) {
-                    // asked for a moment ago, so it belongs in front rather than behind what asked
-                    LaunchedEffect(Unit) { window.toFront(); window.requestFocus() }
+                    // Asked for a moment ago, so it belongs in front. A process with no dock
+                    // icon is a background one as far as macOS is concerned, and toFront alone
+                    // does not lift a background app's window above the app that is in front —
+                    // raising it on top and letting go immediately does.
+                    LaunchedEffect(Unit) { window.bringForward() }
                     Content(data, background, muted)
                 }
             }
@@ -98,3 +101,17 @@ private fun Content(data: ByteArray, background: Color, muted: Color) {
 /** The bytes came from a processor, so they are not trusted to be an image at all. */
 private fun decode(data: ByteArray): ImageBitmap? =
     runCatching { org.jetbrains.skia.Image.makeFromEncoded(data).toComposeImageBitmap() }.getOrNull()
+
+/**
+ * Brings a window to the front from a process that has no dock icon.
+ *
+ * Such a process is a background one to macOS, and a background app cannot simply put itself in
+ * front of the one that is. Raising the window above everything and letting go at once leaves it
+ * where it was raised to, without leaving it stuck there.
+ */
+private fun java.awt.Window.bringForward() {
+    isAlwaysOnTop = true
+    toFront()
+    requestFocus()
+    isAlwaysOnTop = false
+}

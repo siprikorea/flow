@@ -214,6 +214,17 @@ internal object ExtensionLoader {
         if (!reply.ok) error(reply.payload.decodeToString())
     }
 
+    /**
+     * Brings a view's window to the front.
+     *
+     * Nothing happens if it has no window open — asking is cheaper than keeping track of which
+     * windows are up, and the worker is the only one that knows anyway.
+     */
+    fun focusView(id: String) {
+        val loaded = loadedViews()[id] ?: return
+        runCatching { processFor(loaded.dir).request(Wire.VIEW_FOCUS) {} }
+    }
+
     /* ───────── installed components (per folder) ───────── */
 
     fun listComponents(): List<String> {

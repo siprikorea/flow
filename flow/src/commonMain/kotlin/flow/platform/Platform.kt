@@ -22,6 +22,9 @@ expect object Platform {
     // Asks a view to open a window on [data]. Returns once the window has been asked for — a window
     // belongs to the process that opened it, and the app neither waits for it nor closes it.
     suspend fun openView(id: String, data: ByteArray, options: Map<String, String>)
+    // Brings a view's window forward. Cmd-` cycles the windows of one application and a view is
+    // another process, so this is how a keyboard reaches one.
+    suspend fun focusView(id: String)
 
     // text in a named encoding, for the built-in String input — commonMain has UTF-8 and nothing
     // else, and which encoding a value is written in is the user's choice

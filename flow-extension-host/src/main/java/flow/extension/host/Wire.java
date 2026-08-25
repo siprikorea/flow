@@ -25,6 +25,7 @@ public final class Wire {
     public static final int OPTIONS  = 4;   // (id, values) -> option specs
     public static final int VIEW_DESCRIBE   = 5; // -> the views this worker loaded
     public static final int VIEW_OPEN       = 6; // (id, data, options) -> opens a window, returns at once
+    public static final int VIEW_FOCUS      = 7; // -> brings this process's windows to the front
 
     // responses
     public static final int OK    = 0;

@@ -273,6 +273,37 @@ class Workspace(private val scope: CoroutineScope) {
     fun viewInfo(id: String): ViewInfo? = installedViews.find { it.id == id }
 
     /**
+     * Views that have been opened this session.
+     *
+     * There is no telling from here whether a window is still up — it belongs to another process
+     * and the user may have closed it. Asking one that is gone does nothing, which is cheaper than
+     * keeping a tally that could be wrong anyway.
+     */
+    var openedViews by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    /** Brings a view's window forward, which is how a keyboard reaches one. */
+    fun focusView(id: String) {
+        scope.launch { runCatching { withContext(Dispatchers.Default) { Platform.focusView(id) } } }
+    }
+
+    /**
+     * The next window after this one, wrapped round.
+     *
+     * Cmd-` cycles the windows of a single application, and a view is another process — so this is
+     * Flow's own way round the same loop, with Flow itself as one of the stops.
+     */
+    fun focusNextWindow(bringFlowForward: () -> Unit) {
+        val stops = openedViews
+        if (stops.isEmpty()) return
+        val next = (windowStop + 1) % (stops.size + 1)
+        windowStop = next
+        if (next == 0) bringFlowForward() else focusView(stops[next - 1])
+    }
+
+    private var windowStop by mutableStateOf(0)
+
+    /**
      * Opens a view on [data], in the view's own window.
      *
      * The theme goes with it so the window can open in the same colours as the app that opened it,

@@ -126,6 +126,8 @@ public final class ExtensionWorker {
                     }
                 });
             }
+            case Wire.VIEW_FOCUS:
+                return () -> reply(out, writeLock, reqId, o -> bringWindowsForward());
             default:
                 return () -> reply(out, writeLock, reqId, o -> { throw new IllegalStateException("unknown request " + op); });
         }
@@ -179,6 +181,27 @@ public final class ExtensionWorker {
             Wire.writeStringList(o, e.getInputs());
             Wire.writeStringList(o, e.getOutputs());
             writeOptions(o, e.getOptions());
+        }
+    }
+
+    /**
+     * Brings whatever this process has on screen to the front.
+     *
+     * Nothing an extension writes is involved: a JVM knows its own windows, so the host can do this
+     * for any view without the view having to offer a way. Which matters because the reason to ask
+     * is switching between windows, and that has to work for every view, not the ones that thought
+     * of it.
+     *
+     * A process with no dock icon is a background one to macOS and cannot put itself in front of
+     * the app that is — raising the window above everything and letting go at once can.
+     */
+    private static void bringWindowsForward() {
+        for (java.awt.Window w : java.awt.Window.getWindows()) {
+            if (!w.isShowing()) continue;
+            w.setAlwaysOnTop(true);
+            w.toFront();
+            w.requestFocus();
+            w.setAlwaysOnTop(false);
         }
     }
 

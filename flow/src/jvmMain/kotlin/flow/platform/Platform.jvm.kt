@@ -81,6 +81,8 @@ actual object Platform {
     actual fun installedViewInfos(): List<ViewInfo> = ExtensionLoader.viewInfos()
     actual suspend fun openView(id: String, data: ByteArray, options: Map<String, String>) =
         runInterruptible(Dispatchers.Default) { ExtensionLoader.openView(id, data, options) }
+    actual suspend fun focusView(id: String) =
+        runInterruptible(Dispatchers.Default) { ExtensionLoader.focusView(id) }
     actual fun encodeText(text: String, charset: String): ByteArray =
         text.toByteArray(charsetOf(charset))
     actual fun decodeText(bytes: ByteArray, charset: String): String =
