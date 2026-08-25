@@ -13,6 +13,7 @@ import flow.model.FlowFile
 import flow.model.Node
 import flow.model.Port
 import flow.model.PortRef
+import flow.ui.canvas.NodePortsView
 import flow.ui.canvas.NodeView
 import flow.ui.theme.ApplyTheme
 import flow.ui.theme.Palette
@@ -74,6 +75,9 @@ class RenderProbe {
                     }
                     Box(Modifier.fillMaxSize().background(Palette.canvasBg)) {
                         state.nodes.forEach { n -> NodeView(state, n, timeMs = 300L) }
+                        // ports are an overlay pass of their own, and where they sit is the thing
+                        // under test as much as the node is
+                        state.nodes.forEach { n -> NodePortsView(state, n) }
                     }
                 }
                 val out = File(dir, "$theme-$name.png")

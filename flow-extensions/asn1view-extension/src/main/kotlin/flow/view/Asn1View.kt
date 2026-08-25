@@ -69,7 +69,7 @@ import kotlin.concurrent.thread
 class Asn1View : ViewExtension {
     override val id = "flow.view.asn1"
     override val displayName = "ASN.1"
-    override val version = "3.0.2"
+    override val version = "3.1.0"
     override val description = "Read DER — certificates, keys, PKCS — as a tree beside its bytes."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -148,7 +148,9 @@ private fun Asn1Window(data: ByteArray) {
             },
     ) {
         Row(
-            Modifier.fillMaxWidth().padding(10.dp),
+            // the title bar is transparent and the content runs to the top of the window, so the
+            // first row has to leave the close and zoom buttons somewhere to be
+            Modifier.fillMaxWidth().padding(start = TRAFFIC_LIGHTS.dp, top = 9.dp, end = 10.dp, bottom = 9.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -381,7 +383,7 @@ private object Windows {
                         // icon is a background one as far as macOS is concerned, and toFront alone
                         // does not lift a background app's window above the app that is in front —
                         // raising it on top and letting go immediately does.
-                        LaunchedEffect(Unit) { window.bringForward() }
+                        LaunchedEffect(Unit) { window.matchTitleBar(); window.bringForward() }
                         pane.content()
                     }
                 }
@@ -399,8 +401,34 @@ private object Windows {
  * where it was raised to, without leaving it stuck there.
  */
 private fun java.awt.Window.bringForward() {
-    isAlwaysOnTop = true
+    // A process with no dock icon is a background app to macOS, and a background app's window does
+    // not come out in front of the one that is — not by toFront, and not by being briefly pinned on
+    // top either. Asking to be brought to the foreground is the request that actually means it.
+    runCatching {
+        val desktop = java.awt.Desktop.getDesktop()
+        if (desktop.isSupported(java.awt.Desktop.Action.APP_REQUEST_FOREGROUND)) {
+            desktop.requestForeground(true)
+        }
+    }
     toFront()
     requestFocus()
-    isAlwaysOnTop = false
 }
+
+/**
+ * The same title bar Flow has: the app's own colours running to the top of the window, with the
+ * close and zoom buttons still where macOS puts them.
+ *
+ * Without this a viewer wears the system's title bar while Flow wears its own, and two windows of
+ * one program look like two programs.
+ */
+private fun java.awt.Window.matchTitleBar() {
+    val root = (this as? javax.swing.RootPaneContainer)?.rootPane ?: return
+    runCatching {
+        root.putClientProperty("apple.awt.fullWindowContent", true)
+        root.putClientProperty("apple.awt.transparentTitleBar", true)
+        root.putClientProperty("apple.awt.windowTitleVisible", false)
+    }
+}
+
+/** Room for the close, minimise and zoom buttons macOS draws over the top-left of the window. */
+private const val TRAFFIC_LIGHTS = 78f

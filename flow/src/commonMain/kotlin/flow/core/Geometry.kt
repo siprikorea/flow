@@ -17,7 +17,10 @@ fun portY(node: Node, count: Int, idx: Int): Float =
 
 fun portPos(node: Node, kind: String, idx: Int): Offset {
     val list = if (kind == "in") node.inputs else node.outputs
-    val x = if (kind == "in") node.x - 0.5f else node.x + node.w + 0.5f
+    // the centre of the port circle, which sits inside the node — an edge that stopped at the
+    // node's edge would stop short of the thing it connects to
+    val inset = 3f + 15f / 2f
+    val x = if (kind == "in") node.x + inset else node.x + node.w - inset
     return Offset(x, portY(node, list.size, idx))
 }
 

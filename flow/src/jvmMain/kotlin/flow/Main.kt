@@ -27,8 +27,6 @@ import flow.ui.shell.closeOnEscape
 import flow.ui.shell.handleKey
 import flow.ui.theme.Theme
 import flow.model.Session
-import androidx.compose.ui.input.key.Key
-import androidx.compose.ui.input.key.KeyShortcut
 import flow.platform.Platform
 import kotlinx.serialization.json.Json
 import java.awt.Taskbar
@@ -241,18 +239,6 @@ private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
             CheckboxItem(ws.t("toggleLeft"), checked = ws.showLeft, onCheckedChange = { ws.showLeft = it })
             CheckboxItem(ws.t("toggleProps"), checked = ws.showProps, onCheckedChange = { ws.showProps = it })
             CheckboxItem(ws.t("toggleMinimap"), checked = ws.showMinimap, onCheckedChange = { ws.showMinimap = it })
-        }
-        // A viewer is another process, and Cmd-` cycles the windows of one application — so a
-        // viewer's window is not in that loop and cannot be. This is the loop that includes it.
-        Menu(ws.t("menuWindow")) {
-            Item(ws.t("nextWindow"), shortcut = KeyShortcut(Key.Grave, meta = true, shift = true)) {
-                ws.focusNextWindow { window.toFront(); window.requestFocus() }
-            }
-            if (ws.openedViews.isNotEmpty()) Separator()
-            Item("Flow") { window.toFront(); window.requestFocus() }
-            ws.openedViews.forEach { id ->
-                Item(ws.viewInfo(id)?.name ?: id) { ws.focusView(id) }
-            }
         }
     }
 }

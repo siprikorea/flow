@@ -37,7 +37,7 @@ import kotlin.concurrent.thread
 class ImageView : ViewExtension {
     override val id = "flow.view.image"
     override val displayName = "Image"
-    override val version = "2.0.2"
+    override val version = "2.1.0"
     override val description = "Show a result as a picture, for processors that produce an image."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -62,7 +62,7 @@ class ImageView : ViewExtension {
                     // icon is a background one as far as macOS is concerned, and toFront alone
                     // does not lift a background app's window above the app that is in front —
                     // raising it on top and letting go immediately does.
-                    LaunchedEffect(Unit) { window.bringForward() }
+                    LaunchedEffect(Unit) { window.matchTitleBar(); window.bringForward() }
                     Content(data, background, muted)
                 }
             }
@@ -74,7 +74,12 @@ class ImageView : ViewExtension {
 private fun Content(data: ByteArray, background: Color, muted: Color) {
     // decoded once: the bytes do not change while the window is up
     val bitmap = remember(data) { decode(data) }
-    Column(Modifier.fillMaxSize().background(background).padding(12.dp)) {
+    // the title bar is transparent and the content runs to the top, so the caption leaves the
+    // close and zoom buttons somewhere to be
+    Column(
+        Modifier.fillMaxSize().background(background)
+            .padding(start = 78.dp, top = 10.dp, end = 12.dp, bottom = 12.dp),
+    ) {
         if (bitmap == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
@@ -110,8 +115,31 @@ private fun decode(data: ByteArray): ImageBitmap? =
  * where it was raised to, without leaving it stuck there.
  */
 private fun java.awt.Window.bringForward() {
-    isAlwaysOnTop = true
+    // A process with no dock icon is a background app to macOS, and a background app's window does
+    // not come out in front of the one that is — not by toFront, and not by being briefly pinned on
+    // top either. Asking to be brought to the foreground is the request that actually means it.
+    runCatching {
+        val desktop = java.awt.Desktop.getDesktop()
+        if (desktop.isSupported(java.awt.Desktop.Action.APP_REQUEST_FOREGROUND)) {
+            desktop.requestForeground(true)
+        }
+    }
     toFront()
     requestFocus()
-    isAlwaysOnTop = false
+}
+
+/**
+ * The same title bar Flow has: the app's own colours running to the top of the window, with the
+ * close and zoom buttons still where macOS puts them.
+ *
+ * Without this a viewer wears the system's title bar while Flow wears its own, and two windows of
+ * one program look like two programs.
+ */
+private fun java.awt.Window.matchTitleBar() {
+    val root = (this as? javax.swing.RootPaneContainer)?.rootPane ?: return
+    runCatching {
+        root.putClientProperty("apple.awt.fullWindowContent", true)
+        root.putClientProperty("apple.awt.transparentTitleBar", true)
+        root.putClientProperty("apple.awt.windowTitleVisible", false)
+    }
 }

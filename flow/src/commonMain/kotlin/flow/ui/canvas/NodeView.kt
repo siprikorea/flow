@@ -140,14 +140,14 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                     // in — running, done, failed — and a selected node has to stay readable as
                     // whichever of those it is. The gap in the canvas colour is what keeps the two
                     // apart, so this reads as a halo rather than as a second border.
-                    val moat = 3f * density
-                    val ring = 6f * density
+                    val moat = 2.5f * density
+                    val ring = 5f * density
                     drawRoundRect(
                         color = Palette.canvasBg,
                         topLeft = Offset(-moat, -moat),
                         size = Size(size.width + moat * 2, size.height + moat * 2),
                         cornerRadius = CornerRadius(9f * density + moat),
-                        style = Stroke(3.5f * density),
+                        style = Stroke(2.5f * density),
                     )
                     drawRoundRect(
                         // the lighter accent, so it is not the same blue as a running border
@@ -155,7 +155,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                         topLeft = Offset(-ring, -ring),
                         size = Size(size.width + ring * 2, size.height + ring * 2),
                         cornerRadius = CornerRadius(9f * density + ring),
-                        style = Stroke(2.5f * density),
+                        style = Stroke(1.5f * density),
                     )
                 }
                 // nodepulse: expanding border ring (1.2s)
@@ -179,7 +179,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 if (!selected) Modifier
                 else Modifier.background(Palette.accent.copy(alpha = 0.16f), RoundedCornerShape(9.dp)),
             )
-            .border(if (selected) 2.dp else 1.5.dp, borderColor, RoundedCornerShape(9.dp))
+            .border(1.5.dp, borderColor, RoundedCornerShape(9.dp))
             .pointerHoverIcon(moveCursorIcon())
             .pointerInput(node.id, node.type) {
                 // whole node is draggable (ports/resize handle consume their own events):
@@ -380,8 +380,10 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
 
     Box(
         Modifier
-            .offset(if (kind == "in") (-8).dp else (node.w - 7).dp, (cy - 7.5f).dp)
-            .size(15.dp)
+            // inside the box, not straddling its edge: a port belongs to the node, and one hanging
+            // half outside reads as something stuck on rather than part of it
+            .offset(if (kind == "in") PORT_INSET.dp else (node.w - PORT_SIZE - PORT_INSET).dp, (cy - 7.5f).dp)
+            .size(PORT_SIZE.dp)
             .hoverable(hoverSrc)
             // solid (opaque) fill so edges/grid never show behind the circle
             .background(if (hovered) Palette.accent else Palette.nodeHeaderBg, CircleShape)
@@ -415,12 +417,13 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
                 }
             }
     )
-    // port id label (inside)
+    // the port's name, beside the circle rather than under it — the circle sits inside the node
+    // now, so the room the label used to have is where the circle is
     Box(
         Modifier
             .offset(0.dp, (cy - 6f).dp)
             .width(node.w.dp)
-            .padding(horizontal = 12.dp)
+            .padding(horizontal = (PORT_INSET + PORT_SIZE + 5f).dp)
     ) {
         Txt(
             name, 10.sp, if (flagged) Palette.errorSoft else Palette.subText, mono = true,
@@ -428,3 +431,7 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
         )
     }
 }
+
+/** The port circle, and how far in from the node's edge it sits. */
+internal const val PORT_SIZE = 15f
+internal const val PORT_INSET = 3f

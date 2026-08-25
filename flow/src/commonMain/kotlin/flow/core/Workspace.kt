@@ -287,21 +287,6 @@ class Workspace(private val scope: CoroutineScope) {
         scope.launch { runCatching { withContext(Dispatchers.Default) { Platform.focusView(id) } } }
     }
 
-    /**
-     * The next window after this one, wrapped round.
-     *
-     * Cmd-` cycles the windows of a single application, and a view is another process — so this is
-     * Flow's own way round the same loop, with Flow itself as one of the stops.
-     */
-    fun focusNextWindow(bringFlowForward: () -> Unit) {
-        val stops = openedViews
-        if (stops.isEmpty()) return
-        val next = (windowStop + 1) % (stops.size + 1)
-        windowStop = next
-        if (next == 0) bringFlowForward() else focusView(stops[next - 1])
-    }
-
-    private var windowStop by mutableStateOf(0)
 
     /**
      * Opens a view on [data], in the view's own window.
