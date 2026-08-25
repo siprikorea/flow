@@ -93,6 +93,20 @@ fun main() {
                 window.toFront()
                 window.requestFocus()
             }
+            // Where the window is right now, maximized or not, so a view can open centred on it.
+            // Undebounced: a viewer opened moments after a drag should land on the window, not
+            // where it used to be.
+            LaunchedEffect(Unit) {
+                snapshotFlow { windowState.position to windowState.size }
+                    .collect { (position, size) ->
+                        if (position is WindowPosition.Absolute) {
+                            ws.liveWindowX = position.x.value
+                            ws.liveWindowY = position.y.value
+                        }
+                        ws.liveWindowWidth = size.width.value
+                        ws.liveWindowHeight = size.height.value
+                    }
+            }
             // Track the window's bounds into the workspace as it's moved/resized; App.kt's existing
             // session-save effect (debounced snapshotFlow of ws.sessionJson()) picks this up and
             // persists it, so the window reopens at the same place/size next launch.

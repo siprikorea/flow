@@ -96,6 +96,12 @@ class Workspace(private val scope: CoroutineScope) {
     var windowWidth by mutableStateOf<Float?>(null)
     var windowHeight by mutableStateOf<Float?>(null)
     var windowMaximized by mutableStateOf(false)
+    // where the window is right now, maximized or not — not persisted (the fields above are what
+    // gets restored); a viewer opens centred on this
+    var liveWindowX by mutableStateOf(0f)
+    var liveWindowY by mutableStateOf(0f)
+    var liveWindowWidth by mutableStateOf(0f)
+    var liveWindowHeight by mutableStateOf(0f)
     var menu by mutableStateOf<String?>(null)
     var dragModule by mutableStateOf<DragModule?>(null)
     var saveTime by mutableStateOf<String?>(null)
@@ -279,14 +285,22 @@ class Workspace(private val scope: CoroutineScope) {
     /**
      * Opens a view on [data], in the view's own window.
      *
-     * The theme goes with it so the window can open in the same colours as the app that opened it.
+     * The theme goes with it so the window can open in the same colours as the app that opened it,
+     * and this window's bounds so it can open centred on it (see ViewWindow in the extension API).
      * Nothing comes back: a window belongs to the process that opened it, and lives as long as it
      * likes.
      */
     fun openView(id: String, data: ByteArray, params: Map<String, String>) {
+        val where = mapOf(
+            "theme" to theme,
+            "hostX" to liveWindowX.toString(),
+            "hostY" to liveWindowY.toString(),
+            "hostWidth" to liveWindowWidth.toString(),
+            "hostHeight" to liveWindowHeight.toString(),
+        )
         scope.launch {
             runCatching {
-                withContext(Dispatchers.Default) { Platform.openView(id, data, params + ("theme" to theme)) }
+                withContext(Dispatchers.Default) { Platform.openView(id, data, params + where) }
             }.onFailure { showError(it.message ?: t("viewFailed")) }
         }
     }

@@ -173,9 +173,10 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             } else {
                 ToolButton(ws.t("dataReadFile")) { Platform.pickFileRead()?.let { setParam("dataFile", it) } }
             }
-            // a view extension is not one of these: it is a viewer of its own, opened beside the
-            // editor rather than swapped into it
-            if (ws.installedViews.isNotEmpty()) {
+            // A view extension is not one of these: it is a viewer of its own, opened beside the
+            // editor rather than swapped into it. Output only — a viewer reads what a run produced,
+            // while an input is bytes being authored, which the editor itself is for.
+            if (isOut && ws.installedViews.isNotEmpty()) {
                 EndPicker(
                     ws, ws.t("viewIn"),
                     selected = null,

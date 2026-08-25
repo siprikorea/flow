@@ -39,7 +39,28 @@ interface ViewExtension {
      * to the user; after that the window is the extension's own business.
      *
      * [options] carries the node's parameters, and `theme` among them ("dark" or "light"), so a
-     * window can open in the same colours as the app that opened it.
+     * window can open in the same colours as the app that opened it. It also carries where that
+     * app's window is — see [ViewWindow], which turns those into a position to open at.
      */
     fun open(data: ByteArray, options: Map<String, String>)
+}
+
+/**
+ * Where the Flow window was when it asked for a view.
+ *
+ * A viewer belongs to the window that opened it, so it should appear over that window rather than
+ * wherever the platform would otherwise put it — on a second monitor, the difference is the window
+ * being on the screen you are looking at. The app passes its own bounds in the view's options
+ * (`hostX`, `hostY`, `hostWidth`, `hostHeight`, in dp); this turns them into the top-left corner a
+ * window of a given size needs to sit centred on them.
+ */
+object ViewWindow {
+    /** Top-left (x, y) in dp for a [width]×[height] window centred on the host, or null if the app said nothing. */
+    fun centeredOn(options: Map<String, String>, width: Float, height: Float): Pair<Float, Float>? {
+        val x = options["hostX"]?.toFloatOrNull() ?: return null
+        val y = options["hostY"]?.toFloatOrNull() ?: return null
+        val hostWidth = options["hostWidth"]?.toFloatOrNull() ?: return null
+        val hostHeight = options["hostHeight"]?.toFloatOrNull() ?: return null
+        return (x + (hostWidth - width) / 2f) to (y + (hostHeight - height) / 2f)
+    }
 }

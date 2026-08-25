@@ -20,9 +20,11 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import flow.extension.ViewExtension
+import flow.extension.ViewWindow
 import kotlin.concurrent.thread
 
 /**
@@ -41,11 +43,18 @@ class ImageView : ViewExtension {
         val dark = options["theme"] != "light"
         val background = if (dark) Color(0xFF14171F) else Color(0xFFF7F8FA)
         val muted = if (dark) Color(0xFF8A93A6) else Color(0xFF6B7484)
+        val size = 720f
+        val corner = ViewWindow.centeredOn(options, size, size)
         thread(name = "image-view", isDaemon = false) {
             application {
                 Window(
                     onCloseRequest = ::exitApplication,
-                    state = rememberWindowState(width = 720.dp, height = 720.dp),
+                    state = rememberWindowState(
+                        width = size.dp, height = size.dp,
+                        // over the window that opened it; centred on screen when it said nothing
+                        position = corner?.let { (x, y) -> WindowPosition.Absolute(x.dp, y.dp) }
+                            ?: WindowPosition(Alignment.Center),
+                    ),
                     title = "Image",
                 ) {
                     Content(data, background, muted)

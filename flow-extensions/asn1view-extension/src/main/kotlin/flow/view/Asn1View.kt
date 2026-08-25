@@ -1,6 +1,7 @@
 package flow.view
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -16,6 +17,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -24,6 +26,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
@@ -31,15 +34,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.key.Key
+import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.key
+import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
+import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
 import flow.extension.ViewExtension
+import flow.extension.ViewWindow
 import kotlin.concurrent.thread
 
 /**
@@ -60,7 +72,10 @@ class Asn1View : ViewExtension {
     override val description = "Read DER — certificates, keys, PKCS — as a tree beside its bytes."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
-        Windows.open(dark = options["theme"] != "light") { Asn1Window(data) }
+        Windows.open(
+            dark = options["theme"] != "light",
+            corner = ViewWindow.centeredOn(options, Windows.WIDTH, Windows.HEIGHT),
+        ) { Asn1Window(data) }
     }
 }
 
@@ -72,8 +87,65 @@ private fun Asn1Window(data: ByteArray) {
     var collapsed by remember(data) { mutableStateOf(emptySet<Int>()) }
     var selected by remember(data) { mutableStateOf(items.firstOrNull()) }
     val shown = remember(items, collapsed) { visible(items, collapsed) }
+    val listState = rememberLazyListState()
+    val focus = remember { FocusRequester() }
 
-    Column(Modifier.fillMaxSize().background(Theme.background)) {
+    // The keys a tree is read with: up and down walk the rows on show, right opens a node and
+    // left closes it — and once there is nothing left to open or close, they step into the first
+    // child and back out to the parent, so one hand can walk a certificate from end to end.
+    fun select(index: Int) {
+        shown.getOrNull(index.coerceIn(0, shown.lastIndex))?.let { selected = it }
+    }
+
+    fun move(delta: Int) {
+        val here = shown.indexOfFirst { it === selected }
+        select(if (here < 0) 0 else here + delta)
+    }
+
+    fun openOrIn() {
+        val item = selected ?: return move(1)
+        if (item.hasChildren && item.offset in collapsed) collapsed = collapsed - item.offset else move(1)
+    }
+
+    fun closeOrOut() {
+        val item = selected ?: return move(-1)
+        if (item.hasChildren && item.offset !in collapsed) {
+            collapsed = collapsed + item.offset
+            return
+        }
+        val here = shown.indexOfFirst { it === selected }
+        val parent = (here - 1 downTo 0).firstOrNull { shown[it].depth < item.depth }
+        if (parent != null) select(parent)
+    }
+
+    // a window opens ready to be walked, without a click first
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    // keep the selected row on screen when the keys move it past the edge
+    LaunchedEffect(selected) {
+        val index = shown.indexOfFirst { it === selected }
+        if (index < 0) return@LaunchedEffect
+        val visibleRows = listState.layoutInfo.visibleItemsInfo
+        val first = visibleRows.firstOrNull()?.index ?: 0
+        val last = visibleRows.lastOrNull()?.index ?: 0
+        if (visibleRows.isEmpty() || index <= first) listState.scrollToItem(index)
+        else if (index >= last) listState.scrollToItem((index - (last - first)).coerceAtLeast(0))
+    }
+
+    Column(
+        Modifier.fillMaxSize().background(Theme.background)
+            .focusRequester(focus)
+            .focusable()
+            .onPreviewKeyEvent { event ->
+                if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                when (event.key) {
+                    Key.DirectionDown -> { move(1); true }
+                    Key.DirectionUp -> { move(-1); true }
+                    Key.DirectionRight -> { openOrIn(); true }
+                    Key.DirectionLeft -> { closeOrOut(); true }
+                    else -> false
+                }
+            },
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(10.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -90,9 +162,14 @@ private fun Asn1Window(data: ByteArray) {
             // of two hundred rows and a dump of two hundred lines have nothing to say to each other
             // about where they are scrolled to
             Box(Modifier.weight(0.45f).fillMaxHeight()) {
-                Tree(shown, collapsed, selected, onToggle = { offset ->
+                Tree(shown, collapsed, selected, listState, onToggle = { offset ->
                     collapsed = if (offset in collapsed) collapsed - offset else collapsed + offset
-                }, onSelect = { selected = it })
+                }, onSelect = {
+                    selected = it
+                    // clicking a row hands the keys back to the tree, after the detail pane's
+                    // selectable text has taken focus
+                    focus.requestFocus()
+                })
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(Theme.border))
             Box(Modifier.weight(0.55f).fillMaxHeight()) {
@@ -107,10 +184,10 @@ private fun Tree(
     shown: List<Item>,
     collapsed: Set<Int>,
     selected: Item?,
+    state: LazyListState,
     onToggle: (Int) -> Unit,
     onSelect: (Item) -> Unit,
 ) {
-    val state = rememberLazyListState()
     // Lazy, because a certificate chain is thousands of rows and only a screenful is ever on show
     LazyColumn(Modifier.fillMaxSize().padding(vertical = 4.dp), state = state) {
         items(shown, key = { it.offset }) { item ->
@@ -271,25 +348,35 @@ private object Theme {
  * with the first one and ends with the last.
  */
 private object Windows {
-    private val open = mutableStateListOf<@Composable () -> Unit>()
+    const val WIDTH = 1100f
+    const val HEIGHT = 760f
+
+    private class Pane(val corner: Pair<Float, Float>?, val content: @Composable () -> Unit)
+
+    private val open = mutableStateListOf<Pane>()
     private var running = false
 
-    fun open(dark: Boolean, content: @Composable () -> Unit) {
+    fun open(dark: Boolean, corner: Pair<Float, Float>?, content: @Composable () -> Unit) {
         synchronized(this) {
             Theme.dark = dark
-            open.add(content)
+            open.add(Pane(corner, content))
             if (running) return
             running = true
         }
         thread(name = "asn1-view", isDaemon = false) {
             application {
-                open.forEachIndexed { index, body ->
+                open.forEachIndexed { index, pane ->
                     Window(
                         onCloseRequest = { open.removeAt(index) },
-                        state = rememberWindowState(width = 1100.dp, height = 760.dp),
+                        state = rememberWindowState(
+                            width = WIDTH.dp, height = HEIGHT.dp,
+                            // over the window that opened it; centred on screen when it said nothing
+                            position = pane.corner?.let { (x, y) -> WindowPosition.Absolute(x.dp, y.dp) }
+                                ?: WindowPosition(Alignment.Center),
+                        ),
                         title = "ASN.1",
                     ) {
-                        body()
+                        pane.content()
                     }
                 }
             }
