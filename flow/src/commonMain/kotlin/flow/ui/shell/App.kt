@@ -62,7 +62,6 @@ import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.util.flowLabel
 import flow.ui.canvas.CanvasView
-import flow.ui.data.DataEditor
 import flow.ui.common.DtxField
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -102,13 +101,8 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
                         Modifier.weight(1f).fillMaxWidth()
                             .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = editorDropTarget),
                     ) {
-                        val dataTab = ws.activeData
                         val active = ws.active
-                        when {
-                            dataTab != null -> DataEditor(ws, dataTab)
-                            active != null -> CanvasView(active, Modifier.fillMaxSize())
-                            else -> EmptyEditor(ws)
-                        }
+                        if (active != null) CanvasView(active, Modifier.fillMaxSize()) else EmptyEditor(ws)
                     }
                 }
                 RightToolWindow(ws) // props panel + the settings/properties rail
@@ -823,7 +817,6 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
             ws.projectMenuFor != null -> ws.closeProjectMenu()
             ws.menu != null -> ws.menu = null
             // only closes an Input/Output data-editor tab; the canvas (document) tab never does
-            ws.activeData != null -> ws.activeData?.let { ws.closeDataTab(it) }
             else -> active?.wire = null
         }
         return true
@@ -848,11 +841,10 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     val ctrl = ev.isCtrlPressed || ev.isMetaPressed
     if (ctrl && ev.key == Key.S) { ws.saveActive(); return true }
     if (ctrl && ev.key == Key.W) {
-        ws.activeData?.let { ws.closeDataTab(it) } ?: ws.requestClose(ws.activeIndex)
+        ws.requestClose(ws.activeIndex)
         return true
     }
     if (active == null) return false
-    if (ws.activeData != null) return false // a data-editor tab handles its own keys
     if (active.textEditing) return false // ignore shortcuts while a text field is focused
     return when {
         // space toggles run/stop; with a node selected it runs from there

@@ -116,7 +116,7 @@ private const val CHARSET_PARAM = "charset"
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun DataEditor(ws: Workspace, tab: DataTab) {
-    val node = tab.node ?: run { ws.closeDataTab(tab); return }
+    val node = tab.node ?: run { ws.closeDataWindow(tab); return }
     val isOut = node.type == "cout"
     // cin value = its editable output-port bytes; cout value = the transient run output
     val bytes = if (isOut) (tab.doc.runOutputs[tab.nodeId] ?: ByteArray(0))

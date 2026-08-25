@@ -37,7 +37,7 @@ import kotlinx.serialization.json.Json
 // pending install-overwrite confirmation (label = conflicting id, commit = perform overwrite)
 class InstallPending(val label: String, val commit: () -> Unit)
 
-// An open data-editor tab: edits the sample data of a component boundary (cin/cout) node.
+// An open data-editor window: edits the sample data of a component boundary (cin/cout) node.
 class DataTab(val doc: EditorState, val nodeId: String) {
     val node: Node? get() = doc.nodeById(nodeId)
     val title: String get() = node?.label ?: "?"
@@ -183,34 +183,24 @@ class Workspace(private val scope: CoroutineScope) {
     var activeIndex by mutableStateOf(0)
     val active: EditorState? get() = docs.getOrNull(activeIndex)
 
-    // open data-editor tabs (in/out sample data). When activeData != null it is
-    // shown in the content area instead of the active document's canvas.
-    val dataTabs = mutableStateListOf<DataTab>()
-    var activeData by mutableStateOf<DataTab?>(null)
+    /**
+     * Data editors on show, one window each (in/out sample data).
+     *
+     * A window rather than a tab: the data behind a boundary node is what you read while working
+     * on the canvas, so covering the canvas with it was the wrong way round — now it sits beside
+     * the flow it belongs to, and several can be open at once.
+     */
+    val dataWindows = mutableStateListOf<DataTab>()
 
     fun openDataEditor(doc: EditorState, nodeId: String) {
-        val tab = dataTabs.find { it.doc === doc && it.nodeId == nodeId }
-            ?: DataTab(doc, nodeId).also { dataTabs.add(it) }
-        activeData = tab
+        if (dataWindows.none { it.doc === doc && it.nodeId == nodeId }) dataWindows.add(DataTab(doc, nodeId))
     }
 
-    fun selectDataTab(tab: DataTab) { activeData = tab }
+    /** Whether a canvas is on screen to receive a dropped module. */
+    val canvasOpen: Boolean get() = active != null
 
-    /**
-     * Whether a canvas is on screen to receive a dropped module. A data-editor tab covers the
-     * canvas, so a drop then would add a node to something the user cannot see.
-     */
-    val canvasOpen: Boolean get() = activeData == null && active != null
-
-    fun closeDataTab(tab: DataTab) {
-        val i = dataTabs.indexOf(tab)
-        if (i < 0) return
-        dataTabs.removeAt(i)
-        if (activeData === tab) {
-            // same index now holds the next tab; if this was the last one, fall back to the previous;
-            // if there are no data tabs left, null reveals the active document's canvas
-            activeData = dataTabs.getOrNull(i) ?: dataTabs.getOrNull(i - 1)
-        }
+    fun closeDataWindow(tab: DataTab) {
+        dataWindows.remove(tab)
     }
 
     // project tree; paths are relative to the flows root
@@ -413,7 +403,6 @@ class Workspace(private val scope: CoroutineScope) {
         val name = nextName("", file.removeSuffix(".flow").substringAfterLast('.').ifBlank { "flow" })
         val doc = EditorState(scope, this, name).also { it.load(flow); it.persisted = false; it.showValidation = true }
         docs.add(doc)
-        activeData = null
         activeIndex = docs.lastIndex
     }
 
@@ -553,7 +542,7 @@ class Workspace(private val scope: CoroutineScope) {
     // Only a readable .flow file opens; anything else reports an error instead.
     fun openFile(name: String, reportError: Boolean = true) {
         val i = docs.indexOfFirst { it.fileName == name }
-        if (i >= 0) { activeData = null; activeIndex = i; return }
+        if (i >= 0) { activeIndex = i; return }
         val label = pathName(name)
         if (!name.endsWith(".flow")) {
             if (reportError) showError(t("openErrorNotFlow").replace("{name}", label), "openErrorTitle")
@@ -567,7 +556,6 @@ class Workspace(private val scope: CoroutineScope) {
         }
         val doc = EditorState(scope, this, name).also { it.load(flow); it.showValidation = true }
         docs.add(doc)
-        activeData = null
         activeIndex = docs.lastIndex
     }
 
@@ -610,7 +598,7 @@ class Workspace(private val scope: CoroutineScope) {
     /** Opens a .flow by absolute path, with no project around it. */
     fun openStandaloneFile(path: String) {
         docs.indexOfFirst { it.standalonePath == path }.takeIf { it >= 0 }?.let {
-            activeData = null; activeIndex = it; return
+            activeIndex = it; return
         }
         val label = Platform.fileName(path)
         val raw = Platform.readExternalFlow(path)
@@ -628,7 +616,6 @@ class Workspace(private val scope: CoroutineScope) {
             it.showValidation = true
         }
         docs.add(doc)
-        activeData = null
         activeIndex = docs.lastIndex
     }
 
@@ -645,13 +632,11 @@ class Workspace(private val scope: CoroutineScope) {
         val doc = EditorState(scope, this, name).also { it.load(FlowFile()); it.persisted = false }
         docs.add(doc)
         revealDir(dir)
-        activeData = null
         activeIndex = docs.lastIndex
     }
 
     fun select(i: Int) {
         if (docs.isEmpty()) return
-        activeData = null // switch back to the canvas view
         activeIndex = i.coerceIn(0, docs.lastIndex)
     }
 
@@ -697,9 +682,8 @@ class Workspace(private val scope: CoroutineScope) {
     private fun removeDoc(i: Int) {
         if (i !in docs.indices) return
         val doc = docs[i]
-        // close any data-editor tabs that belonged to this document
-        dataTabs.removeAll { it.doc === doc }
-        if (activeData?.doc === doc) activeData = null
+        // close any data-editor windows that belonged to this document
+        dataWindows.removeAll { it.doc === doc }
         docs.removeAt(i)
         // a tab before the active one shifts everything left by one, so follow it to stay on the same doc
         if (i < activeIndex) activeIndex--

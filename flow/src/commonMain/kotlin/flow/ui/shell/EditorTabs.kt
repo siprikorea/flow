@@ -47,7 +47,7 @@ fun EditorTabs(ws: Workspace) {
                 key(doc) {
                     Tab(
                         name = flowLabel(doc.fileName),
-                        active = i == ws.activeIndex && ws.activeData == null,
+                        active = i == ws.activeIndex,
                         dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catComponent else Palette.dimText,
                         dirty = doc.dirty,
                         onSelect = { ws.select(i) },
@@ -58,19 +58,6 @@ fun EditorTabs(ws: Workspace) {
                             ws.showLeft = !anyOpen
                             ws.showProps = !anyOpen
                         },
-                    )
-                }
-            }
-            // data-editor tabs (in/out sample data)
-            ws.dataTabs.forEach { tab ->
-                key(tab) {
-                    Tab(
-                        name = tab.title,
-                        active = ws.activeData === tab,
-                        dotColor = Palette.catIo,
-                        dirty = false,
-                        onSelect = { ws.selectDataTab(tab) },
-                        onClose = { ws.closeDataTab(tab) },
                     )
                 }
             }

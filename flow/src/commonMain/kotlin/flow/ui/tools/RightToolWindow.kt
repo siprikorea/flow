@@ -23,7 +23,7 @@ fun RightToolWindow(ws: Workspace) {
     val active = ws.active
     Row {
         // the props panel belongs to the canvas; hide it on a data-editor tab
-        if (ws.showProps && active != null && ws.activeData == null) PropsPanel(active)
+        if (ws.showProps && active != null) PropsPanel(active)
         Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
         ActivityRail {
             ActivityButton(RailSide.RIGHT, selected = ws.showSettings, onClick = { ws.showSettings = !ws.showSettings }) { tint ->

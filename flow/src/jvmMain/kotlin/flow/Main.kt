@@ -19,6 +19,8 @@ import androidx.compose.ui.window.FrameWindowScope
 import androidx.compose.ui.window.MenuBar
 import flow.core.Workspace
 import androidx.compose.ui.window.WindowPlacement
+import androidx.compose.runtime.key
+import flow.ui.data.DataEditor
 import flow.ui.shell.App
 import flow.ui.shell.SettingsScreen
 import flow.ui.shell.closeOnEscape
@@ -141,6 +143,26 @@ fun main() {
         }
 
         // Settings opens as its own window too, centered over the main window
+        // A data editor per boundary node, each in its own window beside the flow it belongs to.
+        // Esc deliberately does nothing here: the window is where data is typed, and losing a long
+        // paste to a stray keystroke is not a thing an editor should do — it closes from its own
+        // close button, or with the node, or with the document.
+        ws.dataWindows.forEach { tab ->
+            key(tab) {
+                Window(
+                    onCloseRequest = { ws.closeDataWindow(tab) },
+                    title = tab.title,
+                    state = rememberWindowState(
+                        width = 980.dp, height = 700.dp,
+                        position = centeredOver(windowState, 980.dp, 700.dp),
+                    ),
+                    icon = iconPainter,
+                ) {
+                    DataEditor(ws, tab)
+                }
+            }
+        }
+
         if (ws.showSettings) {
             Window(
                 onCloseRequest = { ws.showSettings = false },
