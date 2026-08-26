@@ -629,7 +629,7 @@ fun SettingsScreen(ws: Workspace) {
                 when (current?.key) {
                     "appearance" -> Column {
                         SettingRow(ws.t("language")) {
-                            Segmented(listOf("ko" to "한국어", "en" to "English"), lang) { lang = it }
+                            Segmented(listOf("en" to "English", "ko" to "한국어"), lang) { lang = it }
                         }
                         SettingRow(ws.t("theme")) {
                             Segmented(

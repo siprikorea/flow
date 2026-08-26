@@ -98,6 +98,8 @@ actual object Platform {
             )
         }
 
+    actual fun stopAi() = flow.ai.ClaudeCli.stop()
+
     actual fun encodeText(text: String, charset: String): ByteArray =
         text.toByteArray(charsetOf(charset))
     actual fun decodeText(bytes: ByteArray, charset: String): String =

@@ -33,6 +33,8 @@ expect object Platform {
     // One turn. [onText] is called as the answer arrives; the reply's session carries the
     // conversation to the next turn.
     suspend fun askAi(prompt: String, sessionId: String?, onText: (String) -> Unit): AiReply
+    // Ends the run in progress. Whatever it had said by then stands.
+    fun stopAi()
 
     // text in a named encoding, for the built-in String input — commonMain has UTF-8 and nothing
     // else, and which encoding a value is written in is the user's choice

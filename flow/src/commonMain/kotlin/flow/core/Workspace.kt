@@ -290,8 +290,13 @@ class Workspace(private val scope: CoroutineScope) {
      * its working. Only one turn at a time — the CLI is a process per turn and two at once would be
      * two conversations.
      */
+    /** Whether a question can be asked at all: without a folder there is nowhere to work. */
+    val aiReady: Boolean get() = hasProject
+
     fun askAi(question: String) {
-        if (aiStreaming) return
+        if (aiStreaming || !aiReady) return
+        // what was in the folder before, so anything the assistant writes can be opened after
+        val before = files.filter { it.endsWith(".flow") }.toSet()
         aiMessages = aiMessages + AiMessage(fromUser = true, text = question) +
             AiMessage(fromUser = false, text = "")
         aiStreaming = true
@@ -308,7 +313,18 @@ class Workspace(private val scope: CoroutineScope) {
             val text = reply.error?.let { t("aiFailed") + "\n" + it } ?: reply.text
             aiMessages = aiMessages.dropLast(1) + AiMessage(fromUser = false, text = text)
             aiStreaming = false
+
+            // a flow it saved is a flow to look at — the assistant writes through its own process,
+            // so the folder is re-read rather than waited on
+            refreshFiles()
+            files.filter { it.endsWith(".flow") && it !in before }.forEach { openFile(it, reportError = false) }
         }
+    }
+
+    /** Ends the run. What it had said by then stays. */
+    fun stopAi() {
+        if (!aiStreaming) return
+        Platform.stopAi()
     }
 
     private fun appendToLastAnswer(chunk: String) {

@@ -27,6 +27,18 @@ internal object ClaudeCli {
     private val json = Json { ignoreUnknownKeys = true }
 
     /**
+     * The run in progress, so it can be stopped.
+     *
+     * One at a time — a turn is a conversation and two would be two of them — so one reference is
+     * enough, and stopping is ending the process rather than asking it to stop.
+     */
+    private val running = java.util.concurrent.atomic.AtomicReference<Process?>(null)
+
+    fun stop() {
+        running.getAndSet(null)?.destroyForcibly()
+    }
+
+    /**
      * Where the CLI is, or null if it is not installed.
      *
      * PATH is searched first, then where npm and the installer put it. A GUI application on macOS
@@ -90,6 +102,7 @@ internal object ClaudeCli {
                 .redirectErrorStream(false)
                 .start()
         }.getOrElse { return AiReply(error = it.message ?: "could not start ${File(cli).name}") }
+        running.set(process)
 
         val text = StringBuilder()
         var session: String? = null
@@ -117,9 +130,12 @@ internal object ClaudeCli {
 
         val stderr = process.errorStream.bufferedReader().readText().trim()
         val code = process.waitFor()
+        val stopped = running.getAndSet(null) == null
 
         val answer = (result ?: text.toString()).trim()
         return when {
+            // stopped on purpose: whatever it had said stands, and the exit is not a failure
+            stopped -> AiReply(text = answer, sessionId = session)
             answer.isNotEmpty() -> AiReply(text = answer, sessionId = session)
             code != 0 -> AiReply(error = stderr.ifBlank { "claude exited with $code" }, sessionId = session)
             else -> AiReply(error = stderr.ifBlank { "claude said nothing" }, sessionId = session)
@@ -150,5 +166,6 @@ internal object ClaudeCli {
         "mcp__flow__read_flow",
         "mcp__flow__validate_flow",
         "mcp__flow__build_flow",
+        "mcp__flow__save_flow",
     )
 }

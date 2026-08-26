@@ -1,5 +1,12 @@
 package flow.ui.tools
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -54,40 +61,54 @@ fun AiPanel(ws: Workspace) {
     val installed = remember { Platform.aiCliPath() != null }
     Column(Modifier.fillMaxSize()) {
         PanelHeader(ws.t("tabAi"))
-        if (!installed) {
-            NotInstalled(ws)
-            return@Column
+        when {
+            !installed -> Notice(ws.t("aiMissingTitle"), ws.t("aiMissingBody"), ws.t("aiMissingAfter")) {
+                Command("npm install -g @anthropic-ai/claude-code")
+            }
+            // there is nowhere to read a flow from or write one to, and every answer would be an
+            // apology for that — so ask for the folder instead of taking the question
+            !ws.aiReady -> Notice(ws.t("aiNoProjectTitle"), ws.t("aiNoProjectBody"), null) {
+                Box(
+                    Modifier.background(Palette.accent, RoundedCornerShape(5.dp))
+                        .plainClick { Platform.pickFolder()?.let { ws.openProject(it) } }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                ) {
+                    Txt(ws.t("openFolder"), 11.sp, Palette.holeBg, weight = FontWeight.Medium)
+                }
+            }
+            else -> {
+                Transcript(ws, Modifier.weight(1f))
+                Composer(ws)
+            }
         }
-        Transcript(ws, Modifier.weight(1f))
-        Composer(ws)
     }
 }
 
-/**
- * What to say when the CLI is not there.
- *
- * Everything else in this panel needs it, so this is not an error to report in passing — it is the
- * whole of what the panel can say, and it should say what to do about it.
- */
+/** Something the panel has to say instead of a conversation, with the way out of it underneath. */
 @Composable
-private fun NotInstalled(ws: Workspace) {
+private fun Notice(title: String, body: String, footnote: String?, action: @Composable () -> Unit) {
     Column(
         Modifier.fillMaxSize().padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Txt(ws.t("aiMissingTitle"), 13.sp, Palette.text, weight = FontWeight.SemiBold)
-        Txt(ws.t("aiMissingBody"), 12.sp, Palette.subText)
-        SelectionContainer {
-            Box(
-                Modifier.fillMaxWidth()
-                    .background(Palette.holeBg, RoundedCornerShape(6.dp))
-                    .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
-                    .padding(10.dp),
-            ) {
-                Txt("npm install -g @anthropic-ai/claude-code", 12.sp, Palette.text, mono = true)
-            }
+        Txt(title, 13.sp, Palette.text, weight = FontWeight.SemiBold)
+        Txt(body, 12.sp, Palette.subText)
+        action()
+        footnote?.let { Txt(it, 11.sp, Palette.faintText) }
+    }
+}
+
+@Composable
+private fun Command(text: String) {
+    SelectionContainer {
+        Box(
+            Modifier.fillMaxWidth()
+                .background(Palette.holeBg, RoundedCornerShape(6.dp))
+                .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
+                .padding(10.dp),
+        ) {
+            Txt(text, 12.sp, Palette.text, mono = true)
         }
-        Txt(ws.t("aiMissingAfter"), 11.sp, Palette.faintText)
     }
 }
 
@@ -100,14 +121,16 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
     }
 
     if (ws.aiMessages.isEmpty()) {
-        Box(modifier.fillMaxSize().padding(14.dp)) {
+        Box(modifier.fillMaxWidth().padding(14.dp)) {
             Txt(ws.t("aiEmpty"), 12.sp, Palette.faintText)
         }
         return
     }
 
-    SelectionContainer {
-        LazyColumn(modifier.fillMaxSize().padding(horizontal = 10.dp), state = state) {
+    // the selection container is the child the height belongs to: with the weight on the list
+    // inside it, this grew to fit the conversation and pushed the composer off the bottom
+    SelectionContainer(modifier) {
+        LazyColumn(Modifier.fillMaxSize().padding(horizontal = 10.dp), state = state) {
             itemsIndexed(ws.aiMessages) { index, message ->
                 val streaming = ws.aiStreaming && index == ws.aiMessages.lastIndex && !message.fromUser
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
@@ -139,9 +162,16 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
     }
 }
 
+/**
+ * The box a question is typed into, with the button that sends it inside the same border.
+ *
+ * One control rather than a field and a button beside it: while a turn is running that button is
+ * how it is stopped, and having it in the same place either way is what makes stopping obvious.
+ */
 @Composable
 private fun Composer(ws: Workspace) {
     var text by remember { mutableStateOf("") }
+    var focused by remember { mutableStateOf(false) }
 
     fun send() {
         val question = text.trim()
@@ -151,47 +181,81 @@ private fun Composer(ws: Workspace) {
     }
 
     Column(Modifier.fillMaxWidth().padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        Box(
+        Row(
             Modifier.fillMaxWidth()
-                .background(Palette.holeBg, RoundedCornerShape(6.dp))
-                .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
-                .padding(8.dp),
-        ) {
-            if (text.isEmpty()) Txt(ws.t("aiPlaceholder"), 12.sp, Palette.faintText)
-            BasicTextField(
-                value = text,
-                onValueChange = { text = it },
-                textStyle = TextStyle(color = Palette.text, fontSize = 12.sp, fontFamily = FontFamily.Default),
-                cursorBrush = SolidColor(Palette.text),
-                modifier = Modifier.fillMaxWidth().onPreviewKeyEvent { event ->
-                    // Enter sends; Shift-Enter is how you write a second line
-                    if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && !event.isShiftPressed) {
-                        send()
-                        true
-                    } else false
-                },
-            )
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-            if (ws.aiStreaming) {
-                Txt(ws.t("aiWorking"), 11.sp, Palette.accentSoft)
-            } else {
-                Box(
-                    Modifier.background(Palette.accent, RoundedCornerShape(5.dp))
-                        .plainClick { send() }
-                        .padding(horizontal = 12.dp, vertical = 5.dp),
-                ) {
-                    Txt(ws.t("aiSend"), 11.sp, Palette.holeBg, weight = FontWeight.Medium)
-                }
-            }
-            if (ws.aiMessages.isNotEmpty() && !ws.aiStreaming) {
-                Txt(
-                    ws.t("aiClear"),
-                    11.sp,
-                    Palette.dimText,
-                    modifier = Modifier.plainClick { ws.clearAi() },
+                .background(Palette.holeBg, RoundedCornerShape(10.dp))
+                .border(
+                    if (focused || ws.aiStreaming) 1.5.dp else 1.dp,
+                    if (focused || ws.aiStreaming) Palette.accent else Palette.border,
+                    RoundedCornerShape(10.dp),
                 )
+                .padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.Bottom,
+        ) {
+            Box(Modifier.weight(1f).padding(end = 8.dp, bottom = 4.dp)) {
+                if (text.isEmpty()) Txt(ws.t("aiPlaceholder"), 12.sp, Palette.faintText)
+                BasicTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    enabled = !ws.aiStreaming,
+                    textStyle = TextStyle(color = Palette.text, fontSize = 12.sp),
+                    cursorBrush = SolidColor(Palette.accent),
+                    modifier = Modifier.fillMaxWidth()
+                        .onFocusChanged { focused = it.isFocused }
+                        .onPreviewKeyEvent { event ->
+                            // Enter sends; Shift-Enter is how a second line is written
+                            if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && !event.isShiftPressed) {
+                                send()
+                                true
+                            } else false
+                        },
+                )
+            }
+            SendButton(
+                running = ws.aiStreaming,
+                enabled = ws.aiStreaming || text.isNotBlank(),
+                label = if (ws.aiStreaming) ws.t("aiStop") else ws.t("aiSend"),
+            ) {
+                if (ws.aiStreaming) ws.stopAi() else send()
+            }
+        }
+        if (ws.aiMessages.isNotEmpty() && !ws.aiStreaming) {
+            Txt(ws.t("aiClear"), 11.sp, Palette.dimText, modifier = Modifier.plainClick { ws.clearAi() })
+        }
+    }
+}
+
+/** An arrow to send, a square to stop — one round button that swaps which it is. */
+@Composable
+private fun SendButton(running: Boolean, enabled: Boolean, label: String, onClick: () -> Unit) {
+    val background = when {
+        running -> Palette.errorSoft
+        enabled -> Palette.accent
+        else -> Palette.border
+    }
+    Box(
+        Modifier.size(26.dp)
+            .background(background, CircleShape)
+            .then(if (enabled) Modifier.plainClick(onClick) else Modifier),
+        contentAlignment = Alignment.Center,
+    ) {
+        Canvas(Modifier.size(12.dp)) {
+            val c = size.width / 2f
+            if (running) {
+                drawRect(
+                    color = Palette.holeBg,
+                    topLeft = Offset(c - size.width * 0.28f, c - size.width * 0.28f),
+                    size = Size(size.width * 0.56f, size.width * 0.56f),
+                )
+            } else {
+                // an arrow pointing up: the stem, then the two strokes of the head
+                val stroke = size.width * 0.16f
+                drawLine(Palette.holeBg, Offset(c, size.height * 0.86f), Offset(c, size.height * 0.16f), stroke, StrokeCap.Round)
+                drawLine(Palette.holeBg, Offset(size.width * 0.18f, size.height * 0.48f), Offset(c, size.height * 0.14f), stroke, StrokeCap.Round)
+                drawLine(Palette.holeBg, Offset(size.width * 0.82f, size.height * 0.48f), Offset(c, size.height * 0.14f), stroke, StrokeCap.Round)
             }
         }
     }
+    // the label is not drawn; it is what the button is, for anything reading the interface aloud
+    if (label.isEmpty()) Unit
 }

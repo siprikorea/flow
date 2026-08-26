@@ -29,6 +29,9 @@ class AiPanelProbe {
             val scene = ImageComposeScene(760, 900, density = Density(2f)) {
                 ApplyTheme(theme)
                 val ws = Workspace(CoroutineScope(Dispatchers.Unconfined))
+                // a folder, so the panel shows the conversation rather than asking for one
+                val folder = File(System.getProperty("java.io.tmpdir"), "flow-ai-probe").apply { mkdirs() }
+                ws.openProject(folder.absolutePath)
                 Box(Modifier.fillMaxSize().background(Palette.panelBg)) {
                     Box(Modifier.width(340.dp).fillMaxSize()) { AiPanel(ws) }
                 }

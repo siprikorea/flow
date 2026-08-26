@@ -113,6 +113,15 @@ object McpServer {
             call = { listNodes() },
         ),
         Tool(
+            name = "save_flow",
+            description = "Write a flow into the folder Flow has open, and return where it went. " +
+                "Takes the same spec build_flow does, plus a name. Use this when the user wants the " +
+                "flow kept rather than shown — Flow opens what is written. Refuses when no folder is " +
+                "open, and never writes outside it.",
+            schema = buildFlowSchema(),
+            call = { args -> saveFlowTool(args) },
+        ),
+        Tool(
             name = "list_flows",
             description = "List the flow files in the folder Flow currently has open, with their " +
                 "input/output ports — use it to find the flow to read or edit. Reports when no folder " +
@@ -249,6 +258,28 @@ object McpServer {
         return "$head\n${problems.size} problem(s):\n" + problems.joinToString("\n") { "- $it" }
     }
 
+    /**
+     * Builds a flow and writes it into the open folder.
+     *
+     * The same work build_flow does, and then the step the user would otherwise do by hand. Only
+     * inside the open folder: writeFlow refuses a path that climbs out of it, which is what makes
+     * handing this to an assistant reasonable.
+     */
+    private fun saveFlowTool(args: JsonObject): String {
+        val root = Platform.projectRoot() ?: return NO_PROJECT
+        val built = buildFlowResult(args)
+        Platform.writeFlow(built.fileName, built.content)
+        return "${built.head}\nSaved as ${built.fileName} in $root; Flow has opened it.${built.notes}"
+    }
+
+    /** What a build produced, so building and saving are the same work done once. */
+    private class BuiltFlow(
+        val fileName: String,
+        val content: String,
+        val head: String,
+        val notes: String,
+    )
+
     /** A flow rendered back into the build_flow spec, so read → edit → rebuild round-trips. */
     private fun readFlowSpec(path: String): String {
         val (name, flow) = loadForEdit(path)
@@ -288,6 +319,11 @@ object McpServer {
      * app (File ▸ Open, or dropping it on the window).
      */
     private fun buildFlowFile(args: JsonObject): String {
+        val built = buildFlowResult(args)
+        return "${built.head}${built.notes}\n\n${built.content}"
+    }
+
+    private fun buildFlowResult(args: JsonObject): BuiltFlow {
         val nodes = argArray(args, "nodes").mapIndexed { i, element ->
             val o = element as? JsonObject ?: error("nodes[$i] is not an object")
             val id = (o["id"] as? JsonPrimitive)?.content?.trim().orEmpty()
@@ -321,11 +357,11 @@ object McpServer {
             ?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
             ?: "no boundary ports yet"
         val head = "$fileName — ${flow.nodes.size} nodes, ${flow.edges.size} edges; $summary"
-        // reported alongside the content rather than withheld: the caller still gets a file to
-        // hand over, and can decide whether the faults matter
+        // reported alongside the content rather than withheld: the caller still gets a file, and
+        // can decide whether the faults matter
         val problems = flowProblems(flow)
         val notes = if (problems.isEmpty()) "" else "\n" + problems.joinToString("\n") { "problem: $it" }
-        return "$head$notes\n\n$content"
+        return BuiltFlow(fileName, content, head, notes)
     }
 
     /**
