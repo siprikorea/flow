@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -69,7 +69,7 @@ import kotlin.concurrent.thread
 class Asn1View : ViewExtension {
     override val id = "flow.view.asn1"
     override val displayName = "ASN.1"
-    override val version = "3.2.0"
+    override val version = "3.3.0"
     override val description = "Read DER — certificates, keys, PKCS — as a tree beside its bytes."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -199,7 +199,9 @@ private fun Tree(
 ) {
     // Lazy, because a certificate chain is thousands of rows and only a screenful is ever on show
     LazyColumn(Modifier.fillMaxSize().padding(vertical = 4.dp), state = state) {
-        items(shown, key = { it.offset }) { item ->
+        // keyed by where it is in the list, not by offset: an offset is the natural identity but
+        // it is data, and data that repeats is a thrown exception rather than a bad drawing
+        itemsIndexed(shown) { _, item ->
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -373,28 +375,40 @@ private object Windows {
             running = true
         }
         thread(name = "asn1-view", isDaemon = false) {
-            application {
-                open.forEachIndexed { index, pane ->
-                    Window(
-                        onCloseRequest = { open.removeAt(index) },
-                        state = rememberWindowState(
-                            width = WIDTH.dp, height = HEIGHT.dp,
-                            // over the window that opened it; centred on screen when it said nothing
-                            position = pane.corner?.let { (x, y) -> WindowPosition.Absolute(x.dp, y.dp) }
-                                ?: WindowPosition(Alignment.Center),
-                        ),
-                        title = "ASN.1",
-                    ) {
-                        // Asked for a moment ago, so it belongs in front. A process with no dock
-                        // icon is a background one as far as macOS is concerned, and toFront alone
-                        // does not lift a background app's window above the app that is in front —
-                        // raising it on top and letting go immediately does.
-                        LaunchedEffect(Unit) { window.bringForward() }
-                        pane.content()
+            // Whatever happens in here, this has to be put back. It was not, and one window that
+            // failed to open left the flag set — after which every later request was added to the
+            // list and quietly never shown, because something was already believed to be running.
+            try {
+                    application {
+                    open.forEachIndexed { index, pane ->
+                        Window(
+                            onCloseRequest = { open.removeAt(index) },
+                            state = rememberWindowState(
+                                width = WIDTH.dp, height = HEIGHT.dp,
+                                // over the window that opened it; centred on screen when it said nothing
+                                position = pane.corner?.let { (x, y) -> WindowPosition.Absolute(x.dp, y.dp) }
+                                    ?: WindowPosition(Alignment.Center),
+                            ),
+                            title = "ASN.1",
+                        ) {
+                            // Asked for a moment ago, so it belongs in front. A process with no dock
+                            // icon is a background one as far as macOS is concerned, and toFront alone
+                            // does not lift a background app's window above the app that is in front —
+                            // raising it on top and letting go immediately does.
+                            LaunchedEffect(Unit) { window.bringForward() }
+                            pane.content()
+                        }
                     }
                 }
+            } catch (t: Throwable) {
+                System.err.println("asn1 view: $t")
+            } finally {
+                synchronized(this) {
+                    running = false
+                    // a pane that never opened would otherwise be shown by the next request
+                    open.clear()
+                }
             }
-            synchronized(this) { running = false }
         }
     }
 }

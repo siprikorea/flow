@@ -78,4 +78,49 @@ class DerTest {
     fun `an empty input is empty, not a failure`() {
         assertEquals(emptyList(), Der(ByteArray(0)).parse())
     }
+
+    @Test
+    fun `text that is not DER at all is read as far as it goes, not thrown away`() {
+        // a base64 signature is what someone will point this at first, because it is what an
+        // output shows them — and it is not DER, so the parser has to say so rather than fail
+        val base64 = "MEUCIQDx4kZ2vQpZ8mJ3nT1aBcDeFgHiJkLmNoPqRsTuVwXyZgIgAbCdEfGhIjKlMnOpQrStUvWxYz01234567890+/="
+        val items = Der(base64.encodeToByteArray()).parse()
+        assertTrue(items.isNotEmpty(), "nothing at all came back")
+    }
+
+    @Test
+    fun `every element a parse returns can be shown`() {
+        // the window reads these fields directly, so a value out of range is a crash rather than a
+        // bad drawing — which is what took the viewer down and kept it down
+        listOf(
+            "MEUCIQDx4kZ2vQpZ8mJ3nT1aBcDeFgHiJkLmNoPq".encodeToByteArray(),
+            ByteArray(200) { (it * 17).toByte() },
+            byteArrayOf(0x30, 0x7F),
+            byteArrayOf(0x30, 0x84.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte(), 0xFF.toByte()),
+            rsaKey(),
+        ).forEach { data ->
+            Der(data).parse().forEach { item ->
+                assertTrue(item.offset >= 0, "offset ${item.offset}")
+                assertTrue(item.contentStart >= item.offset, "content before its own header")
+                assertTrue(item.end >= item.contentStart, "ends before it starts")
+                assertTrue(item.label.isNotEmpty(), "a row with nothing to show")
+            }
+        }
+    }
+
+    @Test
+    fun `no two elements share an offset`() {
+        // the tree keys its rows by offset, and a repeated key is not a bad drawing but a thrown
+        // exception — which took the window down with it and, before it was fixed, kept it down
+        listOf(
+            "MEUCIQDx4kZ2vQpZ8mJ3nT1aBcDeFgHiJkLmNoPq".encodeToByteArray(),
+            ByteArray(200) { (it * 17).toByte() },
+            byteArrayOf(0x30, 0x0A, 0x02, 0x01),
+            byteArrayOf(0x30, 0x7F),
+            rsaKey(),
+        ).forEach { data ->
+            val offsets = Der(data).parse().map { it.offset }
+            assertEquals(offsets.size, offsets.distinct().size, "repeated offsets in $offsets")
+        }
+    }
 }

@@ -40,7 +40,10 @@ class Der(private val bytes: ByteArray) {
             .onFailure {
                 items.add(
                     Item(
-                        offset = 0, depth = 0, contentStart = 0, end = bytes.size, tag = 0,
+                        // past everything that was read, so it is last in the list and cannot
+                        // collide with a real element — the tree keys its rows by offset, and a
+                        // repeated key throws rather than drawing oddly
+                        offset = bytes.size, depth = 0, contentStart = bytes.size, end = bytes.size, tag = 0,
                         constructed = false, className = "?", typeName = "?",
                         label = it.message ?: "could not be parsed", hasChildren = false,
                         error = it.message ?: "could not be parsed",
