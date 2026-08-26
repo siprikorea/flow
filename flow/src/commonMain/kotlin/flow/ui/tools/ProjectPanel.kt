@@ -61,6 +61,7 @@ import flow.ui.common.FolderPlusGlyph
 import flow.ui.common.KindBadge
 import flow.ui.common.RailSide
 import flow.ui.common.ResizeDivider
+import flow.ui.common.ClaudeGlyph
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
@@ -81,7 +82,7 @@ fun LeftToolWindow(ws: Workspace) {
                 BlocksGlyph(tint)
             }
             ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
-                Txt("✳", 15.sp, tint)
+                ClaudeGlyph(tint)
             }
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
