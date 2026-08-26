@@ -26,12 +26,12 @@ import kotlinx.serialization.json.Json
 
 /**
  * MCP server over stdio: lets an MCP client (Claude Desktop/Code, …) author Flow files — see what
- * modules are available, draft a flow from a description, then read one back, review its wiring and
+ * processors are available, draft a flow from a description, then read one back, review its wiring and
  * write the edit out again.
  *
  * The four tools are deliberately the whole surface: everything mechanical about the file format
  * (port lists, edge ids, node sizes, and coordinates when they aren't given) is worked out here, so
- * a client only ever describes what the flow does and how its modules connect. Running flows is the
+ * a client only ever describes what the flow does and how its processors connect. Running flows is the
  * app's job, not this server's.
  *
  * Speaks JSON-RPC 2.0, one message per line, implementing initialize / tools/list / tools/call /
@@ -102,15 +102,15 @@ object McpServer {
 
     private class Tool(val name: String, val description: String, val schema: JsonObject, val call: (JsonObject) -> String)
 
-    // Rebuilt per request so flows and modules added while the server runs are seen without a restart.
+    // Rebuilt per request so flows and processors added while the server runs are seen without a restart.
     private fun tools(): List<Tool> = listOf(
         Tool(
-            name = "list_modules",
+            name = "list_processors",
             description = "List every building block a flow can contain: the cin/cout boundary nodes, each " +
-                "installed module with its ports and options, and each existing flow usable as a " +
+                "installed processor with its ports and options, and each existing flow usable as a " +
                 "sub-component. Call this before build_flow to get exact type names and option values.",
             schema = objectSchema(emptyList()),
-            call = { listModules() },
+            call = { listProcessors() },
         ),
         Tool(
             name = "list_flows",
@@ -132,7 +132,7 @@ object McpServer {
         ),
         Tool(
             name = "validate_flow",
-            description = "Verify a saved flow and report every fault found: a module that is not " +
+            description = "Verify a saved flow and report every fault found: a processor that is not " +
                 "installed, an option set to a value it does not accept, ports that no longer match the " +
                 "node's options, an edge to a port that isn't there, an input fed twice or not at all, a " +
                 "loop in the wiring, a missing cin/cout. Returns 'no problems found' when it is sound.",
@@ -173,7 +173,7 @@ object McpServer {
 
     /* ───────── authoring: list / read / write ───────── */
 
-    private fun listModules(): String {
+    private fun listProcessors(): String {
         val out = StringBuilder()
         out.append("── boundary nodes (a flow needs these to run as a component) ──\n")
         IO_DEFS.forEach { def ->
@@ -182,7 +182,7 @@ object McpServer {
                 .append("(${def.ins.joinToString(",").ifEmpty { "-" }} → ${def.outs.joinToString(",").ifEmpty { "-" }})\n")
         }
 
-        out.append("\n── modules ──\n")
+        out.append("\n── processors ──\n")
         Platform.installedModuleInfos().forEach { m ->
             out.append("${m.id}  '${m.name}'  ")
                 .append("${m.inputs.joinToString(",").ifEmpty { "-" }} → ${m.outputs.joinToString(",").ifEmpty { "-" }}\n")
@@ -384,7 +384,7 @@ object McpServer {
                         }
                         putJsonObject("type") {
                             put("type", "string")
-                            put("description", "'cin', 'cout', a module id like 'flow.hash', or 'comp:<flow path>' — see list_modules")
+                            put("description", "'cin', 'cout', a processor id like 'flow.hash', or 'comp:<flow path>' — see list_processors")
                         }
                         putJsonObject("label") {
                             put("type", "string")
@@ -392,7 +392,7 @@ object McpServer {
                         }
                         putJsonObject("params") {
                             put("type", "object")
-                            put("description", "module option values, e.g. {\"algo\":\"SHA-256\"}; omitted options take their default")
+                            put("description", "processor option values, e.g. {\"algo\":\"SHA-256\"}; omitted options take their default")
                         }
                         putJsonObject("x") {
                             put("type", "number")
