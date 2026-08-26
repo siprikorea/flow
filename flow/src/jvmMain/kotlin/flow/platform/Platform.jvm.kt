@@ -1,5 +1,6 @@
 package flow.platform
 
+import flow.model.AiReply
 import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
@@ -83,6 +84,20 @@ actual object Platform {
         runInterruptible(Dispatchers.Default) { ExtensionLoader.openView(id, data, options) }
     actual suspend fun focusView(id: String) =
         runInterruptible(Dispatchers.Default) { ExtensionLoader.focusView(id) }
+    actual fun aiCliPath(): String? = flow.ai.ClaudeCli.path()
+
+    actual suspend fun askAi(prompt: String, sessionId: String?, onText: (String) -> Unit): AiReply =
+        runInterruptible(Dispatchers.IO) {
+            flow.ai.ClaudeCli.ask(
+                prompt = prompt,
+                sessionId = sessionId,
+                workingDir = projectDir,
+                mcpConfig = flow.ai.FlowPrompt.mcpConfig(),
+                systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
+                onText = onText,
+            )
+        }
+
     actual fun encodeText(text: String, charset: String): ByteArray =
         text.toByteArray(charsetOf(charset))
     actual fun decodeText(bytes: ByteArray, charset: String): String =

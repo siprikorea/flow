@@ -1,5 +1,6 @@
 package flow.platform
 
+import flow.model.AiReply
 import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
@@ -25,6 +26,13 @@ expect object Platform {
     // Brings a view's window forward. Cmd-` cycles the windows of one application and a view is
     // another process, so this is how a keyboard reaches one.
     suspend fun focusView(id: String)
+
+    // ── the assistant, run as Claude Code ──
+    // Whether the CLI is installed. Null when it is not, which is worth saying rather than failing.
+    fun aiCliPath(): String?
+    // One turn. [onText] is called as the answer arrives; the reply's session carries the
+    // conversation to the next turn.
+    suspend fun askAi(prompt: String, sessionId: String?, onText: (String) -> Unit): AiReply
 
     // text in a named encoding, for the built-in String input — commonMain has UTF-8 and nothing
     // else, and which encoding a value is written in is the user's choice

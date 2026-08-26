@@ -5,6 +5,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
+import flow.model.AiMessage
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
@@ -63,7 +64,7 @@ class Workspace(private val scope: CoroutineScope) {
     var theme by mutableStateOf(Theme.SYSTEM) // system | dark | light
     var registryUrl by mutableStateOf(DEFAULT_REGISTRY_URL)
     var showLeft by mutableStateOf(true)
-    var leftTab by mutableStateOf("project") // project | modules
+    var leftTab by mutableStateOf("project") // project | modules | ai
     // palette sections left open, by key
     var expandedSections by mutableStateOf(setOf<String>())
 
@@ -271,6 +272,57 @@ class Workspace(private val scope: CoroutineScope) {
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }
 
     fun viewInfo(id: String): ViewInfo? = installedViews.find { it.id == id }
+
+    /* ───────── the assistant ───────── */
+
+    var aiMessages by mutableStateOf<List<AiMessage>>(emptyList())
+        private set
+    var aiStreaming by mutableStateOf(false)
+        private set
+
+    /** What carries the conversation from one turn to the next; null starts a new one. */
+    private var aiSession: String? = null
+
+    /**
+     * Asks one question.
+     *
+     * The answer is appended to the last message as it arrives, so a run that takes a minute shows
+     * its working. Only one turn at a time — the CLI is a process per turn and two at once would be
+     * two conversations.
+     */
+    fun askAi(question: String) {
+        if (aiStreaming) return
+        aiMessages = aiMessages + AiMessage(fromUser = true, text = question) +
+            AiMessage(fromUser = false, text = "")
+        aiStreaming = true
+        scope.launch {
+            val reply = runCatching {
+                withContext(Dispatchers.Default) {
+                    Platform.askAi(question, aiSession) { chunk ->
+                        scope.launch { appendToLastAnswer(chunk) }
+                    }
+                }
+            }.getOrElse { flow.model.AiReply(error = it.message ?: "the assistant could not be reached") }
+
+            reply.sessionId?.let { aiSession = it }
+            val text = reply.error?.let { t("aiFailed") + "\n" + it } ?: reply.text
+            aiMessages = aiMessages.dropLast(1) + AiMessage(fromUser = false, text = text)
+            aiStreaming = false
+        }
+    }
+
+    private fun appendToLastAnswer(chunk: String) {
+        val last = aiMessages.lastOrNull() ?: return
+        if (last.fromUser) return
+        aiMessages = aiMessages.dropLast(1) + last.copy(text = last.text + chunk)
+    }
+
+    /** Starts again: a new conversation, with nothing carried over. */
+    fun clearAi() {
+        if (aiStreaming) return
+        aiMessages = emptyList()
+        aiSession = null
+    }
 
     /**
      * Views that have been opened this session.

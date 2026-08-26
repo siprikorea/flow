@@ -80,6 +80,9 @@ fun LeftToolWindow(ws: Workspace) {
             ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
                 BlocksGlyph(tint)
             }
+            ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
+                Txt("✳", 15.sp, tint)
+            }
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
         if (ws.showLeft) {
@@ -94,6 +97,7 @@ fun LeftToolWindow(ws: Workspace) {
                         PanelHeader(ws.t("tabModules"))
                         ModulePalette(ws)
                     }
+                    "ai" -> AiPanel(ws)
                     else -> ProjectPanel(ws)
                 }
             }
@@ -150,7 +154,7 @@ private fun EmptyProject(ws: Workspace) {
 
 // Same title row for every left panel, so switching tabs doesn't shift the title.
 @Composable
-private fun PanelHeader(title: String, actions: @Composable RowScope.() -> Unit = {}) {
+internal fun PanelHeader(title: String, actions: @Composable RowScope.() -> Unit = {}) {
     Row(
         Modifier.fillMaxWidth().height(34.dp).padding(start = 10.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
