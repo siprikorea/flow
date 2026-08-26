@@ -36,6 +36,7 @@ kotlin {
             implementation(project(":flow-extensions:json-extension"))
             implementation(project(":flow-extensions:qr-extension"))
             implementation(project(":flow-extensions:asn1view-extension"))
+            implementation(project(":flow-extensions:imageview-extension"))
             implementation(project(":flow-extension-api"))
         }
     }

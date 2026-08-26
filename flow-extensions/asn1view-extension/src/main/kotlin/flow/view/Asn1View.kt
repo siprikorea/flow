@@ -91,6 +91,20 @@ class Asn1View : ViewExtension {
 
 /* ───────── the window ───────── */
 
+/**
+ * The viewer's contents, with no window around them.
+ *
+ * Public because a window cannot be opened where there is no screen, and drawing is exactly what
+ * has gone wrong in here before: two rows that shared a key threw while the tree was being laid
+ * out, which took the window down and — the loop's flag left set — kept every later one from
+ * opening at all. Rendering this into an image is how that is caught before it ships.
+ */
+@Composable
+fun Asn1Panel(data: ByteArray, dark: Boolean = true) {
+    Theme.dark = dark
+    Asn1Window(data)
+}
+
 @Composable
 private fun Asn1Window(data: ByteArray) {
     val items = remember(data) { Der(data).parse() }

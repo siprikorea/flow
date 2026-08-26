@@ -275,8 +275,10 @@ class Workspace(private val scope: CoroutineScope) {
 
     /* ───────── the assistant ───────── */
 
+    // internal rather than private so a test can seed a conversation: the panel's one real bug
+    // only appeared once there was one in it, and an empty transcript proves nothing
     var aiMessages by mutableStateOf<List<AiMessage>>(emptyList())
-        private set
+        internal set
     var aiStreaming by mutableStateOf(false)
         private set
 

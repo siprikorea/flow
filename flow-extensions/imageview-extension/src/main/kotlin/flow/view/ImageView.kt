@@ -79,6 +79,18 @@ class ImageView : ViewExtension {
     }
 }
 
+/**
+ * The viewer's contents, with no window around them — see the ASN.1 view for why this is public.
+ */
+@Composable
+fun ImagePanel(data: ByteArray, dark: Boolean = true) {
+    Content(
+        data = data,
+        background = if (dark) Color(0xFF14171F) else Color(0xFFF7F8FA),
+        muted = if (dark) Color(0xFF8A93A6) else Color(0xFF6B7484),
+    )
+}
+
 @Composable
 private fun Content(data: ByteArray, background: Color, muted: Color) {
     // decoded once: the bytes do not change while the window is up
