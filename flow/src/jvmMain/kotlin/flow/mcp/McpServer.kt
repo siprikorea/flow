@@ -105,12 +105,12 @@ object McpServer {
     // Rebuilt per request so flows and processors added while the server runs are seen without a restart.
     private fun tools(): List<Tool> = listOf(
         Tool(
-            name = "list_processors",
-            description = "List every building block a flow can contain: the cin/cout boundary nodes, each " +
-                "installed processor with its ports and options, and each existing flow usable as a " +
+            name = "list_nodes",
+            description = "List everything that can be a node in a flow: the cin/cout boundary nodes, " +
+                "each installed processor with its ports and options, and each existing flow usable as a " +
                 "sub-component. Call this before build_flow to get exact type names and option values.",
             schema = objectSchema(emptyList()),
-            call = { listProcessors() },
+            call = { listNodes() },
         ),
         Tool(
             name = "list_flows",
@@ -173,7 +173,7 @@ object McpServer {
 
     /* ───────── authoring: list / read / write ───────── */
 
-    private fun listProcessors(): String {
+    private fun listNodes(): String {
         val out = StringBuilder()
         out.append("── boundary nodes (a flow needs these to run as a component) ──\n")
         IO_DEFS.forEach { def ->
@@ -384,7 +384,7 @@ object McpServer {
                         }
                         putJsonObject("type") {
                             put("type", "string")
-                            put("description", "'cin', 'cout', a processor id like 'flow.hash', or 'comp:<flow path>' — see list_processors")
+                            put("description", "'cin', 'cout', a processor id like 'flow.hash', or 'comp:<flow path>' — see list_nodes")
                         }
                         putJsonObject("label") {
                             put("type", "string")

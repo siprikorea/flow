@@ -204,7 +204,7 @@ internal fun buildFlow(nodes: List<NodeSpec>, edges: List<EdgeSpec>): FlowFile {
     val ports = nodes.associate { spec ->
         paramProblems(spec.type, spec.params).firstOrNull()?.let { error("node '${spec.id}': ${spec.type} $it") }
         spec.id to (portsOf(spec.type, spec.params)
-            ?: error("node '${spec.id}': unknown type '${spec.type}' — call list_processors for what is available"))
+            ?: error("node '${spec.id}': unknown type '${spec.type}' — call list_nodes for what is available"))
     }
     val resolved = edges.mapIndexed { i, e ->
         Edge("e${i + 1}", endpoint(e.from, outgoing = true, ports), endpoint(e.to, outgoing = false, ports))
