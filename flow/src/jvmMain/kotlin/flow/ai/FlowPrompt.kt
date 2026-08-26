@@ -54,8 +54,11 @@ internal object FlowPrompt {
      *
      * The server is this application's code, so it is started the same way this process was — no
      * separate install, and no version of the tools other than the one running.
+     *
+     * Headless, and no dock icon. It talks over a pipe and has no business on the screen; without
+     * saying so, a Java icon appears in the dock for as long as a question takes to answer.
      */
-    fun mcpConfig(): File? = runCatching {
+    fun mcpConfig(projectRoot: String?): File? = runCatching {
         val java = File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
         val classpath = System.getProperty("java.class.path") ?: return null
         val config = File.createTempFile("flow-mcp", ".json").apply { deleteOnExit() }
@@ -65,7 +68,12 @@ internal object FlowPrompt {
               "mcpServers": {
                 "flow": {
                   "command": ${quote(java)},
-                  "args": ["-cp", ${quote(classpath)}, "flow.cli.CliKt", "--mcp"]
+                  "args": [
+                    "-Djava.awt.headless=true",
+                    "-Dapple.awt.UIElement=true",
+                    "-cp", ${quote(classpath)},
+                    "flow.cli.CliKt", "--mcp"${projectRoot?.let { ", \"--project\", " + quote(it) } ?: ""}
+                  ]
                 }
               }
             }

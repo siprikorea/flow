@@ -24,7 +24,7 @@ class ClaudeCliLiveTest {
                 "or the single word NOTOOL if you cannot call it.",
             sessionId = null,
             workingDir = File(System.getProperty("user.dir")),
-            mcpConfig = FlowPrompt.mcpConfig(),
+            mcpConfig = FlowPrompt.mcpConfig(null),
             systemPrompt = FlowPrompt.systemPrompt(null),
         ) { streamed.append(it) }
 

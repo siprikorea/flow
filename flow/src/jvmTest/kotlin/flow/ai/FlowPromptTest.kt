@@ -49,7 +49,7 @@ class FlowPromptTest {
 
     @Test
     fun `the mcp config parses, and points at a java that is there`() {
-        val config = FlowPrompt.mcpConfig()
+        val config = FlowPrompt.mcpConfig("/tmp/project")
         assertTrue(config != null && config.isFile, "no config was written")
         val root = json.parseToJsonElement(config!!.readText()) as JsonObject
         val server = root["mcpServers"]!!.jsonObject["flow"]!!.jsonObject
@@ -58,17 +58,21 @@ class FlowPromptTest {
         assertTrue(File(command).canExecute(), "$command is not something that can be run")
 
         val args = server["args"]!!.jsonArray.map { it.jsonPrimitive.content }
-        assertEquals("-cp", args[0])
-        assertTrue(args[1].isNotBlank(), "the classpath is empty")
-        assertEquals("flow.cli.CliKt", args[2])
-        assertEquals("--mcp", args[3])
+        assertTrue(args.containsAll(listOf("flow.cli.CliKt", "--mcp")), "$args")
+        assertTrue(args[args.indexOf("-cp") + 1].isNotBlank(), "the classpath is empty")
+        // it talks over a pipe: a dock icon for the length of every question is not wanted
+        assertTrue("-Djava.awt.headless=true" in args, "the server would open a display: $args")
+        assertTrue("-Dapple.awt.UIElement=true" in args, "the server would take a dock icon: $args")
+        // the server is another process and the app remembers no folder between runs, so the one
+        // that is open has to be told to it — without this every answer is "no project folder"
+        assertEquals("/tmp/project", args[args.indexOf("--project") + 1])
     }
 
     @Test
     fun `the classpath in the config is quoted, whatever is in it`() {
         // it is written by hand rather than serialized, and a path with a quote or a backslash in
         // it would otherwise produce a file that does not parse — which reads as "no tools"
-        val config = FlowPrompt.mcpConfig()!!
+        val config = FlowPrompt.mcpConfig("/tmp/project")!!
         val text = config.readText()
         assertTrue(runCatching { json.parseToJsonElement(text) }.isSuccess, text.take(200))
     }

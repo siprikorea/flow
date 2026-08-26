@@ -92,7 +92,7 @@ actual object Platform {
                 prompt = prompt,
                 sessionId = sessionId,
                 workingDir = projectDir,
-                mcpConfig = flow.ai.FlowPrompt.mcpConfig(),
+                mcpConfig = flow.ai.FlowPrompt.mcpConfig(projectRoot()),
                 systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
                 onText = onText,
             )

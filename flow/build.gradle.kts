@@ -141,7 +141,7 @@ val mcpbBundleVerify = tasks.register("mcpbBundleVerify") {
             it.write("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""" + "\n")
             // nothing ships with the app any more, so what this proves is that the tool runs at all
             // — it reaches the extension store and answers, whatever the machine happens to have
-            it.write("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_modules","arguments":{}}}""" + "\n")
+            it.write("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_nodes","arguments":{}}}""" + "\n")
         }
         val out = proc.inputStream.bufferedReader().readText()
         val err = proc.errorStream.bufferedReader().readText()
@@ -151,15 +151,15 @@ val mcpbBundleVerify = tasks.register("mcpbBundleVerify") {
         }
         // The tool set is fixed, so every one of them must be here — a miss means the bundle is
         // short a jar and would fail in the client instead.
-        val expected = listOf("list_modules", "list_flows", "read_flow", "validate_flow", "build_flow")
+        val expected = listOf("list_nodes", "list_flows", "read_flow", "validate_flow", "build_flow", "save_flow")
         val missing = expected.filterNot { out.contains("\"name\":\"$it\"") }
         check(missing.isEmpty()) {
             "bundle server is missing tool(s): ${missing.joinToString(", ")}\nstdout: $out\nstderr: $err"
         }
         check(out.contains("boundary nodes")) {
-            "list_modules did not answer — the bundle is short a jar\nstdout: $out\nstderr: $err"
+            "list_nodes did not answer — the bundle is short a jar\nstdout: $out\nstderr: $err"
         }
-        logger.lifecycle("mcpb bundle OK — ${expected.size} tools, list_modules answers")
+        logger.lifecycle("mcpb bundle OK — ${expected.size} tools, list_nodes answers")
     }
 }
 

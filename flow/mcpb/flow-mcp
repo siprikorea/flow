@@ -19,5 +19,7 @@ if [ -z "$JAVA" ]; then
 fi
 
 # same contract as :flow:mcpLauncher — built-in module jars come from the resources dir
+# headless and with no dock icon: this talks over a pipe and has no business on the screen
 exec "$JAVA" -Dcompose.application.resources.dir="$DIR/resources" \
+    -Djava.awt.headless=true -Dapple.awt.UIElement=true \
     -cp "$DIR/lib/*" flow.cli.CliKt --mcp "$@"

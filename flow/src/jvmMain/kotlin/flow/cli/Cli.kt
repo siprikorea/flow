@@ -37,6 +37,12 @@ fun main(args: Array<String>) {
             return
         }
         "--mcp" -> {
+            // Which folder to work in. The app does not remember one between runs — it opens with
+            // none, by design — so a server started by the app has no way to find out for itself,
+            // and without this every answer is "no project folder is open".
+            args.indexOf("--project").takeIf { it >= 0 }?.let { at ->
+                args.getOrNull(at + 1)?.let { Platform.openProject(it) }
+            }
             McpServer.run()
             return
         }
