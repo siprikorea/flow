@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import flow.ui.theme.Mono
 import flow.ui.theme.Palette
 
 @Composable
@@ -50,7 +51,7 @@ fun Txt(
             color = color,
             fontSize = size,
             fontWeight = weight,
-            fontFamily = if (mono) FontFamily.Monospace else FontFamily.SansSerif,
+            fontFamily = if (mono) Mono else FontFamily.SansSerif,
             letterSpacing = letterSpacing,
             textAlign = align,
         ),
@@ -104,7 +105,7 @@ fun DtxField(
         textStyle = TextStyle(
             color = textColor,
             fontSize = fontSize,
-            fontFamily = if (mono) FontFamily.Monospace else FontFamily.SansSerif,
+            fontFamily = if (mono) Mono else FontFamily.SansSerif,
         ),
         cursorBrush = SolidColor(Palette.text),
         modifier = modifier

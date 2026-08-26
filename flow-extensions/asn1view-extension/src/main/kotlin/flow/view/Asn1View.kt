@@ -45,6 +45,7 @@ import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
@@ -69,7 +70,7 @@ import kotlin.concurrent.thread
 class Asn1View : ViewExtension {
     override val id = "flow.view.asn1"
     override val displayName = "ASN.1"
-    override val version = "3.3.0"
+    override val version = "3.4.0"
     override val description = "Read DER — certificates, keys, PKCS — as a tree beside its bytes."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -314,10 +315,22 @@ private fun visible(items: List<Item>, collapsed: Set<Int>): List<Item> {
 }
 
 /* ───────── small pieces ───────── */
+/**
+ * JetBrains Mono, so a column of hex is a column.
+ *
+ * The file is in the extension contract's jar, which this process has on its classpath along with
+ * the worker and the Compose the app lends it — the app's own jar is not there, so naming the same
+ * resource path is how both sides end up with the same face.
+ */
+private val JetBrainsMono = FontFamily(
+    Font("flow/fonts/JetBrainsMono-Regular.ttf", FontWeight.Normal),
+    Font("flow/fonts/JetBrainsMono-Medium.ttf", FontWeight.Medium),
+    Font("flow/fonts/JetBrainsMono-Bold.ttf", FontWeight.Bold),
+)
 
 @Composable
 private fun Mono(text: String, color: Color, modifier: Modifier = Modifier) {
-    Text(text, modifier, color = color, fontSize = 12.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+    Text(text, modifier, color = color, fontSize = 12.sp, fontFamily = JetBrainsMono, maxLines = 1)
 }
 
 @Composable

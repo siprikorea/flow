@@ -42,7 +42,6 @@ import androidx.compose.ui.input.pointer.isMetaPressed
 import androidx.compose.ui.input.pointer.pointerHoverIcon
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -64,6 +63,7 @@ import flow.ui.common.Txt
 import flow.ui.common.moveCursorIcon
 import flow.ui.common.rememberHover
 import flow.ui.common.resizeCursorIcon
+import flow.ui.theme.Mono
 import flow.ui.theme.Palette
 import kotlin.math.max
 
@@ -325,7 +325,7 @@ private fun NodeStatusLabel(msg: String, color: Color) {
             style = TextStyle(
                 color = color,
                 fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = Mono,
                 textAlign = TextAlign.Center,
             ),
             maxLines = 1,

@@ -45,7 +45,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -60,6 +59,7 @@ import flow.ui.io.EndPicker
 import flow.platform.droppedFilePath
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
+import flow.ui.theme.Mono
 import flow.ui.theme.Palette
 import flow.util.bytesToHex
 import flow.util.decodeUtf8Lossy
@@ -436,7 +436,7 @@ private fun EditableField(
             value = field,
             // what was typed shows straight away; turning it into bytes happens a moment later
             onValueChange = { field = it },
-            textStyle = TextStyle(color = Palette.text, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
+            textStyle = TextStyle(color = Palette.text, fontSize = 13.sp, fontFamily = Mono),
             cursorBrush = SolidColor(Palette.text),
             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll)
                 .onPreviewKeyEvent { ev ->
@@ -470,7 +470,7 @@ private fun ReadOnlyView(source: DataSource, writing: Writing, windowStart: Long
             value = text,
             onValueChange = {},
             readOnly = true,
-            textStyle = TextStyle(color = Palette.subText, fontSize = 13.sp, fontFamily = FontFamily.Monospace),
+            textStyle = TextStyle(color = Palette.subText, fontSize = 13.sp, fontFamily = Mono),
             cursorBrush = SolidColor(Palette.text),
             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll),
         )

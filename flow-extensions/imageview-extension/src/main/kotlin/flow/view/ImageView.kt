@@ -18,6 +18,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.toComposeImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.platform.Font
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Window
@@ -37,7 +39,7 @@ import kotlin.concurrent.thread
 class ImageView : ViewExtension {
     override val id = "flow.view.image"
     override val displayName = "Image"
-    override val version = "2.2.0"
+    override val version = "2.3.0"
     override val description = "Show a result as a picture, for processors that produce an image."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
@@ -86,14 +88,14 @@ private fun Content(data: ByteArray, background: Color, muted: Color) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text(
                     "this is not an image format that can be shown (${data.size} bytes)",
-                    color = muted, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                    color = muted, fontSize = 12.sp, fontFamily = JetBrainsMono,
                 )
             }
             return@Column
         }
         Text(
             "${bitmap.width} × ${bitmap.height}",
-            color = muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+            color = muted, fontSize = 11.sp, fontFamily = JetBrainsMono,
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
         )
         Image(
@@ -123,3 +125,16 @@ private fun java.awt.Window.bringForward() {
     toFront()
     requestFocus()
 }
+
+/**
+ * JetBrains Mono, so a column of hex is a column.
+ *
+ * The file is in the extension contract's jar, which this process has on its classpath along with
+ * the worker and the Compose the app lends it — the app's own jar is not there, so naming the same
+ * resource path is how both sides end up with the same face.
+ */
+private val JetBrainsMono = FontFamily(
+    Font("flow/fonts/JetBrainsMono-Regular.ttf", FontWeight.Normal),
+    Font("flow/fonts/JetBrainsMono-Medium.ttf", FontWeight.Medium),
+    Font("flow/fonts/JetBrainsMono-Bold.ttf", FontWeight.Bold),
+)
