@@ -36,6 +36,7 @@ import flow.core.Workspace
 import flow.model.CompDef
 import flow.model.IO_DEFS
 import flow.model.REGISTRY
+import flow.ui.common.ChevronGlyph
 import flow.ui.common.KindBadge
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -94,8 +95,9 @@ private fun Section(ws: Workspace, key: String, title: String, dot: Color? = nul
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            // expanded = filled/bright, collapsed = dim → clear visual state
-            Txt(if (expanded) "▾" else "▸", 15.sp, if (expanded) Palette.accent else Palette.subText, weight = FontWeight.Bold)
+            // the same chevron the project tree folds with, at a size that can be aimed at: these
+            // are the two lists in the same panel and they were folding with different marks
+            ChevronGlyph(if (expanded) Palette.accent else Palette.subText, expanded, size = 14.dp)
             if (dot != null) Box(Modifier.size(6.dp).background(dot, RoundedCornerShape(3.dp)))
             Txt(title.uppercase(), 11.sp, if (expanded) Palette.text else Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
         }

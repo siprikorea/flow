@@ -190,7 +190,7 @@ fun PanelRightGlyph(tint: Color, size: Dp = 20.dp, filled: Boolean = false) {
 
 // tree chevron: right = collapsed, down = expanded
 @Composable
-fun ChevronGlyph(tint: Color, expanded: Boolean, size: Dp = 12.dp) {
+fun ChevronGlyph(tint: Color, expanded: Boolean, size: Dp = 14.dp) {
     Canvas(Modifier.size(size)) {
         val w = this.size.width
         val st = w * 0.14f

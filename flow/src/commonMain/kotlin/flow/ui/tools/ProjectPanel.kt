@@ -297,7 +297,7 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
         // folders toggle from their own chevron; files keep the indent
         if (row.isDir) {
             Box(
-                Modifier.size(12.dp).plainClick { ws.toggleExpand(path) },
+                Modifier.size(14.dp).plainClick { ws.toggleExpand(path) },
                 contentAlignment = Alignment.Center,
             ) { ChevronGlyph(Palette.subText, expanded) }
             FolderGlyph(if (expanded) Palette.accentSoft else Palette.subText, 14.dp, filled = expanded)
