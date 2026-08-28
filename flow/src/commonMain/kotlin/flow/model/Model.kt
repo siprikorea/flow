@@ -102,7 +102,7 @@ data class Settings(
     val theme: String = "system",
     // action id -> shortcut id ("meta+n"); missing actions use the default binding
     val keymap: Map<String, String> = emptyMap(),
-    val animSeconds: Float = 1f,
+    val animSeconds: Float = 0.25f,
     // where the Extensions screen looks for installable extensions
     val registryUrl: String = DEFAULT_REGISTRY_URL,
     // outputs and inputs the user has switched off. Kept as the exception rather than the list of

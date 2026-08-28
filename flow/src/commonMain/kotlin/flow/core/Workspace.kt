@@ -89,7 +89,7 @@ class Workspace(private val scope: CoroutineScope) {
     var leftWidth by mutableStateOf(240f)
     var propsWidth by mutableStateOf(268f)
     // run animation duration per step, in seconds (larger = slower), persisted in the config
-    var animSeconds by mutableStateOf(1f)
+    var animSeconds by mutableStateOf(0.25f)
     // main window bounds (dp), persisted in the session; null = no saved bounds yet (Main.kt falls
     // back to its own default centered/clamped-to-screen size)
     var windowX by mutableStateOf<Float?>(null)
@@ -817,7 +817,7 @@ class Workspace(private val scope: CoroutineScope) {
         // settings.json is authoritative; a session written before the split still carries them, so
         // it stands in once and is then superseded the next time settings are saved
         val saved = Platform.loadSettings()?.let { runCatching { json.decodeFromString<Settings>(it) }.getOrNull() }
-            ?: s?.let { Settings(it.lang ?: "ko", it.theme ?: Theme.SYSTEM, it.keymap, it.animSeconds ?: 1f) }
+            ?: s?.let { Settings(it.lang ?: "ko", it.theme ?: Theme.SYSTEM, it.keymap, it.animSeconds ?: 0.25f) }
         if (saved != null) {
             lang = saved.lang
             theme = saved.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
