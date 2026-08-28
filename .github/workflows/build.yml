@@ -1,0 +1,107 @@
+name: Build
+
+# Every push runs the tests. A push to main or a v* tag also builds the app and
+# publishes it to siprikorea/flow, the public download repo — but only after the
+# tests in this same job have passed, so a red build never ships.
+on:
+  push:
+    branches: ['**']
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The deploy steps below are the ones guarded by this; a PR or a topic branch
+  # runs the tests and stops there.
+  DEPLOY: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
+  # Where the built app is published. Not this repo — the source stays private.
+  TARGET_REPO: siprikorea/flow
+
+jobs:
+  build:
+    # macOS because the .dmg can only be built here, and because it is the OS the
+    # tests are written on: the view tests start real JVMs and load Skiko.
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      # Two steps, because the tests read the extension jars off disk: a single
+      # `build` may run :flow:jvmTest before the jar it looks for exists.
+      - name: Build every module
+        run: ./gradlew assemble --stacktrace
+
+      - name: Test
+        run: ./gradlew build --stacktrace
+
+      - name: Keep the test report on a failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: |
+            **/build/reports/tests/
+            **/build/test-results/
+          retention-days: 7
+
+      - name: Package the macOS app
+        if: env.DEPLOY == 'true'
+        run: |
+          set -euo pipefail
+          # a v* tag names the version the installer carries, so v1.2.3 ships
+          # Flow-1.2.3.dmg; a main build keeps the version the source declares
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
+            ./gradlew :flow:packageDmg -PflowVersion="${GITHUB_REF#refs/tags/v}" --stacktrace
+          else
+            ./gradlew :flow:packageDmg --stacktrace
+          fi
+
+      - name: Collect what gets published
+        if: env.DEPLOY == 'true'
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          # newest first, so the file just built is the one that ships
+          dmg=$(ls -t flow/build/compose/binaries/main/dmg/*.dmg 2>/dev/null | head -1)
+          test -n "$dmg" || { echo "no .dmg was built"; exit 1; }
+          cp "$dmg" dist/
+          # the extension jars, each installable on its own from the app
+          cp flow-extensions/*/build/libs/*.jar dist/
+          ls -lh dist
+
+      # A repo's own GITHUB_TOKEN cannot write to another repo, so this needs a
+      # personal access token with `contents: write` on siprikorea/flow, stored
+      # here as the FLOW_RELEASE_TOKEN secret.
+      - name: Publish to ${{ env.TARGET_REPO }}
+        if: env.DEPLOY == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.FLOW_RELEASE_TOKEN }}
+        run: |
+          set -euo pipefail
+          short="${GITHUB_SHA:0:7}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            # a v* tag is a real release, kept forever under its own version
+            tag="${GITHUB_REF#refs/tags/}"
+            notes="Built from ${GITHUB_REPOSITORY}@${short}."
+            gh release create "$tag" --repo "$TARGET_REPO" \
+              --title "Flow ${tag}" --notes "$notes" dist/* \
+            || gh release upload "$tag" --repo "$TARGET_REPO" --clobber dist/*
+          else
+            # main moves, so its build is one rolling prerelease rather than a
+            # new release per push — deleted and remade so stale assets go away
+            notes="Latest build of main — ${GITHUB_REPOSITORY}@${short}, $(date -u +%Y-%m-%d). Unreleased; use the newest v* release for a stable build."
+            gh release delete nightly --repo "$TARGET_REPO" --cleanup-tag --yes || true
+            gh release create nightly --repo "$TARGET_REPO" --target main \
+              --prerelease --title "Flow (latest build of main)" --notes "$notes" dist/*
+          fi

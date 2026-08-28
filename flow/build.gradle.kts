@@ -42,6 +42,15 @@ kotlin {
     }
 }
 
+// The version jpackage stamps on the installer, and so the name of the file that ships:
+// Flow-<version>.dmg. CI passes -PflowVersion=1.2.3 off the v* tag it is building, so a tagged
+// release cannot go out named after the previous version; a local build takes the fallback.
+val flowVersion = (findProperty("flowVersion") as String?)?.takeIf { it.isNotBlank() } ?: "1.0.0"
+require(Regex("""[1-9]\d*(\.\d+){0,2}""").matches(flowVersion)) {
+    // jpackage is strict here and fails late, well into the build, with a message about CFBundleVersion
+    "flowVersion must be 1-3 numbers with a non-zero major, e.g. 1.2.3 — got '$flowVersion'"
+}
+
 compose.desktop {
     application {
         mainClass = "flow.MainKt"
@@ -55,7 +64,7 @@ compose.desktop {
         nativeDistributions {
             targetFormats(TargetFormat.Dmg, TargetFormat.Msi, TargetFormat.Deb)
             packageName = "Flow"
-            packageVersion = "1.0.0"
+            packageVersion = flowVersion
 
             macOS {
                 iconFile.set(project.file("icons/appicon.icns"))
