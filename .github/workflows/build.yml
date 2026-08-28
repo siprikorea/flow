@@ -28,14 +28,14 @@ jobs:
     runs-on: macos-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v6
 
       # Two steps, because the tests read the extension jars off disk: a single
       # `build` may run :flow:jvmTest before the jar it looks for exists.
@@ -47,7 +47,7 @@ jobs:
 
       - name: Keep the test report on a failure
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-reports
           path: |
@@ -55,16 +55,18 @@ jobs:
             **/build/test-results/
           retention-days: 7
 
-      - name: Package the macOS app
+      # mcpbBundle verifies itself on the way out: it drives the staged server over
+      # stdio and requires the tool list back, so a bundle short a jar fails here.
+      - name: Package the app and the Claude Desktop bundle
         if: env.DEPLOY == 'true'
         run: |
           set -euo pipefail
-          # a v* tag names the version the installer carries, so v1.2.3 ships
-          # Flow-1.2.3.dmg; a main build keeps the version the source declares
+          # a v* tag names the version both carry, so v1.2.3 ships Flow-1.2.3.dmg and
+          # a bundle whose manifest says 1.2.3; a main build keeps what the source declares
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            ./gradlew :flow:packageDmg -PflowVersion="${GITHUB_REF#refs/tags/v}" --stacktrace
+            ./gradlew :flow:packageDmg :flow:mcpbBundle -PflowVersion="${GITHUB_REF#refs/tags/v}" --stacktrace
           else
-            ./gradlew :flow:packageDmg --stacktrace
+            ./gradlew :flow:packageDmg :flow:mcpbBundle --stacktrace
           fi
 
       - name: Collect what gets published
@@ -76,6 +78,8 @@ jobs:
           dmg=$(ls -t flow/build/compose/binaries/main/dmg/*.dmg 2>/dev/null | head -1)
           test -n "$dmg" || { echo "no .dmg was built"; exit 1; }
           cp "$dmg" dist/
+          # the Claude Desktop extension bundle
+          cp flow/build/flow.mcpb dist/
           # the extension jars, each installable on its own from the app
           cp flow-extensions/*/build/libs/*.jar dist/
           ls -lh dist

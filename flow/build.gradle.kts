@@ -129,7 +129,13 @@ val mcpbStage = tasks.register<Copy>("mcpbStage") {
     }
 
     into(layout.buildDirectory.dir("mcpb"))
-    from("mcpb/manifest.json")
+    // The version in the manifest is what Claude Desktop compares to decide an installed bundle is
+    // out of date, so a release stamps the version it actually is rather than whatever the file was
+    // last edited to say. "manifest_version" is a different key and so is left alone.
+    from("mcpb/manifest.json") {
+        val version = Regex("(\"version\":\\s*\")[^\"]+(\")")
+        filter { line -> version.replace(line) { m -> m.groupValues[1] + flowVersion + m.groupValues[2] } }
+    }
     from("appicon.png") { rename { "icon.png" } }
     from("mcpb/flow-mcp") { into("server"); filePermissions { unix("0755") } }
     from(tasks.named("jvmJar")) { into("server/lib") }
