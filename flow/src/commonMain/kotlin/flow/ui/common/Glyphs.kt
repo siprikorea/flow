@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import kotlin.math.cos
@@ -40,22 +41,55 @@ fun FolderPlusGlyph(tint: Color, size: Dp = 20.dp) {
     }
 }
 
+// One continuous silhouette rather than a tab-rect stacked on a body-rect: two overlapping
+// rounded rectangles double up their strokes where the tab meets the body and read as a blob
+// instead of a crisp notch. The tab and body share one unbroken left edge, and the tab's right
+// side steps down to the body's top edge in a single straight shoulder — the shape an outline
+// folder icon actually has.
 private fun DrawScope.drawFolder(tint: Color, filled: Boolean) {
     val w = size.width
     val h = size.height
-    val st = Stroke(width = w * 0.09f)
-    val tabTopLeft = Offset(w * 0.10f, h * 0.16f)
-    val tabSize = Size(w * 0.36f, h * 0.18f)
-    val bodyTopLeft = Offset(w * 0.10f, h * 0.28f)
-    val bodySize = Size(w * 0.80f, h * 0.52f)
-    val r = CornerRadius(w * 0.06f, w * 0.06f)
-    if (filled) {
-        drawRoundRect(tint.copy(alpha = 0.28f), topLeft = tabTopLeft, size = tabSize, cornerRadius = r)
-        drawRoundRect(tint.copy(alpha = 0.28f), topLeft = bodyTopLeft, size = bodySize, cornerRadius = CornerRadius(w * 0.08f, w * 0.08f))
-    }
-    drawRoundRect(tint, topLeft = tabTopLeft, size = tabSize, cornerRadius = r, style = st)
-    drawRoundRect(tint, topLeft = bodyTopLeft, size = bodySize, cornerRadius = CornerRadius(w * 0.08f, w * 0.08f), style = st)
+    val st = Stroke(width = w * 0.09f, join = StrokeJoin.Round)
+    val r = w * 0.05f
+    val points = listOf(
+        Offset(w * 0.10f, h * 0.82f), // bottom-left
+        Offset(w * 0.10f, h * 0.20f), // up the shared left edge to the tab's top-left
+        Offset(w * 0.44f, h * 0.20f), // across the tab's top
+        Offset(w * 0.54f, h * 0.34f), // shoulder, down to the body's top
+        Offset(w * 0.90f, h * 0.34f), // across the body's top
+        Offset(w * 0.90f, h * 0.82f), // down the right edge
+    )
+    val radii = listOf(r, r, 0f, 0f, r, r) // round the silhouette's corners, keep the notch crisp
+    val path = roundedPolygon(points, radii)
+    if (filled) drawPath(path, tint.copy(alpha = 0.28f))
+    drawPath(path, tint, style = st)
 }
+
+/** Closes [points] into a polygon, rounding each corner by its matching entry in [radii]. */
+private fun roundedPolygon(points: List<Offset>, radii: List<Float>): Path {
+    val n = points.size
+    val path = Path()
+    for (i in 0 until n) {
+        val prev = points[(i - 1 + n) % n]
+        val curr = points[i]
+        val next = points[(i + 1) % n]
+        val r = radii[i]
+        if (r <= 0f) {
+            if (i == 0) path.moveTo(curr.x, curr.y) else path.lineTo(curr.x, curr.y)
+        } else {
+            val toPrev = (prev - curr).normalized()
+            val toNext = (next - curr).normalized()
+            val start = curr + toPrev * r
+            val end = curr + toNext * r
+            if (i == 0) path.moveTo(start.x, start.y) else path.lineTo(start.x, start.y)
+            path.quadraticTo(curr.x, curr.y, end.x, end.y)
+        }
+    }
+    path.close()
+    return path
+}
+
+private fun Offset.normalized(): Offset = this / getDistance()
 
 /**
  * The Claude mark: a burst of twelve tapered rays.
@@ -132,18 +166,21 @@ private fun DrawScope.drawRay(tint: Color, centre: Offset, unit: Float, ray: Ray
     drawPath(path, tint)
 }
 
-// blocks, one detached
+// four even blocks in a 2x2 grid
 @Composable
 fun BlocksGlyph(tint: Color, size: Dp = 20.dp) {
     Canvas(Modifier.size(size)) {
         val w = this.size.width
-        val s = Size(w * 0.34f, w * 0.34f)
-        val r = CornerRadius(w * 0.06f, w * 0.06f)
+        val s = Size(w * 0.38f, w * 0.38f)
+        val r = CornerRadius(w * 0.07f, w * 0.07f)
         val st = Stroke(width = w * 0.09f)
-        drawRoundRect(tint, topLeft = Offset(w * 0.08f, w * 0.08f), size = s, cornerRadius = r, style = st)
-        drawRoundRect(tint, topLeft = Offset(w * 0.08f, w * 0.56f), size = s, cornerRadius = r, style = st)
-        drawRoundRect(tint, topLeft = Offset(w * 0.56f, w * 0.56f), size = s, cornerRadius = r, style = st)
-        drawRoundRect(tint, topLeft = Offset(w * 0.62f, w * 0.04f), size = s, cornerRadius = r, style = st)
+        val near = w * 0.06f
+        val far = near + s.width + w * 0.12f
+        listOf(near, far).forEach { x ->
+            listOf(near, far).forEach { y ->
+                drawRoundRect(tint, topLeft = Offset(x, y), size = s, cornerRadius = r, style = st)
+            }
+        }
     }
 }
 

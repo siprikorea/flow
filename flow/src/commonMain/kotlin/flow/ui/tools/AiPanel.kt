@@ -138,7 +138,7 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
                         10.sp,
                         if (message.fromUser) Palette.accent else Palette.catPlugin,
                         weight = FontWeight.Bold,
-                        letterSpacing = 0.6.sp,
+                        letterSpacing = 1.sp,
                     )
                     Box(
                         Modifier.fillMaxWidth()

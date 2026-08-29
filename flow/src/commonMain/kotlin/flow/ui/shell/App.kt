@@ -378,7 +378,7 @@ private fun ExtensionsSettings(ws: Workspace) {
             offered.forEach { entry -> ExtensionRow(ws, entry) }
             strays.forEach { m ->
                 ExtensionRow(
-                    ws, title = m.name, id = m.id, version = m.version, note = ws.t("fromFile"),
+                    ws, title = m.name, version = m.version, note = ws.t("fromFile"),
                     onUninstall = { ws.uninstallModule(m.id) },
                 )
             }
@@ -415,7 +415,7 @@ private fun ViewsSettings(ws: Workspace) {
             offered.forEach { entry -> ExtensionRow(ws, entry) }
             strays.forEach { v ->
                 ExtensionRow(
-                    ws, title = v.name, id = v.id, version = v.version, note = ws.t("fromFile"),
+                    ws, title = v.name, version = v.version, note = ws.t("fromFile"),
                     onUninstall = { ws.uninstallModule(v.id) },
                 )
             }
@@ -444,7 +444,6 @@ private fun FlowsSettings(ws: Workspace) {
                 ExtensionRow(
                     ws,
                     title = flowLabel(path),
-                    id = path,
                     version = null,
                     note = comp?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
                         ?: ws.t("flowNoPorts"),
@@ -465,7 +464,6 @@ private fun ExtensionRow(ws: Workspace, entry: flow.model.RegistryEntry) {
     ExtensionRow(
         ws,
         title = entry.name.ifBlank { entry.id },
-        id = entry.id,
         // what is on disk, not what is on offer — the two differ exactly when there is an update,
         // and showing the new number beside a row that has not taken it yet reads as if it had
         version = ws.installedVersion(entry.id) ?: entry.version,
@@ -482,7 +480,6 @@ private fun ExtensionRow(ws: Workspace, entry: flow.model.RegistryEntry) {
 private fun ExtensionRow(
     ws: Workspace,
     title: String,
-    id: String,
     version: String?,
     // the version an update would move to, when one is on offer
     updateTo: String? = null,
@@ -508,7 +505,7 @@ private fun ExtensionRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
                 if (version != null) Txt("v$version", 10.5.sp, Palette.dimText, mono = true)
@@ -516,7 +513,6 @@ private fun ExtensionRow(
                     Txt("→ $updateTo", 10.5.sp, Palette.warn, mono = true, weight = FontWeight.Medium)
                 }
             }
-            Txt(id, 10.5.sp, Palette.dimText, mono = true, maxLines = 1)
             if (note.isNotBlank()) Txt(note, 11.sp, Palette.subText, maxLines = 2)
         }
         if (busy) {
