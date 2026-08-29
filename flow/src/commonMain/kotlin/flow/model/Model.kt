@@ -111,10 +111,12 @@ data class Settings(
     val disabledInputs: List<String> = emptyList(),
 )
 
-// The manifest the Extensions screen reads by default. Served straight off the repository, so
-// publishing an extension is a commit rather than a deployment.
+// The manifest the Extensions screen reads by default. It rides along on the same release the app
+// itself ships from (siprikorea/flow): the jars sit as release assets beside it, and this URL's
+// "latest" alias always resolves to the newest tagged release, never a prerelease/nightly build —
+// so publishing an extension update is part of cutting a release, not a separate deployment.
 const val DEFAULT_REGISTRY_URL =
-    "https://raw.githubusercontent.com/siprikorea/flow-extensions/main/extensions.json"
+    "https://github.com/siprikorea/flow/releases/latest/download/extensions.json"
 
 // Session format: open tabs + the UI state that goes with them (IntelliJ-style workspace restore).
 // The `lang`/`theme`/`keymap`/`animSeconds` fields are the pre-settings.json layout, read once so an

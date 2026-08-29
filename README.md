@@ -157,7 +157,9 @@ or without padding), `flow.slice` (a byte range and the remainder — how a prep
 off a ciphertext), `flow.merge`, `flow.split`, `flow.sleep` and `flow.mcp`.
 
 First-party extensions live under `flow-extensions/` using `flow.*` package ids. They are built the
-same way anyone else's would be and published to the registry — the app has no privileged set.
+same way anyone else's would be and published to the registry — the app has no privileged set. Their
+registry entries (id, version, description, ports) are hand-kept in `flow-extensions/registry.json`;
+a release build fails if it drifts from the jars actually built.
 
 ### Storage & sandbox (installed, read-only)
 Everything installed lives under `~/.flow/extensions/<id>/`, keyed by id, each in **its own folder**
@@ -199,9 +201,11 @@ exists you're asked to **overwrite**.
 A flow whose module is not installed now fails on that node rather than passing its input through
 untouched, so a missing hash extension reports the problem instead of returning the plaintext.
 
-The registry is a JSON manifest served over HTTPS —
-[siprikorea/flow-extensions](https://github.com/siprikorea/flow-extensions) by default, changed via
-`registryUrl` in `settings.json`. From the terminal:
+The registry is a JSON manifest served over HTTPS — by default the `extensions.json` asset on the
+latest [siprikorea/flow release](https://github.com/siprikorea/flow/releases/latest), alongside the
+jars it lists (built and checked against the manifest by [build.yml](.github/workflows/build.yml) on
+every tagged release). `registryUrl` in `settings.json` points anywhere else that serves the same
+shape. From the terminal:
 
 ```bash
 ./gradlew :flow-extensions:base64-extension:jar

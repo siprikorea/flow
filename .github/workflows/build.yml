@@ -82,6 +82,17 @@ jobs:
           cp flow/build/flow.mcpb dist/
           # the extension jars, each installable on its own from the app
           cp flow-extensions/*/build/libs/*.jar dist/
+          # the registry manifest the app's Extensions screen reads by default (DEFAULT_REGISTRY_URL),
+          # checked against the jars actually built so a stale entry — or a jar with none — fails the
+          # build instead of shipping a manifest that doesn't match what's in the release
+          built=$(cd flow-extensions && ls */build/libs/*.jar | xargs -n1 basename | sort)
+          listed=$(jq -r '.extensions[].file' flow-extensions/registry.json | sort)
+          if [[ "$built" != "$listed" ]]; then
+            echo "flow-extensions/registry.json is out of sync with the built jars:"
+            diff <(echo "$listed") <(echo "$built") || true
+            exit 1
+          fi
+          cp flow-extensions/registry.json dist/extensions.json
           ls -lh dist
 
       # A repo's own GITHUB_TOKEN cannot write to another repo, so this needs a
