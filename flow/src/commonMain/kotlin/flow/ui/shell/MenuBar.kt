@@ -3,6 +3,7 @@ package flow.ui.shell
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,6 +12,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -23,8 +26,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
 import flow.ui.common.AppLogo
+import flow.ui.common.GearGlyph
+import flow.ui.common.PlayGlyph
+import flow.ui.common.StopGlyph
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
+import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 
 // In-app top strip (themed title bar area): brand + run controls.
@@ -50,34 +57,47 @@ fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> U
 
             Spacer(Modifier.weight(1f))
 
-            // Run / stop toggle
+            // Start / stop: icon-only, both always shown — only the one that applies is enabled.
+            // Bordered like IntelliJ's run/stop toolbar buttons, not just a hover wash.
             val running = active?.running == true
-            if (running) {
-                RunButton(ws.t("stop"), enabled = true, borderColor = Palette.dangerBorder, textColor = Palette.errorSoft) { active?.stopRun() }
-            } else {
-                RunButton(ws.t("start"), enabled = active != null, bg = Palette.accent, textColor = Palette.holeBg) { active?.startRun() }
+            TitleIconButton(
+                enabled = active != null && !running, tint = Palette.accent, borderColor = Palette.accent,
+                onClick = { active?.startRun() },
+            ) { t -> PlayGlyph(t) }
+            TitleIconButton(
+                enabled = running, tint = Palette.errorSoft, borderColor = Palette.dangerBorder,
+                onClick = { active?.stopRun() },
+            ) { t -> StopGlyph(t) }
+            Box(Modifier.width(20.dp))
+            // Settings: rightmost — the right panel's rail no longer carries this button
+            TitleIconButton(enabled = true, tint = Palette.menuText, onClick = { ws.showSettings = !ws.showSettings }) { t ->
+                GearGlyph(t)
             }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
     }
 }
 
+// Flat icon button for the title strip: hover = faint wash, disabled = dimmed and inert.
+// An optional [borderColor] outlines it (IntelliJ-style run/stop), rather than leaving it borderless.
 @Composable
-private fun RunButton(
-    label: String,
+private fun TitleIconButton(
     enabled: Boolean,
-    textColor: Color,
-    bg: Color? = null,
-    borderColor: Color? = null,
+    tint: Color,
     onClick: () -> Unit,
+    borderColor: Color? = null,
+    icon: @Composable (Color) -> Unit,
 ) {
-    var m = Modifier.background(bg ?: Color.Transparent, RoundedCornerShape(6.dp))
-    if (borderColor != null) m = m.border(1.dp, borderColor, RoundedCornerShape(6.dp))
-    Box(m.plainClick { if (enabled) onClick() }.padding(horizontal = 12.dp, vertical = 5.dp)) {
-        Txt(
-            label, 12.5.sp,
-            if (enabled) textColor else textColor.copy(alpha = 0.4f),
-            weight = if (bg != null) FontWeight.SemiBold else FontWeight.Medium,
-        )
+    val (hoverSrc, hovered) = rememberHover()
+    val bg = if (enabled && hovered) Palette.hoverBg else Color.Transparent
+    var m = Modifier.size(28.dp).background(bg, RoundedCornerShape(6.dp))
+    if (borderColor != null) {
+        m = m.border(1.dp, if (enabled) borderColor else borderColor.copy(alpha = 0.35f), RoundedCornerShape(6.dp))
+    }
+    Box(
+        m.hoverable(hoverSrc).plainClick { if (enabled) onClick() },
+        contentAlignment = Alignment.Center,
+    ) {
+        icon(if (enabled) tint else tint.copy(alpha = 0.35f))
     }
 }

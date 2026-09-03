@@ -184,6 +184,37 @@ fun BlocksGlyph(tint: Color, size: Dp = 20.dp) {
     }
 }
 
+// play triangle
+@Composable
+fun PlayGlyph(tint: Color, size: Dp = 20.dp) {
+    Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val h = this.size.height
+        val path = Path().apply {
+            moveTo(w * 0.30f, h * 0.20f)
+            lineTo(w * 0.30f, h * 0.80f)
+            lineTo(w * 0.82f, h * 0.50f)
+            close()
+        }
+        drawPath(path, tint)
+    }
+}
+
+// stop square
+@Composable
+fun StopGlyph(tint: Color, size: Dp = 20.dp) {
+    Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val s = w * 0.5f
+        drawRoundRect(
+            tint,
+            topLeft = Offset((w - s) / 2f, (w - s) / 2f),
+            size = Size(s, s),
+            cornerRadius = CornerRadius(w * 0.09f, w * 0.09f),
+        )
+    }
+}
+
 // gear
 @Composable
 fun GearGlyph(tint: Color, size: Dp = 20.dp) {

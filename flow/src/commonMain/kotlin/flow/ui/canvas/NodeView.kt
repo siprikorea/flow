@@ -34,6 +34,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.PointerIcon
@@ -285,9 +286,19 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 .size(13.dp)
                 .pointerHoverIcon(resizeCursorIcon())
                 .drawBehind {
+                    // rounded L, not a right angle — the bend matches the node's own corner radius
+                    // instead of reading as a different, sharper shape stuck on top of it
                     val w = 2f * density
-                    drawLine(Palette.resizeHandle, Offset(size.width - w / 2, 0f), Offset(size.width - w / 2, size.height), w)
-                    drawLine(Palette.resizeHandle, Offset(0f, size.height - w / 2), Offset(size.width, size.height - w / 2), w)
+                    val r = 5f * density
+                    val x = size.width - w / 2
+                    val y = size.height - w / 2
+                    val path = Path().apply {
+                        moveTo(x, 0f)
+                        lineTo(x, y - r)
+                        quadraticTo(x, y, x - r, y)
+                        lineTo(0f, y)
+                    }
+                    drawPath(path, Palette.resizeHandle, style = Stroke(width = w, cap = StrokeCap.Round))
                 }
                 .pointerInput(node.id) {
                     awaitEachGesture {
