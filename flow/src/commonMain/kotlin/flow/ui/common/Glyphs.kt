@@ -215,6 +215,20 @@ fun StopGlyph(tint: Color, size: Dp = 20.dp) {
     }
 }
 
+// plus (new item) — drawn rather than a "+" glyph in a text run, whose font metrics leave it
+// sitting off-centre in a square icon box
+@Composable
+fun PlusGlyph(tint: Color, size: Dp = 20.dp) {
+    Canvas(Modifier.size(size)) {
+        val w = this.size.width
+        val c = w / 2f
+        val arm = w * 0.30f
+        val st = w * 0.12f
+        drawLine(tint, Offset(c - arm, c), Offset(c + arm, c), strokeWidth = st)
+        drawLine(tint, Offset(c, c - arm), Offset(c, c + arm), strokeWidth = st)
+    }
+}
+
 // gear
 @Composable
 fun GearGlyph(tint: Color, size: Dp = 20.dp) {

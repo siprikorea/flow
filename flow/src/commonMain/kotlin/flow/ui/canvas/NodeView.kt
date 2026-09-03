@@ -275,8 +275,9 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             }
         }
 
-        // ports are drawn in a separate overlay pass (NodePortsView) so their
-        // opaque circles always sit above every node rectangle, never behind one
+        // ports are drawn in a separate pass (NodePortsView), called right after this node in
+        // CanvasView — above this node's own body, but still in the same stacking order as the
+        // nodes themselves, so an overlapping node's ports don't float above it
 
         // resize handle (bottom-right L, min 120×60)
         Box(

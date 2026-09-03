@@ -61,9 +61,6 @@ fun EditorTabs(ws: Workspace) {
                     )
                 }
             }
-            Box(
-                Modifier.plainClick { ws.newComponent() }.padding(horizontal = 12.dp, vertical = 6.dp),
-            ) { Txt("+", 15.sp, Palette.subText) }
         }
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
     }

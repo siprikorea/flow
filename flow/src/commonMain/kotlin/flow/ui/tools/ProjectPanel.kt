@@ -59,6 +59,7 @@ import flow.ui.common.ChevronGlyph
 import flow.ui.common.FolderGlyph
 import flow.ui.common.FolderPlusGlyph
 import flow.ui.common.KindBadge
+import flow.ui.common.PlusGlyph
 import flow.ui.common.RailSide
 import flow.ui.common.ResizeDivider
 import flow.ui.common.ClaudeGlyph
@@ -118,7 +119,7 @@ private fun ProjectPanel(ws: Workspace) {
             // creating anything needs somewhere to put it, so these wait for a folder
             if (ws.hasProject) {
                 HeaderIcon(onClick = { ws.requestNewFolder() }) { tint -> FolderPlusGlyph(tint, 15.dp) }
-                HeaderIcon(onClick = { ws.newComponent() }) { tint -> Txt("+", 15.sp, tint, weight = FontWeight.Bold) }
+                HeaderIcon(onClick = { ws.newComponent() }) { tint -> PlusGlyph(tint, 15.dp) }
             }
         }
         if (!ws.hasProject) {

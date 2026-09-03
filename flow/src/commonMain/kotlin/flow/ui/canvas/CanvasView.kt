@@ -215,11 +215,12 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 transformOrigin = TransformOrigin(0f, 0f),
             )
         ) {
+            // each node's ports are drawn right after its own body, not in one pass over every
+            // body — so when two nodes overlap, a port's stacking follows the same order as the
+            // module it belongs to, instead of every port sitting above every node regardless of
+            // which one is actually on top
             state.nodes.forEach { node ->
                 key(node.id) { NodeView(state, node, timeMs) }
-            }
-            // ports drawn last so their opaque circles sit above every rectangle
-            state.nodes.forEach { node ->
                 key("ports-${node.id}") { NodePortsView(state, node) }
             }
         }
