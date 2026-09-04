@@ -29,6 +29,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import flow.ui.theme.FlowTextStyle
 import flow.ui.theme.Mono
 import flow.ui.theme.Palette
 
@@ -41,6 +42,7 @@ fun Txt(
     weight: FontWeight = FontWeight.Normal,
     mono: Boolean = false,
     letterSpacing: TextUnit = TextUnit.Unspecified,
+    lineHeight: TextUnit = TextUnit.Unspecified,
     align: TextAlign = TextAlign.Start,
     maxLines: Int = Int.MAX_VALUE,
 ) {
@@ -53,10 +55,29 @@ fun Txt(
             fontWeight = weight,
             fontFamily = if (mono) Mono else FontFamily.SansSerif,
             letterSpacing = letterSpacing,
+            lineHeight = lineHeight,
             textAlign = align,
         ),
         maxLines = maxLines,
         overflow = TextOverflow.Ellipsis,
+    )
+}
+
+// Same, but sized from one of the design guide's six named type tokens (FlowType.*) instead of a
+// raw size/weight/letterSpacing tuple — the shape new call sites should reach for.
+@Composable
+fun Txt(
+    text: String,
+    style: FlowTextStyle,
+    color: Color,
+    modifier: Modifier = Modifier,
+    align: TextAlign = TextAlign.Start,
+    maxLines: Int = Int.MAX_VALUE,
+) {
+    Txt(
+        text, style.size, color, modifier,
+        weight = style.weight, mono = style.mono, letterSpacing = style.letterSpacing,
+        lineHeight = style.lineHeight, align = align, maxLines = maxLines,
     )
 }
 

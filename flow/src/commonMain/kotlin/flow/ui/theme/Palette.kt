@@ -12,6 +12,15 @@ import androidx.compose.ui.graphics.Color
  *
  * The names describe a role rather than a shade ("faintText", not "grey60"), so a light theme is a
  * matter of filling this in again — the call sites never learn which theme is showing.
+ *
+ * Values follow the Flow design guide's closed token set (`Flow 디자인 가이드`, Claude Design
+ * project 5bbc7aa4). The guide's own field names — `canvas/base/panel/raised/overlay`,
+ * `textPrimary/Secondary/Tertiary/Disabled`, `catInput/catProcessor/catOutput`, etc. — are added
+ * here as the new source of truth; a handful of pre-existing fields with the same meaning (border,
+ * text, accent, accentHover, success, error, warn, gridDot) are revalued in place rather than
+ * duplicated. Fields with no equivalent in the guide yet (nodeBorder, dropdownBg, catSource, the
+ * per-kind header tints, ...) stay as they were — every UI file still reads them — and get folded
+ * into the new set as each is migrated.
  */
 class Scheme(
     val appBg: Color,
@@ -79,12 +88,35 @@ class Scheme(
     val dangerBorder: Color,
     val runFromBorder: Color,
     val tabActiveBg: Color,
+
+    // --- Flow design guide tokens (§1) ---
+    // Surface ladder: canvas < base < panel < raised < overlay (dark); canvas is lightest in light.
+    val base: Color,
+    val raised: Color,
+    val overlay: Color,
+    val borderSubtle: Color,
+    val borderStrong: Color,
+    val textPrimary: Color,
+    val textSecondary: Color,
+    val textTertiary: Color,
+    val textDisabled: Color,
+    val accentPressed: Color,
+    val accentSubtle: Color,
+    val warning: Color,
+    val danger: Color,
+    // The three module-category colours the guide allows — everything else stays grey.
+    val catInput: Color,
+    val catProcessor: Color,
+    val catOutput: Color,
+    // Generic state washes: hover/pressed on any flat row or icon button.
+    val hoverOverlay: Color,
+    val pressedOverlay: Color,
 )
 
 val DarkScheme = Scheme(
     appBg = Color(0xFF14161B),
-    panelBg = Color(0xFF1B1E26),
-    canvasBg = Color(0xFF101218),
+    panelBg = Color(0xFF202329),
+    canvasBg = Color(0xFF17191D),
     holeBg = Color(0xFF12151C),
     nodeBg = Color(0xFF1D212B),
     nodeHeaderBg = Color(0xFF232836),
@@ -92,28 +124,28 @@ val DarkScheme = Scheme(
     tabBarBg = Color(0xFF171A21),
 
     panelBorder = Color(0xFF2A2E3A),
-    border = Color(0xFF2C3140),
+    border = Color(0xFF363C46),
     nodeBorder = Color(0xFF333A49),
     buttonBorder = Color(0xFF3A4152),
     dropdownBorder = Color(0xFF313747),
-    gridDot = Color(0xFF2B3040),
+    gridDot = Color(0xFF242830),
 
-    text = Color(0xFFE8EAF0),
+    text = Color(0xFFDFE1E5),
     menuText = Color(0xFFC9CEDB),
     subText = Color(0xFF8A90A0),
     dimText = Color(0xFF6B7284),
     faintText = Color(0xFF5D6475),
     faintestText = Color(0xFF4A5162),
 
-    accent = Color(0xFF5B8CFF),
-    accentHover = Color(0xFF8FB0FF),
+    accent = Color(0xFF3574F0),
+    accentHover = Color(0xFF4680F5),
     accentSoft = Color(0xFF7AA1FF),
-    success = Color(0xFF34C98E),
+    success = Color(0xFF4E9E5F),
     successText = Color(0xFF59D6A4),
     doneBorder = Color(0xFF2B7A5C),
-    error = Color(0xFFFF5C5C),
+    error = Color(0xFFDB5C5C),
     errorSoft = Color(0xFFFF8A8A),
-    warn = Color(0xFFE0A93B),
+    warn = Color(0xFFD6A73B),
     warnSoft = Color(0xFFF0C85A),
     catSource = Color(0xFF22C3A6),
     catTransform = Color(0xFFB07BFF),
@@ -143,6 +175,25 @@ val DarkScheme = Scheme(
     dangerBorder = Color(0xFF4A2F34),
     runFromBorder = Color(0xFF33405A),
     tabActiveBg = Color(0xFF1D212B),
+
+    base = Color(0xFF1C1F24),
+    raised = Color(0xFF272B33),
+    overlay = Color(0xFF2E333C),
+    borderSubtle = Color(0xFF2A2F37),
+    borderStrong = Color(0xFF4A515D),
+    textPrimary = Color(0xFFDFE1E5),
+    textSecondary = Color(0xFF9DA0A8),
+    textTertiary = Color(0xFF6F737A),
+    textDisabled = Color(0xFF52565E),
+    accentPressed = Color(0xFF2B62CE),
+    accentSubtle = Color(0x2E3574F0),
+    warning = Color(0xFFD6A73B),
+    danger = Color(0xFFDB5C5C),
+    catInput = Color(0xFFD6A73B),
+    catProcessor = Color(0xFF8E7BEE),
+    catOutput = Color(0xFF3FA6C9),
+    hoverOverlay = Color(0x0FFFFFFF),
+    pressedOverlay = Color(0x1AFFFFFF),
 )
 
 /**
@@ -156,7 +207,7 @@ val LightScheme = Scheme(
     // furniture around it. Nodes are white too, so what lifts them off the canvas is their border
     // and their tinted header rather than a difference in fill.
     appBg = Color(0xFFE7EAF0),
-    panelBg = Color(0xFFF2F4F8),
+    panelBg = Color(0xFFF2F3F5),
     canvasBg = Color(0xFFFFFFFF),
     holeBg = Color(0xFFFFFFFF),
     nodeBg = Color(0xFFFFFFFF),
@@ -166,29 +217,28 @@ val LightScheme = Scheme(
     tabBarBg = Color(0xFFE2E6EC),
 
     panelBorder = Color(0xFFD5DAE3),
-    border = Color(0xFFCDD4DE),
+    border = Color(0xFFD3D5DB),
     nodeBorder = Color(0xFFC3CBD8),
     buttonBorder = Color(0xFFB4BDCB),
     dropdownBorder = Color(0xFFCBD2DD),
-    gridDot = Color(0xFFDCE1E9),
+    gridDot = Color(0xFFDCDFE4),
 
-    text = Color(0xFF1A1D24),
+    text = Color(0xFF1E1F22),
     menuText = Color(0xFF343A45),
     subText = Color(0xFF5C6472),
     dimText = Color(0xFF737B8A),
     faintText = Color(0xFF8B93A1),
     faintestText = Color(0xFFA5ACB9),
 
-    accent = Color(0xFF2F6BFF),
-    // on a pale ground the emphatic direction is darker, so hover deepens instead of lifting
-    accentHover = Color(0xFF1B4FD6),
+    accent = Color(0xFF2E5FCC),
+    accentHover = Color(0xFF3A6DD9),
     accentSoft = Color(0xFF4B7FFF),
-    success = Color(0xFF17A472),
+    success = Color(0xFF3E8A4E),
     successText = Color(0xFF0C8257),
     doneBorder = Color(0xFF7FC9AD),
-    error = Color(0xFFD93A3A),
+    error = Color(0xFFC0453F),
     errorSoft = Color(0xFFBE2F2F),
-    warn = Color(0xFFB8801A),
+    warn = Color(0xFFA97C1B),
     warnSoft = Color(0xFF8F6410),
     catSource = Color(0xFF0E9A82),
     catTransform = Color(0xFF8446DE),
@@ -221,6 +271,25 @@ val LightScheme = Scheme(
     dangerBorder = Color(0xFFE3B0B0),
     runFromBorder = Color(0xFFB6C8EE),
     tabActiveBg = Color(0xFFFFFFFF),
+
+    base = Color(0xFFF7F8FA),
+    raised = Color(0xFFFFFFFF),
+    overlay = Color(0xFFFFFFFF),
+    borderSubtle = Color(0xFFE6E8EC),
+    borderStrong = Color(0xFFB4B8C0),
+    textPrimary = Color(0xFF1E1F22),
+    textSecondary = Color(0xFF5A5D63),
+    textTertiary = Color(0xFF818594),
+    textDisabled = Color(0xFFA8ACB4),
+    accentPressed = Color(0xFF254FAD),
+    accentSubtle = Color(0x1F2E5FCC),
+    warning = Color(0xFFA97C1B),
+    danger = Color(0xFFC0453F),
+    catInput = Color(0xFFA97C1B),
+    catProcessor = Color(0xFF6A54C9),
+    catOutput = Color(0xFF2A7E9B),
+    hoverOverlay = Color(0x0D000000),
+    pressedOverlay = Color(0x14000000),
 )
 
 /**
@@ -294,6 +363,26 @@ object Palette {
     val runFromBorder get() = scheme.runFromBorder
     val tabActiveBg get() = scheme.tabActiveBg
 
+    // --- Flow design guide tokens ---
+    val base get() = scheme.base
+    val raised get() = scheme.raised
+    val overlay get() = scheme.overlay
+    val borderSubtle get() = scheme.borderSubtle
+    val borderStrong get() = scheme.borderStrong
+    val textPrimary get() = scheme.textPrimary
+    val textSecondary get() = scheme.textSecondary
+    val textTertiary get() = scheme.textTertiary
+    val textDisabled get() = scheme.textDisabled
+    val accentPressed get() = scheme.accentPressed
+    val accentSubtle get() = scheme.accentSubtle
+    val warning get() = scheme.warning
+    val danger get() = scheme.danger
+    val catInput get() = scheme.catInput
+    val catProcessor get() = scheme.catProcessor
+    val catOutput get() = scheme.catOutput
+    val hoverOverlay get() = scheme.hoverOverlay
+    val pressedOverlay get() = scheme.pressedOverlay
+
     fun catColor(cat: String) = when (cat) {
         "source" -> catSource
         "sink" -> catSink
@@ -302,6 +391,13 @@ object Palette {
         "component" -> catComponent
         "pluginmod" -> catPlugin
         else -> catTransform
+    }
+
+    /** The guide's 3-way category colour: input / output boundary nodes, everything else a processor. */
+    fun catColor3(cat: String) = when (cat) {
+        "io" -> catInput
+        "out" -> catOutput
+        else -> catProcessor // transform, component, pluginmod — the guide has no 4th slot
     }
 
     fun statusDot(status: String) = when (status) {
