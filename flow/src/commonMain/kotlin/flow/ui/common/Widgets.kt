@@ -14,7 +14,9 @@ import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Dp
@@ -32,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import flow.ui.theme.FlowTextStyle
 import flow.ui.theme.Mono
 import flow.ui.theme.Palette
+import flow.ui.theme.Radius
 
 @Composable
 fun Txt(
@@ -108,17 +111,20 @@ fun rememberHover(): Pair<MutableInteractionSource, Boolean> {
     return src to hovered
 }
 
-// Common input field: bg #12151c, border 1px #2c3140, radius 6px, padding 7px 9px
+// The one text-field shape in the app (CLAUDE.md §6): bg `raised`, border `border`, radius
+// `Radius.control`, focus = accent 1dp border + a 2dp accent-20% ring.
 @Composable
 fun DtxField(
     value: String,
     onChange: (String) -> Unit,
     modifier: Modifier = Modifier,
     mono: Boolean = false,
-    textColor: Color = Palette.text,
+    textColor: Color = Palette.textPrimary,
     fontSize: TextUnit = 12.sp,
     onFocusChange: (Boolean) -> Unit = {},
 ) {
+    var focused by remember { mutableStateOf(false) }
+    val shape = RoundedCornerShape(Radius.control)
     BasicTextField(
         value = value,
         onValueChange = onChange,
@@ -128,12 +134,16 @@ fun DtxField(
             fontSize = fontSize,
             fontFamily = if (mono) Mono else FontFamily.SansSerif,
         ),
-        cursorBrush = SolidColor(Palette.text),
+        cursorBrush = SolidColor(Palette.textPrimary),
         modifier = modifier
             .fillMaxWidth()
-            .background(Palette.holeBg, RoundedCornerShape(6.dp))
-            .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
+            .background(Palette.raised, shape)
+            .then(if (focused) Modifier.border(2.dp, Palette.accent.copy(alpha = 0.20f), shape) else Modifier)
+            .border(1.dp, if (focused) Palette.accent else Palette.border, shape)
             .padding(horizontal = 9.dp, vertical = 7.dp)
-            .onFocusChanged { onFocusChange(it.isFocused) },
+            .onFocusChanged {
+                focused = it.isFocused
+                onFocusChange(it.isFocused)
+            },
     )
 }
