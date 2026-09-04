@@ -364,6 +364,9 @@ object Palette {
     val tabActiveBg get() = scheme.tabActiveBg
 
     // --- Flow design guide tokens ---
+    // panelBg already carries the guide's exact "panel" surface value (revalued in phase 1); this
+    // is just the guide's own name for it, so new call sites don't have to know the old one.
+    val panel get() = scheme.panelBg
     val base get() = scheme.base
     val raised get() = scheme.raised
     val overlay get() = scheme.overlay

@@ -47,6 +47,7 @@ import flow.core.portPos
 import androidx.compose.ui.geometry.Rect
 import flow.ui.common.Txt
 import flow.ui.theme.Palette
+import flow.ui.theme.Space
 
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
@@ -149,16 +150,14 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                         moveTo(a.x, a.y)
                         cubicTo(a.x + c, a.y, b.x - c, b.y, b.x, b.y)
                     }
+                    // 1.5dp by default, 2dp accent when selected or carrying a running packet —
+                    // the guide's one connection-line spec, not a separate look per edge state
                     val selected = e.id in state.selEdges
-                    val color = when {
-                        e.active -> Palette.accent
-                        selected -> Palette.edgeSelected
-                        else -> Palette.edge
-                    }
+                    val color = if (e.active || selected) Palette.accent else Palette.borderStrong
                     val effect = if (e.active)
                         PathEffect.dashPathEffect(floatArrayOf(7f, 6f), -((timeMs % 500) / 500f) * 24f)
                     else null
-                    drawPath(path, color, style = Stroke(if (selected) 3.5f else 2.5f, pathEffect = effect))
+                    drawPath(path, color, style = Stroke(if (e.active || selected) 2f else 1.5f, pathEffect = effect))
 
                     if (e.active) {
                         // packet: white dot + glow, travels the whole curve exactly once over the
@@ -232,7 +231,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
         }
 
         if (state.showMinimap) {
-            Minimap(state, Modifier.align(Alignment.BottomEnd).padding(14.dp))
+            Minimap(state, Modifier.align(Alignment.BottomEnd).padding(Space.l))
         }
     }
 }

@@ -18,6 +18,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import flow.core.EditorState
 import flow.ui.theme.Palette
+import flow.ui.theme.Radius
 import kotlin.math.max
 import kotlin.math.min
 
@@ -53,8 +54,8 @@ internal fun Minimap(state: EditorState, modifier: Modifier = Modifier) {
     Canvas(
         modifier
             .size(mmW.dp, mmH.dp)
-            .background(Palette.holeBg.copy(alpha = 0.88f), RoundedCornerShape(7.dp))
-            .border(1.dp, Palette.border, RoundedCornerShape(7.dp))
+            .background(Palette.holeBg.copy(alpha = 0.88f), RoundedCornerShape(Radius.surface))
+            .border(1.dp, Palette.border, RoundedCornerShape(Radius.surface))
             .pointerInput(Unit) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
@@ -86,7 +87,7 @@ internal fun Minimap(state: EditorState, modifier: Modifier = Modifier) {
             )
         }
         drawRect(
-            Palette.accent.copy(alpha = 0.07f),
+            Palette.accent.copy(alpha = 0.20f),
             topLeft = Offset((view[0] * scale + ox) * density, (view[1] * scale + oy) * density),
             size = Size((view[2] - view[0]) * scale * density, (view[3] - view[1]) * scale * density),
         )

@@ -160,7 +160,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Txt(node.label, 15.sp, Palette.text, weight = FontWeight.SemiBold)
             val portKind = if (isOut) ws.t("labelOutputs") else ws.t("labelInputs")
-            val endColor = if (isOut) Palette.catOut else Palette.catIo
+            val endColor = if (isOut) Palette.catOutput else Palette.catInput
             Box(Modifier.background(endColor.copy(alpha = 0.16f), RoundedCornerShape(4.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
                 Txt(portKind, 10.sp, endColor, weight = FontWeight.Medium)
             }

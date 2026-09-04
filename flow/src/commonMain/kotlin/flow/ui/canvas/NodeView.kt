@@ -56,7 +56,6 @@ import flow.core.portPos
 import flow.core.portY
 import flow.core.snapF
 import flow.model.compFile
-import flow.model.findDef
 import flow.model.indexOfPort
 import flow.model.isComp
 import com.composables.icons.lucide.Cpu
@@ -67,24 +66,17 @@ import flow.ui.common.LucideIcon
 import flow.ui.common.Txt
 import flow.ui.common.moveCursorIcon
 import flow.ui.common.rememberHover
-import flow.ui.common.resizeCursorIcon
+import flow.ui.theme.FlowType
 import flow.ui.theme.Mono
 import flow.ui.theme.Palette
 // aliased: this file already has androidx.compose.ui.geometry.Size for canvas draw sizes
 import flow.ui.theme.Size as FlowSize
-import kotlin.math.max
 
 @Composable
 internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
     val density = state.density
     val selected = node.id in state.selNodes
     val comp = isComp(node.type)
-    val pluginMod = !comp && state.ws.moduleInfo(node.type) != null
-    val cat = when {
-        comp -> "component"
-        pluginMod -> "pluginmod"
-        else -> findDef(node.type)?.cat ?: "transform"
-    }
     // validation error (unconnected ports) — only flagged after an open/save validation
     val validationError = if (state.showValidation) state.nodeConnectionError(node) else null
     // a module that threw while processing (bad key/IV size, etc.) on the last run — click the
@@ -94,12 +86,12 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
     // there: a selected node that has just failed still has to read as failed. It gets a ring drawn
     // outside it instead, which is visible whatever the border is doing.
     val borderColor = when {
-        processError != null -> Palette.error
+        processError != null -> Palette.danger
         node.status == "running" -> Palette.accent
-        node.status == "done" -> Palette.doneBorder
-        node.status == "error" -> Palette.error
-        validationError != null -> Palette.error
-        else -> Palette.nodeBorder
+        node.status == "done" -> Palette.success
+        node.status == "error" -> Palette.danger
+        validationError != null -> Palette.danger
+        else -> Palette.border
     }
     val statusText = when (node.status) {
         "running" -> state.t("stRunning")
@@ -108,13 +100,13 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         else -> null
     }
     val statusColor = when (node.status) {
-        "running" -> Palette.accentSoft
-        "done" -> Palette.successText
-        else -> Palette.errorSoft
+        "running" -> Palette.accent
+        "done" -> Palette.success
+        else -> Palette.danger
     }
     // bottom label: a processing error takes priority, then run status, then the validation error
     val bottomMsg = if (processError != null) state.t("stError") else statusText ?: validationError
-    val bottomColor = if (processError != null) Palette.errorSoft else if (statusText != null) statusColor else Palette.errorSoft
+    val bottomColor = if (processError != null) Palette.danger else if (statusText != null) statusColor else Palette.danger
     // kind icon (top-left): the two ends of a flow read as different things — input/output get
     // their own glyph and colour; every other kind (built-in, installed, component) is a processor
     val kindIcon = when {
@@ -133,34 +125,17 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
             .offset(node.x.dp, node.y.dp)
             .size(node.w.dp, node.h.dp)
             .drawBehind {
-                // The selection ring sits outside the node, so it never competes with the border
-                // for what the node's own state is — a selected node that has just failed still
-                // reads as failed.
-                //
-                // It is a glow with a bright ring inside it rather than another crisp edge: a
-                // running node already has a crisp accent border, and selection has to be a
-                // different thing to look at, not the same thing in a slightly different blue.
+                // Selection is a 3dp accent-20% ring outside the node, not on it — the border says
+                // what state the node is in (running/done/failed) and stays readable as whichever
+                // of those it is; the ring is a different, separate thing outside it (CLAUDE.md §5).
                 if (selected) {
-                    // A ring outside the node, not on it: the border says what state the node is
-                    // in — running, done, failed — and a selected node has to stay readable as
-                    // whichever of those it is. The gap in the canvas colour is what keeps the two
-                    // apart, so this reads as a halo rather than as a second border.
-                    val moat = 2.5f * density
-                    val ring = 5f * density
+                    val ring = 3f * density
                     drawRoundRect(
-                        color = Palette.canvasBg,
-                        topLeft = Offset(-moat, -moat),
-                        size = Size(size.width + moat * 2, size.height + moat * 2),
-                        cornerRadius = CornerRadius(9f * density + moat),
-                        style = Stroke(2.5f * density),
-                    )
-                    drawRoundRect(
-                        // the lighter accent, so it is not the same blue as a running border
-                        color = Palette.accentHover,
+                        color = Palette.accent.copy(alpha = 0.20f),
                         topLeft = Offset(-ring, -ring),
                         size = Size(size.width + ring * 2, size.height + ring * 2),
                         cornerRadius = CornerRadius(9f * density + ring),
-                        style = Stroke(1.5f * density),
+                        style = Stroke(ring),
                     )
                 }
                 // nodepulse: expanding border ring (1.2s)
@@ -176,18 +151,14 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                     )
                 }
             }
-            // a faint wash of the accent as well as the ring, so a selected node is still
-            // distinguishable where the ring is clipped — at the edge of the canvas, or under
-            // another node overlapping it
-            .background(Palette.nodeBg, RoundedCornerShape(9.dp))
-            .then(
-                if (!selected) Modifier
-                else Modifier.background(Palette.accent.copy(alpha = 0.16f), RoundedCornerShape(9.dp)),
-            )
+            // The body colour never changes for selection — only the border and the ring outside
+            // it do (CLAUDE.md §5: "본문 배경은 절대 바꾸지 않는다"). A category or run-state wash
+            // over the whole card was the single most visible thing wrong with the old node.
+            .background(Palette.panel, RoundedCornerShape(9.dp))
             .border(1.5.dp, borderColor, RoundedCornerShape(9.dp))
             .pointerHoverIcon(moveCursorIcon())
             .pointerInput(node.id, node.type) {
-                // whole node is draggable (ports/resize handle consume their own events):
+                // whole node is draggable (ports consume their own events):
                 // down = select (Cmd/Win toggles), drag = move all selected nodes,
                 // click-click without movement = double-click (opens a component)
                 var lastDown = 0L
@@ -233,40 +204,29 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 }
             }
     ) {
-        // header 28px: drag to move. Tinted per group (io/component) for distinction
-        val io = node.type == "cin" || node.type == "cout"
-        val headerTint = when {
-            comp -> Palette.compHeaderTint
-            io -> Palette.ioHeaderTint
-            pluginMod -> Palette.pluginHeaderTint
-            else -> Palette.moduleHeaderTint
-        }
+        // header: drag to move. Background is always `raised` — flat grey, no per-kind tint — the
+        // category shows on the icon alone (CLAUDE.md §5: "카테고리 색은 아이콘에만. 헤더 전체 채색 금지")
         Row(
             Modifier
                 .fillMaxWidth()
-                .height(28.dp)
-                .background(Palette.nodeHeaderBg, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
-                .background(headerTint, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
+                .height(FlowSize.nodeHeader)
+                .background(Palette.raised, RoundedCornerShape(topStart = 7.5.dp, topEnd = 7.5.dp))
                 .padding(horizontal = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             LucideIcon(kindIcon, kindColor, FlowSize.icon)
             Spacer(Modifier.width(6.dp))
-            Txt(node.label, 12.sp, Palette.text, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
-            if (node.status == "running") {
-                // spinner: components/modules may take a while — show a rotating arc while running
-                val angle = ((timeMs % 900L) / 900f) * 360f
-                Canvas(Modifier.size(11.dp)) {
-                    drawArc(
-                        color = Palette.accent,
-                        startAngle = angle,
-                        sweepAngle = 260f,
-                        useCenter = false,
-                        style = Stroke(width = 2f * density, cap = StrokeCap.Round),
-                    )
+            Txt(node.label, 12.sp, Palette.textPrimary, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
+            // status dot (6dp): nothing while idle, a slow pulse while running, a flat colour once
+            // the run has an outcome — CLAUDE.md §5
+            when (node.status) {
+                "running" -> {
+                    val p = (timeMs % 1200L) / 1200f
+                    val alpha = 0.35f + 0.65f * kotlin.math.abs(kotlin.math.sin(p * kotlin.math.PI)).toFloat()
+                    Box(Modifier.size(6.dp).background(Palette.accent.copy(alpha = alpha), CircleShape))
                 }
-            } else {
-                Box(Modifier.size(8.dp).background(Palette.statusDot(node.status), CircleShape))
+                "done" -> Box(Modifier.size(6.dp).background(Palette.success, CircleShape))
+                "error" -> Box(Modifier.size(6.dp).background(Palette.danger, CircleShape))
             }
         }
 
@@ -281,48 +241,8 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         // CanvasView — above this node's own body, but still in the same stacking order as the
         // nodes themselves, so an overlapping node's ports don't float above it
 
-        // resize handle (bottom-right L, min 120×60)
-        Box(
-            Modifier
-                .align(Alignment.BottomEnd)
-                .offset((-3).dp, (-3).dp)
-                .size(13.dp)
-                .pointerHoverIcon(resizeCursorIcon())
-                .drawBehind {
-                    // rounded L, not a right angle — the bend matches the node's own corner radius
-                    // instead of reading as a different, sharper shape stuck on top of it
-                    val w = 2f * density
-                    val r = 5f * density
-                    val x = size.width - w / 2
-                    val y = size.height - w / 2
-                    val path = Path().apply {
-                        moveTo(x, 0f)
-                        lineTo(x, y - r)
-                        quadraticTo(x, y, x - r, y)
-                        lineTo(0f, y)
-                    }
-                    drawPath(path, Palette.resizeHandle, style = Stroke(width = w, cap = StrokeCap.Round))
-                }
-                .pointerInput(node.id) {
-                    awaitEachGesture {
-                        val down = awaitFirstDown()
-                        down.consume()
-                        val snap0 = state.snapshot()
-                        val start = state.nodeById(node.id) ?: return@awaitEachGesture
-                        var acc = Offset.Zero
-                        var moved = false
-                        drag(down.id) { ch ->
-                            acc += (ch.position - ch.previousPosition) / density
-                            val nw = max(120f, snapF(start.w + acc.x))
-                            val nh = max(60f, snapF(start.h + acc.y))
-                            if (nw != start.w || nh != start.h) moved = true
-                            state.resizeNode(node.id, nw, nh)
-                            ch.consume()
-                        }
-                        if (moved) state.pushHistory(snap0)
-                    }
-                }
-        )
+        // No resize handle: the guide drops manual node resize entirely (CLAUDE.md §5), so the
+        // node's own drag no longer has a corner affordance to share the corner with.
     }
 }
 
@@ -356,7 +276,7 @@ private fun NodeStatusLabel(msg: String, color: Color) {
                         .background(Palette.dropdownBg, RoundedCornerShape(6.dp))
                         .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(6.dp))
                         .padding(horizontal = 9.dp, vertical = 6.dp),
-                ) { Txt(msg, 11.sp, Palette.text) }
+                ) { Txt(msg, 11.sp, Palette.textPrimary) }
             },
             delayMillis = 350,
             tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 16.dp)),
@@ -396,22 +316,12 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
 
     Box(
         Modifier
-            // inside the box, not straddling its edge: a port belongs to the node, and one hanging
-            // half outside reads as something stuck on rather than part of it
-            .offset(if (kind == "in") PORT_INSET.dp else (node.w - PORT_SIZE - PORT_INSET).dp, (cy - 7.5f).dp)
+            // The hit/position box keeps the existing PORT_SIZE footprint (so the wire endpoint
+            // math in Geometry.kt — shared with the edge-drawing code — doesn't move); the guide's
+            // 10dp circle draws smaller than that, centred inside it.
+            .offset(if (kind == "in") PORT_INSET.dp else (node.w - PORT_SIZE - PORT_INSET).dp, (cy - PORT_SIZE / 2f).dp)
             .size(PORT_SIZE.dp)
             .hoverable(hoverSrc)
-            // solid (opaque) fill so edges/grid never show behind the circle
-            .background(if (hovered) Palette.accent else Palette.nodeHeaderBg, CircleShape)
-            .border(
-                2.5.dp,
-                when {
-                    connected -> Palette.accent
-                    flagged -> Palette.error
-                    else -> Palette.portBorder
-                },
-                CircleShape,
-            )
             .pointerHoverIcon(PointerIcon.Crosshair)
             .pointerInput(node.id, kind, name) {
                 awaitEachGesture {
@@ -431,8 +341,27 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
                         drag(down.id) { it.consume() }
                     }
                 }
-            }
-    )
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        // 10dp, 1.5dp stroke: empty (panel fill + tertiary ring) unconnected, solid accent
+        // connected — CLAUDE.md §5. Hovering an open port previews the accent it would take.
+        Box(
+            Modifier
+                .size(10.dp)
+                .background(if (connected) Palette.accent else Palette.panel, CircleShape)
+                .border(
+                    1.5.dp,
+                    when {
+                        connected -> Palette.accent
+                        flagged -> Palette.danger
+                        hovered -> Palette.accent
+                        else -> Palette.textTertiary
+                    },
+                    CircleShape,
+                )
+        )
+    }
     // the port's name, beside the circle rather than under it — the circle sits inside the node
     // now, so the room the label used to have is where the circle is
     Box(
@@ -442,7 +371,7 @@ private fun PortView(state: EditorState, node: flow.model.Node, kind: String, id
             .padding(horizontal = (PORT_INSET + PORT_SIZE + 5f).dp)
     ) {
         Txt(
-            name, 10.sp, if (flagged) Palette.errorSoft else Palette.subText, mono = true,
+            name, FlowType.mono, if (flagged) Palette.danger else Palette.textSecondary,
             modifier = Modifier.align(if (kind == "in") Alignment.CenterStart else Alignment.CenterEnd),
         )
     }
