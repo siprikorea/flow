@@ -129,6 +129,10 @@ fun FlowIconButton(
 
 // 28dp flat list row: transparent by default, hoverOverlay on hover, accentSubtle + a left 2dp
 // accent bar when selected. The shape every left-panel / palette row now uses.
+//
+// [onClick] is nullable: leave it null when the row's own [modifier] already carries its own
+// pointer-input gesture (e.g. a drag source) — attaching `clickable` as well would compete with
+// it for the same down event and can swallow the gesture the caller actually wants.
 @Composable
 fun FlowListRow(
     label: String,
@@ -137,7 +141,7 @@ fun FlowListRow(
     iconTint: Color = Palette.textSecondary,
     trailing: (@Composable RowScope.() -> Unit)? = null,
     modifier: Modifier = Modifier,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)? = null,
 ) {
     val (hoverSrc, hovered) = rememberHover()
     val bg = when {
@@ -151,7 +155,7 @@ fun FlowListRow(
             .height(Size.row)
             .background(bg)
             .hoverable(hoverSrc)
-            .plainClick(onClick)
+            .then(if (onClick != null) Modifier.plainClick(onClick) else Modifier)
             .padding(start = if (selected) 10.dp else 12.dp, end = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),

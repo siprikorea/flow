@@ -136,6 +136,6 @@ private fun PaletteCard(
                     }
                 }
             },
-        onClick = {},
+        onClick = null,
     )
 }
