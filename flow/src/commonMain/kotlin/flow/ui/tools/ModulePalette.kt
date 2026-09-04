@@ -31,17 +31,23 @@ import androidx.compose.ui.layout.positionInWindow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Cpu
+import com.composables.icons.lucide.LogIn
+import com.composables.icons.lucide.LogOut
+import com.composables.icons.lucide.Lucide
 import flow.core.DragModule
 import flow.core.Workspace
 import flow.model.CompDef
 import flow.model.IO_DEFS
 import flow.model.REGISTRY
-import flow.ui.common.ChevronGlyph
-import flow.ui.common.KindBadge
+import flow.ui.common.LucideIcon
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
+import flow.ui.theme.Size
 
 @Composable
 internal fun ModulePalette(ws: Workspace) {
@@ -97,7 +103,7 @@ private fun Section(ws: Workspace, key: String, title: String, dot: Color? = nul
         ) {
             // the same chevron the project tree folds with, at a size that can be aimed at: these
             // are the two lists in the same panel and they were folding with different marks
-            ChevronGlyph(if (expanded) Palette.accent else Palette.subText, expanded, size = 14.dp)
+            LucideIcon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, if (expanded) Palette.accent else Palette.subText, 14.dp)
             if (dot != null) Box(Modifier.size(6.dp).background(dot, RoundedCornerShape(3.dp)))
             Txt(title.uppercase(), 11.sp, if (expanded) Palette.text else Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
         }
@@ -125,13 +131,13 @@ private fun PaletteCard(
 ) {
     val (hoverSrc, hovered) = rememberHover()
     var origin by remember { mutableStateOf(Offset.Zero) }
-    val borderColor = if (hovered) Color(0xFF3D4557) else Palette.border
-    // badge letter by kind (I/O/P/C); color comes from the category
-    val letter = when {
-        type == "cin" -> "I"
-        type == "cout" -> "O"
-        type.startsWith("comp:") -> "C"
-        else -> "P"
+    val borderColor = if (hovered) Palette.borderStrong else Palette.border
+    // category icon by kind — input/output boundary get their own glyph, everything else (built-in
+    // processor, installed module, component) reads as a processor
+    val icon = when {
+        type == "cin" -> Lucide.LogIn
+        type == "cout" -> Lucide.LogOut
+        else -> Lucide.Cpu
     }
     Row(
         Modifier
@@ -168,7 +174,7 @@ private fun PaletteCard(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        KindBadge(letter, badgeColor, boxSize = 14.dp)
+        LucideIcon(icon, badgeColor, Size.icon)
         Txt(label, 12.5.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1, modifier = Modifier.weight(1f))
         Txt("$ins→$outs", 10.5.sp, Palette.dimText, mono = true)
     }

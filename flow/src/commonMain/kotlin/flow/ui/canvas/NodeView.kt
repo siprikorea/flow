@@ -59,13 +59,19 @@ import flow.model.compFile
 import flow.model.findDef
 import flow.model.indexOfPort
 import flow.model.isComp
-import flow.ui.common.KindBadge
+import com.composables.icons.lucide.Cpu
+import com.composables.icons.lucide.LogIn
+import com.composables.icons.lucide.LogOut
+import com.composables.icons.lucide.Lucide
+import flow.ui.common.LucideIcon
 import flow.ui.common.Txt
 import flow.ui.common.moveCursorIcon
 import flow.ui.common.rememberHover
 import flow.ui.common.resizeCursorIcon
 import flow.ui.theme.Mono
 import flow.ui.theme.Palette
+// aliased: this file already has androidx.compose.ui.geometry.Size for canvas draw sizes
+import flow.ui.theme.Size as FlowSize
 import kotlin.math.max
 
 @Composable
@@ -109,21 +115,17 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
     // bottom label: a processing error takes priority, then run status, then the validation error
     val bottomMsg = if (processError != null) state.t("stError") else statusText ?: validationError
     val bottomColor = if (processError != null) Palette.errorSoft else if (statusText != null) statusColor else Palette.errorSoft
-    // kind badge (top-left): I=input / O=output / P=processor / C=component
-    val kindLetter = when {
-        node.type == "cin" -> "I"
-        node.type == "cout" -> "O"
-        comp -> "C"
-        else -> "P"
+    // kind icon (top-left): the two ends of a flow read as different things — input/output get
+    // their own glyph and colour; every other kind (built-in, installed, component) is a processor
+    val kindIcon = when {
+        node.type == "cin" -> Lucide.LogIn
+        node.type == "cout" -> Lucide.LogOut
+        else -> Lucide.Cpu
     }
-    // the two ends of a flow read as different things, so they are coloured apart: input yellow,
-    // output blue. Processors are purple (installed ones pink = their non-built-in mark).
     val kindColor = when {
-        node.type == "cin" -> Palette.catIo
-        node.type == "cout" -> Palette.catOut
-        comp -> Palette.catComponent
-        pluginMod -> Palette.catPlugin
-        else -> Palette.catTransform
+        node.type == "cin" -> Palette.catInput
+        node.type == "cout" -> Palette.catOutput
+        else -> Palette.catProcessor
     }
 
     Box(
@@ -248,7 +250,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 .padding(horizontal = 9.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            KindBadge(kindLetter, kindColor)
+            LucideIcon(kindIcon, kindColor, FlowSize.icon)
             Spacer(Modifier.width(6.dp))
             Txt(node.label, 12.sp, Palette.text, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
             if (node.status == "running") {

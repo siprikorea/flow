@@ -17,6 +17,9 @@ kotlin {
             implementation(compose.foundation)
             implementation(compose.ui)
             implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
+            // Lucide icon set (the design guide's one icon language) — Compose Multiplatform
+            // variant: `com.composables:icons-lucide`, not the `-android`-suffixed one.
+            implementation("com.composables:icons-lucide:1.1.0")
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)

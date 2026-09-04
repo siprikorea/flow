@@ -52,21 +52,26 @@ import flow.core.Workspace
 import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.util.pathParent
+import com.composables.icons.lucide.ChevronDown
+import com.composables.icons.lucide.ChevronRight
+import com.composables.icons.lucide.Folder
+import com.composables.icons.lucide.FolderOpen
+import com.composables.icons.lucide.FolderPlus
+import com.composables.icons.lucide.LayoutGrid
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Sparkles
 import flow.ui.common.ActivityButton
 import flow.ui.common.ActivityRail
-import flow.ui.common.BlocksGlyph
-import flow.ui.common.ChevronGlyph
-import flow.ui.common.FolderGlyph
-import flow.ui.common.FolderPlusGlyph
 import flow.ui.common.KindBadge
-import flow.ui.common.PlusGlyph
+import flow.ui.common.LucideIcon
 import flow.ui.common.RailSide
 import flow.ui.common.ResizeDivider
-import flow.ui.common.ClaudeGlyph
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
+import flow.ui.theme.Size
 import kotlin.math.roundToInt
 
 private val ROW_INDENT = 13.dp // per tree level
@@ -77,13 +82,13 @@ fun LeftToolWindow(ws: Workspace) {
     Row {
         ActivityRail {
             ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
-                FolderGlyph(tint)
+                LucideIcon(Lucide.Folder, tint, Size.iconLarge)
             }
             ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
-                BlocksGlyph(tint)
+                LucideIcon(Lucide.LayoutGrid, tint, Size.iconLarge)
             }
             ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
-                ClaudeGlyph(tint)
+                LucideIcon(Lucide.Sparkles, tint, Size.iconLarge)
             }
         }
         Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
@@ -118,8 +123,8 @@ private fun ProjectPanel(ws: Workspace) {
         PanelHeader(ws.t("tabProject")) {
             // creating anything needs somewhere to put it, so these wait for a folder
             if (ws.hasProject) {
-                HeaderIcon(onClick = { ws.requestNewFolder() }) { tint -> FolderPlusGlyph(tint, 15.dp) }
-                HeaderIcon(onClick = { ws.newComponent() }) { tint -> PlusGlyph(tint, 15.dp) }
+                HeaderIcon(onClick = { ws.requestNewFolder() }) { tint -> LucideIcon(Lucide.FolderPlus, tint) }
+                HeaderIcon(onClick = { ws.newComponent() }) { tint -> LucideIcon(Lucide.Plus, tint) }
             }
         }
         if (!ws.hasProject) {
@@ -227,8 +232,8 @@ private fun RootRow(ws: Workspace) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp),
     ) {
-        ChevronGlyph(Palette.subText, expanded)
-        FolderGlyph(Palette.accentSoft, 14.dp, filled = true)
+        LucideIcon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Palette.subText, 14.dp)
+        LucideIcon(Lucide.FolderOpen, Palette.accentSoft, 14.dp)
         Txt(ws.rootLabel, 12.5.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1)
         // full path of the folder being shown — greyed out, like IntelliJ's project root
         Txt(ws.dirLabel, 10.sp, Palette.faintText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
@@ -300,8 +305,8 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
             Box(
                 Modifier.size(14.dp).plainClick { ws.toggleExpand(path) },
                 contentAlignment = Alignment.Center,
-            ) { ChevronGlyph(Palette.subText, expanded) }
-            FolderGlyph(if (expanded) Palette.accentSoft else Palette.subText, 14.dp, filled = expanded)
+            ) { LucideIcon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Palette.subText, 14.dp) }
+            LucideIcon(if (expanded) Lucide.FolderOpen else Lucide.Folder, if (expanded) Palette.accentSoft else Palette.subText, 14.dp)
             Txt(row.name, 12.sp, if (selected) Palette.text else Palette.menuText, maxLines = 1, modifier = Modifier.weight(1f))
         } else {
             Spacer(Modifier.size(12.dp))
