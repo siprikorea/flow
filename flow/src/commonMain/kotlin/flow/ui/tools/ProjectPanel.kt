@@ -70,7 +70,9 @@ import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
+import flow.ui.theme.Radius
 import flow.ui.theme.Size
 import kotlin.math.roundToInt
 
@@ -163,11 +165,10 @@ private fun EmptyProject(ws: Workspace) {
 @Composable
 internal fun PanelHeader(title: String, actions: @Composable RowScope.() -> Unit = {}) {
     Row(
-        Modifier.fillMaxWidth().height(34.dp).padding(start = 10.dp, end = 6.dp),
+        Modifier.fillMaxWidth().height(Size.panelHeader).padding(start = 12.dp, end = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Txt(title.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-        Spacer(Modifier.weight(1f))
+        Txt(title.uppercase(), FlowType.caption, Palette.textTertiary, modifier = Modifier.weight(1f))
         actions()
     }
 }
@@ -177,13 +178,13 @@ private fun HeaderIcon(onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
     val (hoverSrc, hovered) = rememberHover()
     Box(
         Modifier
-            .size(24.dp)
+            .size(Size.iconButton)
             .hoverable(hoverSrc)
-            .background(if (hovered) Palette.hoverBg else Color.Transparent, RoundedCornerShape(5.dp))
+            .background(if (hovered) Palette.hoverOverlay else Color.Transparent, RoundedCornerShape(Radius.control))
             .plainClick(onClick),
         contentAlignment = Alignment.Center,
     ) {
-        icon(if (hovered) Palette.text else Palette.subText)
+        icon(if (hovered) Palette.textPrimary else Palette.textSecondary)
     }
 }
 
@@ -213,7 +214,7 @@ private fun RootRow(ws: Workspace) {
             .fillMaxWidth()
             .onGloballyPositioned { origin = it.positionInWindow() }
             .hoverable(hoverSrc)
-            .background(if (hovered) Palette.hoverBg else Color.Transparent)
+            .background(if (hovered) Palette.hoverOverlay else Color.Transparent)
             .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = dropTarget)
             .pointerInput(Unit) {
                 awaitPointerEventScope {
@@ -252,8 +253,8 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
     val isComp = !row.isDir && ws.isComponentFile(path)
     val expanded = row.isDir && ws.isExpanded(path)
     val bg = when {
-        selected -> Palette.langActiveBg
-        hovered -> Palette.hoverBg
+        selected -> Palette.accentSubtle
+        hovered -> Palette.hoverOverlay
         else -> Color.Transparent
     }
     var origin by remember { mutableStateOf(Offset.Zero) }

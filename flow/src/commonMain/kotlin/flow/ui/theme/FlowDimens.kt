@@ -22,6 +22,7 @@ object Size {
 
     val row = 28.dp
     val groupHeader = 24.dp
+    val panelHeader = 32.dp
 
     val control = 28.dp
     val controlCompact = 24.dp

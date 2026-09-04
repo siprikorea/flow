@@ -8,15 +8,14 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import flow.ui.theme.Palette
+import flow.ui.theme.Size
 
 // window edge the rail sits on (where its selection bar is drawn)
 enum class RailSide { LEFT, RIGHT }
@@ -25,13 +24,14 @@ enum class RailSide { LEFT, RIGHT }
 @Composable
 fun ActivityRail(content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier.width(44.dp).fillMaxHeight().background(Palette.tabBarBg),
+        Modifier.width(Size.activityBar).fillMaxHeight().background(Palette.tabBarBg),
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content,
     )
 }
 
-// hover = faint wash, selected = lit background + accent bar on the edge
+// One selection language for the whole rail: a 2dp accent bar on the rail's edge + an accent
+// icon — no filled box behind the selected icon (CLAUDE.md §5: "파란 라운드 박스 배경 금지").
 @Composable
 fun ActivityButton(
     side: RailSide,
@@ -41,20 +41,15 @@ fun ActivityButton(
 ) {
     val (hoverSrc, hovered) = rememberHover()
     val tint = when {
-        selected -> Palette.text
-        hovered -> Palette.menuText
-        else -> Palette.dimText
+        selected -> Palette.accent
+        hovered -> Palette.textPrimary
+        else -> Palette.textSecondary
     }
-    val bg = when {
-        selected -> Palette.langActiveBg
-        hovered -> Palette.hoverBg
-        else -> Color.Transparent
-    }
+    val bg = if (!selected && hovered) Palette.hoverOverlay else Color.Transparent
     Box(
-        Modifier.fillMaxWidth().height(44.dp).hoverable(hoverSrc).plainClick(onClick),
+        Modifier.fillMaxWidth().height(Size.activityBar).background(bg).hoverable(hoverSrc).plainClick(onClick),
         contentAlignment = Alignment.Center,
     ) {
-        Box(Modifier.size(32.dp).background(bg, RoundedCornerShape(7.dp)))
         if (selected) {
             Box(
                 Modifier
