@@ -13,8 +13,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
@@ -30,12 +33,13 @@ import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
+import flow.ui.theme.Size
 
 @Composable
 fun EditorTabs(ws: Workspace) {
     Column {
         Row(
-            Modifier.fillMaxWidth().height(34.dp).background(Palette.tabBarBg)
+            Modifier.fillMaxWidth().height(Size.tabBar).background(Palette.tabBarBg)
                 .horizontalScroll(rememberScrollState()),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -48,7 +52,7 @@ fun EditorTabs(ws: Workspace) {
                     Tab(
                         name = flowLabel(doc.fileName),
                         active = i == ws.activeIndex,
-                        dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catComponent else Palette.dimText,
+                        dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catProcessor else Palette.textTertiary,
                         dirty = doc.dirty,
                         onSelect = { ws.select(i) },
                         onClose = { ws.requestClose(i) },
@@ -83,8 +87,8 @@ private fun Tab(
         Box(Modifier.height(2.dp).fillMaxWidth().background(if (active) Palette.accent else Color.Transparent))
         Row(
             Modifier
-                .height(32.dp)
-                .background(if (active) Palette.tabActiveBg else if (hovered) Palette.hoverBg else Palette.tabBarBg)
+                .height(Size.tabBar - 2.dp)
+                .background(if (active) Palette.panel else if (hovered) Palette.hoverOverlay else Color.Transparent)
                 .hoverable(hoverSrc)
                 // single click selects; double click toggles the side panels (canvas-only)
                 .pointerInput(Unit) {
@@ -103,22 +107,19 @@ private fun Tab(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Box(
-                Modifier.width(8.dp).height(8.dp)
-                    .background(dotColor, androidx.compose.foundation.shape.RoundedCornerShape(2.dp))
-            )
+            Box(Modifier.size(7.dp).background(dotColor, RoundedCornerShape(2.dp)))
             Txt(
                 name, 12.sp,
-                if (active) Palette.text else Palette.menuText,
+                if (active) Palette.textPrimary else Palette.textTertiary,
                 weight = if (active) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
             )
-            // dirty: a dot (•) normally, close (×) on hover
+            // dirty: a 6dp amber dot normally, close (x) on hover
             if (dirty && !hovered) {
-                Txt("●", 10.sp, Palette.accentSoft, modifier = Modifier.padding(horizontal = 3.dp))
+                Box(Modifier.size(6.dp).background(Palette.warning, CircleShape))
             } else {
                 Txt(
-                    "×", 13.sp, if (hovered || active) Palette.subText else Color.Transparent,
+                    "×", 13.sp, if (hovered || active) Palette.textSecondary else Color.Transparent,
                     modifier = Modifier.plainClick(onClose).padding(horizontal = 3.dp),
                 )
             }

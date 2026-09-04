@@ -31,6 +31,13 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import com.composables.icons.lucide.Cpu
+import com.composables.icons.lucide.LogIn
+import com.composables.icons.lucide.LogOut
+import com.composables.icons.lucide.Lucide
+import com.composables.icons.lucide.Play
+import com.composables.icons.lucide.Plus
+import com.composables.icons.lucide.Trash2
 import flow.core.EditorState
 import flow.model.Edge
 import flow.model.Node
@@ -40,11 +47,17 @@ import flow.model.compFile
 import flow.model.findDef
 import flow.model.isComp
 import flow.ui.common.DtxField
+import flow.ui.common.FlowButton
+import flow.ui.common.FlowButtonVariant
+import flow.ui.common.FlowDangerIconButton
+import flow.ui.common.LucideIcon
 import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
+import flow.ui.theme.Size
 
 @Composable
 fun PropsPanel(state: EditorState) {
@@ -85,7 +98,7 @@ fun PropsPanel(state: EditorState) {
                 singleEdge != null -> EdgeProps(state, singleEdge)
                 total > 1 -> MultiProps(state, onFocusChange)
                 else -> Txt(
-                    state.t("propsEmpty"), 12.sp, Palette.faintText,
+                    state.t("propsEmpty"), 12.sp, Palette.textTertiary,
                     modifier = Modifier.padding(top = 6.dp),
                 )
             }
@@ -95,41 +108,34 @@ fun PropsPanel(state: EditorState) {
 
 @Composable
 private fun SectionLabel(text: String) {
-    Txt(text.uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-}
-
-@Composable
-private fun PanelButton(text: String, borderColor: Color, textColor: Color, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .fillMaxWidth()
-            .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-            .plainClick(onClick)
-            .padding(vertical = 8.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Txt(text, 12.sp, textColor)
-    }
+    Txt(text.uppercase(), 11.sp, Palette.textTertiary, weight = FontWeight.Bold, letterSpacing = 1.sp)
 }
 
 @Composable
 private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -> Unit) {
     val comp = isComp(node.type)
     val def = findDef(node.type)
-    val cat = when {
-        comp -> "component"
-        def != null -> def.cat
-        else -> "transform"
-    }
     val title = when {
         comp -> node.label
         def != null -> def.name[state.lang] ?: node.type
         else -> node.type
     }
+    // same icon + colour as the node's own header on the canvas — the inspector and the
+    // selected node read as the same thing (CLAUDE.md §5)
+    val kindIcon = when {
+        node.type == "cin" -> Lucide.LogIn
+        node.type == "cout" -> Lucide.LogOut
+        else -> Lucide.Cpu
+    }
+    val kindColor = when {
+        node.type == "cin" -> Palette.catInput
+        node.type == "cout" -> Palette.catOutput
+        else -> Palette.catProcessor
+    }
 
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.size(10.dp).background(Palette.catColor(cat), RoundedCornerShape(3.dp)))
-        Txt(title, 13.5.sp, Palette.text, weight = FontWeight.SemiBold)
+        LucideIcon(kindIcon, kindColor, Size.icon)
+        Txt(title, FlowType.bodyStrong, Palette.textPrimary)
     }
 
     // the module's exception message from the last run, if this node failed to process
@@ -138,15 +144,15 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
             SectionLabel(state.t("errorLabel"))
             Box(
                 Modifier.fillMaxWidth()
-                    .background(Palette.error.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
-                    .border(1.dp, Palette.dangerBorder, RoundedCornerShape(6.dp))
+                    .background(Palette.danger.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
+                    .border(1.dp, Palette.danger.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                     .padding(10.dp),
-            ) { Txt(message, 12.sp, Palette.errorSoft) }
+            ) { Txt(message, 12.sp, Palette.danger) }
         }
     }
 
     if (comp) {
-        PanelButton(state.t("openComponent"), Palette.runFromBorder, Palette.accentHover) {
+        FlowButton(state.t("openComponent"), FlowButtonVariant.Secondary) {
             state.ws.openFile(compFile(node.type))
         }
     }
@@ -186,7 +192,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
             SectionLabel(state.t("labelParams"))
             node.params.forEach { (key, value) ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Txt(key, 11.sp, Palette.subText, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
+                    Txt(key, 11.sp, Palette.textTertiary, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
                     DtxField(
                         value,
                         { v -> state.updateNode(node.id) { it.copy(params = it.params + (key to v)) } },
@@ -201,12 +207,15 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
     PortSection(state, node, "in", editable = !isModule, onFocusChange)
     PortSection(state, node, "out", editable = !isModule, onFocusChange)
 
-    // available for both modules and components (any node can be a run start)
-    PanelButton(state.t("runFromHere"), Palette.runFromBorder, Palette.accentHover) {
-        state.runFromSelection(node.id)
-    }
-    PanelButton(state.t("deleteModule"), Palette.dangerBorder, Palette.errorSoft) {
-        state.deleteNode(node.id)
+    // one Primary per region (CLAUDE.md P4): run is the region's Primary action, delete is an
+    // icon button behind a confirm popover, not a second full-width button competing with it
+    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowButton(state.t("runFromHere"), FlowButtonVariant.Primary, icon = Lucide.Play, modifier = Modifier.weight(1f)) {
+            state.runFromSelection(node.id)
+        }
+        FlowDangerIconButton(Lucide.Trash2, state.t("confirmDeleteModule"), state.t("cancel"), state.t("deleteModule")) {
+            state.deleteNode(node.id)
+        }
     }
 }
 
@@ -214,7 +223,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
 @Composable
 private fun OptionEditor(opt: OptDef, value: String, onFocusChange: (Boolean) -> Unit, onChange: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Txt(opt.name, 11.sp, Palette.subText, mono = true, maxLines = 1)
+        Txt(opt.name, 11.sp, Palette.textTertiary, mono = true, maxLines = 1)
         when (opt.type) {
             OptType.SELECT -> OptionSelect(opt.choices, value, onChange)
             OptType.NUMBER -> DtxField(
@@ -239,14 +248,14 @@ private fun OptionSelect(choices: List<String>, value: String, onChange: (String
         Row(
             Modifier
                 .fillMaxWidth()
-                .background(Palette.holeBg, RoundedCornerShape(6.dp))
+                .background(Palette.raised, RoundedCornerShape(6.dp))
                 .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
                 .plainClick { open = !open }
                 .padding(horizontal = 9.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Txt(value, 12.sp, Palette.text, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
-            Txt(if (open) "▲" else "▼", 9.sp, Palette.dimText)
+            Txt(value, 12.sp, Palette.textPrimary, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+            Txt(if (open) "▲" else "▼", 9.sp, Palette.textTertiary)
         }
         if (open) {
             Popup(
@@ -258,8 +267,8 @@ private fun OptionSelect(choices: List<String>, value: String, onChange: (String
                     Modifier
                         // match the select box width so the menu isn't full-screen wide
                         .width(with(density) { boxWidth.toDp() })
-                        .background(Palette.dropdownBg, RoundedCornerShape(8.dp))
-                        .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(8.dp))
+                        .background(Palette.overlay, RoundedCornerShape(8.dp))
+                        .border(1.dp, Palette.border, RoundedCornerShape(8.dp))
                         .padding(5.dp),
                 ) {
                     choices.forEach { choice ->
@@ -269,14 +278,14 @@ private fun OptionSelect(choices: List<String>, value: String, onChange: (String
                                 .fillMaxWidth()
                                 .hoverable(src)
                                 .background(
-                                    if (hovered) Palette.dropdownHover else Color.Transparent,
+                                    if (hovered) Palette.hoverOverlay else Color.Transparent,
                                     RoundedCornerShape(5.dp),
                                 )
                                 .plainClick { onChange(choice); open = false }
                                 .padding(horizontal = 9.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Txt(choice, 12.sp, if (choice == value) Palette.accent else Palette.text, mono = true, modifier = Modifier.weight(1f))
+                            Txt(choice, 12.sp, if (choice == value) Palette.accent else Palette.textPrimary, mono = true, modifier = Modifier.weight(1f))
                             if (choice == value) Txt("✓", 11.sp, Palette.accent)
                         }
                     }
@@ -303,19 +312,18 @@ private fun PortSection(state: EditorState, node: Node, kind: String, editable: 
                         onFocusChange = onFocusChange,
                     )
                     Txt(
-                        "×", 13.sp, Palette.dimText,
+                        "×", 13.sp, Palette.textTertiary,
                         modifier = Modifier.plainClick { state.removePort(node.id, kind, i) }.padding(horizontal = 5.dp, vertical = 2.dp),
                     )
                 }
             } else {
-                Txt(port.name, 11.5.sp, Palette.text, mono = true, maxLines = 1)
+                Txt(port.name, 11.5.sp, Palette.textPrimary, mono = true, maxLines = 1)
             }
         }
         if (editable) {
-            Txt(
-                state.t("addPort"), 11.5.sp, Palette.accent,
-                modifier = Modifier.plainClick { state.addPort(node.id, kind) }.padding(vertical = 2.dp),
-            )
+            FlowButton(state.t("addPort"), FlowButtonVariant.Ghost, icon = Lucide.Plus, compact = true) {
+                state.addPort(node.id, kind)
+            }
         }
     }
 }
@@ -326,7 +334,7 @@ private fun MultiProps(state: EditorState, onFocusChange: (Boolean) -> Unit) {
     val nodeCount = state.selNodes.size
     Txt(
         state.t("multiSelected").replace("{n}", (state.selNodes.size + state.selEdges.size).toString()),
-        13.5.sp, Palette.text, weight = FontWeight.SemiBold,
+        FlowType.bodyStrong, Palette.textPrimary,
     )
 
     val keys = state.commonParamKeys()
@@ -338,7 +346,7 @@ private fun MultiProps(state: EditorState, onFocusChange: (Boolean) -> Unit) {
                 val common = if (values.distinct().size == 1) values.first() else ""
                 var text by remember(key, common) { mutableStateOf(common) }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Txt(key, 11.sp, Palette.subText, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
+                    Txt(key, 11.sp, Palette.textSecondary, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
                     DtxField(
                         text,
                         { v -> text = v; state.setParamForSelected(key, v) },
@@ -350,27 +358,27 @@ private fun MultiProps(state: EditorState, onFocusChange: (Boolean) -> Unit) {
         }
     }
 
-    PanelButton(state.t("deleteSelected"), Palette.dangerBorder, Palette.errorSoft) {
+    FlowDangerIconButton(Lucide.Trash2, state.t("confirmDeleteSelected"), state.t("cancel"), state.t("deleteSelected")) {
         state.deleteSelection()
     }
 }
 
 @Composable
 private fun EdgeProps(state: EditorState, edge: Edge) {
-    Txt(state.t("edgeTitle"), 13.5.sp, Palette.text, weight = FontWeight.SemiBold)
+    Txt(state.t("edgeTitle"), FlowType.bodyStrong, Palette.textPrimary)
     Box(
         Modifier
             .fillMaxWidth()
-            .background(Palette.holeBg, RoundedCornerShape(6.dp))
+            .background(Palette.raised, RoundedCornerShape(6.dp))
             .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
             .padding(horizontal = 10.dp, vertical = 9.dp)
     ) {
         Txt(
             "${edge.from.node} [${edge.from.port}] → ${edge.to.node} [${edge.to.port}]",
-            11.5.sp, Palette.menuText, mono = true,
+            11.5.sp, Palette.textSecondary, mono = true,
         )
     }
-    PanelButton(state.t("deleteEdge"), Palette.dangerBorder, Palette.errorSoft) {
+    FlowDangerIconButton(Lucide.Trash2, state.t("confirmDeleteEdge"), state.t("cancel"), state.t("deleteEdge")) {
         state.deleteEdge(edge.id)
     }
 }

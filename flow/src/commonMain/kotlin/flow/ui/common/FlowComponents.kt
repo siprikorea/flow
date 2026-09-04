@@ -5,19 +5,28 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupProperties
 import com.composables.icons.lucide.ChevronDown
 import com.composables.icons.lucide.ChevronRight
 import com.composables.icons.lucide.Lucide
@@ -42,6 +51,7 @@ fun FlowButton(
     variant: FlowButtonVariant,
     enabled: Boolean = true,
     icon: ImageVector? = null,
+    compact: Boolean = false, // 24dp + a 12dp icon, for a Ghost "+ Add" style link
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -69,7 +79,7 @@ fun FlowButton(
     }
 
     var m = modifier
-        .height(Size.control)
+        .height(if (compact) Size.controlCompact else Size.control)
         .background(bg, RoundedCornerShape(Radius.control))
     if (borderColor != null) m = m.border(1.dp, borderColor, RoundedCornerShape(Radius.control))
     Row(
@@ -79,24 +89,28 @@ fun FlowButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        if (icon != null) LucideIcon(icon, textColor, Size.icon)
+        if (icon != null) LucideIcon(icon, textColor, if (compact) Size.iconSmall else Size.icon)
         Txt(label, FlowType.body, textColor)
     }
 }
 
 // 28x28dp hit box, no default background — for a toolbar/panel action that is only ever an icon.
+// [tint] overrides the default state colours while enabled (e.g. Stop reads danger only while a
+// run is active — CLAUDE.md §5), and is ignored while disabled.
 @Composable
 fun FlowIconButton(
     icon: ImageVector,
     enabled: Boolean = true,
     selected: Boolean = false,
+    tint: Color? = null,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
     val (hoverSrc, hovered) = rememberHover()
     val bg = if (enabled && hovered) Palette.hoverOverlay else Color.Transparent
-    val tint = when {
+    val resolvedTint = when {
         !enabled -> Palette.textDisabled
+        tint != null -> tint
         selected -> Palette.accent
         hovered -> Palette.textPrimary
         else -> Palette.textSecondary
@@ -109,7 +123,7 @@ fun FlowIconButton(
             .plainClick { if (enabled) onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        LucideIcon(icon, tint, Size.icon)
+        LucideIcon(icon, resolvedTint, Size.icon)
     }
 }
 
@@ -181,4 +195,40 @@ fun FlowSectionHeader(
 @Composable
 fun FlowDivider(modifier: Modifier = Modifier) {
     Box(modifier.fillMaxWidth().height(1.dp).background(Palette.borderSubtle))
+}
+
+// A destructive icon action guarded by an anchored confirm popover — CLAUDE.md §6: "확인 팝오버:
+// 파괴적 동작은 모달 대신 앵커 팝오버 ... 문장 한 줄 + Secondary/Danger 두 버튼". Replaces a full-width
+// red-bordered button, which makes a delete look bigger than the primary action beside it.
+@Composable
+fun FlowDangerIconButton(icon: ImageVector, confirmText: String, cancelLabel: String, confirmLabel: String, onConfirm: () -> Unit) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        FlowIconButton(icon, onClick = { open = true })
+        if (open) {
+            Popup(
+                offset = IntOffset(0, 34),
+                onDismissRequest = { open = false },
+                properties = PopupProperties(focusable = true),
+            ) {
+                Column(
+                    Modifier
+                        .width(220.dp)
+                        .background(Palette.overlay, RoundedCornerShape(Radius.surface))
+                        .border(1.dp, Palette.border, RoundedCornerShape(Radius.surface))
+                        .padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Txt(confirmText, FlowType.small, Palette.textPrimary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowButton(cancelLabel, FlowButtonVariant.Secondary, modifier = Modifier.weight(1f)) { open = false }
+                        FlowButton(confirmLabel, FlowButtonVariant.Danger, modifier = Modifier.weight(1f)) {
+                            open = false
+                            onConfirm()
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

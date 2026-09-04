@@ -56,18 +56,22 @@ import flow.core.Shortcut
 import flow.core.Workspace
 import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
-import flow.model.findDef
-import flow.model.isComp
 import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.util.flowLabel
 import flow.ui.canvas.CanvasView
+import com.composables.icons.lucide.Cpu
+import com.composables.icons.lucide.LogIn
+import com.composables.icons.lucide.LogOut
+import com.composables.icons.lucide.Lucide
 import flow.ui.common.DtxField
+import flow.ui.common.LucideIcon
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.ApplyTheme
 import flow.ui.theme.Palette
+import flow.ui.theme.Size
 import flow.ui.theme.Theme
 import flow.ui.tools.LeftToolWindow
 import flow.ui.tools.ProjectContextMenu
@@ -301,22 +305,26 @@ private fun EmptyEditor(ws: Workspace) {
 
 @Composable
 private fun DragGhost(d: DragModule) {
-    val comp = isComp(d.type)
-    val cat = when {
-        comp -> "component"
-        d.type == "cout" -> "out"
-        else -> findDef(d.type)?.cat ?: "transform"
+    val icon = when (d.type) {
+        "cin" -> Lucide.LogIn
+        "cout" -> Lucide.LogOut
+        else -> Lucide.Cpu
+    }
+    val color = when (d.type) {
+        "cin" -> Palette.catInput
+        "cout" -> Palette.catOutput
+        else -> Palette.catProcessor
     }
     Box(
         Modifier
             .offset { IntOffset(d.pos.x.roundToInt() + 8, d.pos.y.roundToInt() + 8) }
-            .background(Palette.dropdownBg.copy(alpha = 0.9f), RoundedCornerShape(7.dp))
+            .background(Palette.overlay.copy(alpha = 0.9f), RoundedCornerShape(7.dp))
             .border(1.dp, Palette.accent, RoundedCornerShape(7.dp))
             .padding(horizontal = 10.dp, vertical = 6.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Box(Modifier.size(10.dp).background(Palette.catColor(cat), RoundedCornerShape(3.dp)))
-            Txt(d.label, 12.sp, Palette.text)
+            LucideIcon(icon, color, Size.icon)
+            Txt(d.label, 12.sp, Palette.textPrimary)
         }
     }
 }

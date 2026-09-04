@@ -17,7 +17,9 @@ import androidx.compose.ui.unit.sp
 import flow.core.Workspace
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
+import flow.ui.theme.Size
 import kotlin.math.roundToInt
 
 @Composable
@@ -26,31 +28,32 @@ fun StatusBar(ws: Workspace) {
     Column {
         Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
         Row(
-            Modifier.fillMaxWidth().height(26.dp).background(Palette.panelBg).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().height(Size.statusBar).background(Palette.panelBg).padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Txt(ws.t("statusHint"), 11.sp, Palette.dimText)
+            // caption/tertiary throughout — left is the operating hint, right is the numbers
+            Txt(ws.t("statusHint"), FlowType.caption, Palette.textTertiary)
             Spacer(Modifier.weight(1f))
             Txt(
                 "${active?.nodes?.size ?: 0} ${ws.t("modules")} · ${active?.edges?.size ?: 0} ${ws.t("connections")}",
-                11.sp, Palette.dimText, mono = true,
+                FlowType.mono, Palette.textTertiary,
             )
             if (active != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Txt("−", 12.sp, Palette.subText, modifier = Modifier.plainClick {
+                    Txt("−", 12.sp, Palette.textSecondary, modifier = Modifier.plainClick {
                         active.zoom = (active.zoom - 0.1f).coerceAtLeast(0.3f)
                     }.padding(horizontal = 6.dp))
                     Txt(
-                        "${(active.zoom * 100).roundToInt()}%", 11.sp, Palette.dimText, mono = true,
+                        "${(active.zoom * 100).roundToInt()}%", FlowType.mono, Palette.textTertiary,
                         modifier = Modifier.plainClick { active.zoom = 1f },
                     )
-                    Txt("+", 12.sp, Palette.subText, modifier = Modifier.plainClick {
+                    Txt("+", 12.sp, Palette.textSecondary, modifier = Modifier.plainClick {
                         active.zoom = (active.zoom + 0.1f).coerceAtMost(2.5f)
                     }.padding(horizontal = 6.dp))
                 }
             }
-            ws.saveTime?.let { Txt("${ws.t("autoSaved")} $it", 11.sp, Palette.autosave) }
+            ws.saveTime?.let { Txt("${ws.t("autoSaved")} $it", FlowType.caption, Palette.autosave) }
         }
     }
 }
