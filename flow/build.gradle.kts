@@ -26,6 +26,11 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
             implementation(project(":flow-extension-api"))
             implementation(project(":flow-extension-host"))
+            // JBR's window-decoration API: lets the title bar tell the OS exactly how tall it is,
+            // so native traffic lights centre on it instead of on some assumed default height.
+            // compose.desktop.currentOs already runs on JetBrains Runtime, so this is always
+            // available at runtime; Main.kt still checks JBR.isAvailable() defensively.
+            implementation("org.jetbrains.runtime:jbr-api:1.5.0")
         }
         // AppIcon.kt (the Dock/Taskbar/window icon) loads "appicon.png" off the runtime
         // classpath — reading straight out of icons/ instead of keeping a second copy under

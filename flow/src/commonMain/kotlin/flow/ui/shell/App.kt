@@ -82,7 +82,12 @@ import kotlin.math.roundToInt
 
 @OptIn(FlowPreview::class, ExperimentalComposeUiApi::class)
 @Composable
-fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)? = null) {
+fun App(
+    ws: Workspace,
+    leadingInset: Dp = 0.dp,
+    onTitleDoubleClick: (() -> Unit)? = null,
+    onTitleBarPress: (() -> Unit)? = null,
+) {
     ApplyTheme(ws.theme)
     // external .flow file dropped onto the editor window: copy it into the project and open it
     val editorDropTarget = remember(ws) {
@@ -96,7 +101,7 @@ fun App(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)
     }
     Box(Modifier.fillMaxSize().background(Palette.appBg)) {
         Column(Modifier.fillMaxSize()) {
-            MenuBar(ws, leadingInset, onTitleDoubleClick)
+            MenuBar(ws, leadingInset, onTitleDoubleClick, onTitleBarPress)
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 LeftToolWindow(ws) // activity bar always visible; panel folds via ws.showLeft
                 Column(Modifier.weight(1f).fillMaxHeight()) {

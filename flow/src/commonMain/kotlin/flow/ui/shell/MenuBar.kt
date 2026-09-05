@@ -1,6 +1,8 @@
 package flow.ui.shell
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,7 +37,16 @@ import flow.ui.theme.Size
 // In-app top strip (themed title bar area): brand + run controls.
 // The File/Edit/View menus live in the native system menu bar (see AppMenuBar).
 @Composable
-fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> Unit)? = null) {
+fun MenuBar(
+    ws: Workspace,
+    leadingInset: Dp = 0.dp,
+    onTitleDoubleClick: (() -> Unit)? = null,
+    // The JBR custom title bar (see Main.kt) tells the OS how tall the bar is and repositions the
+    // traffic lights on it, but doesn't make clicking-and-dragging it move the window — that's a
+    // separate native behavior a real title bar gets for free. This fires on a press nothing
+    // underneath already consumed, so Main.kt can start that move itself (JBR's WindowMove API).
+    onTitleBarPress: (() -> Unit)? = null,
+) {
     val active = ws.active
     Column {
         Row(
@@ -46,11 +57,21 @@ fun MenuBar(ws: Workspace, leadingInset: Dp = 0.dp, onTitleDoubleClick: (() -> U
                         detectTapGestures(onDoubleTap = { onTitleDoubleClick() })
                     } else Modifier
                 )
+                .then(
+                    if (onTitleBarPress != null) Modifier.pointerInput(Unit) {
+                        awaitEachGesture {
+                            // requireUnconsumed (the default) means this never fires for a press a
+                            // child button already consumed — only the bar's own background.
+                            awaitFirstDown()
+                            onTitleBarPress()
+                        }
+                    } else Modifier
+                )
                 .padding(start = 10.dp + leadingInset, end = 10.dp), // left: room for native traffic lights
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AppLogo(18.dp)
+            AppLogo(20.dp)
             Txt("Flow", 14.sp, Palette.textPrimary, weight = FontWeight.Bold)
 
             Spacer(Modifier.weight(1f))

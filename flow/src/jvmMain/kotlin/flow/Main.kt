@@ -2,8 +2,11 @@ package flow
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.painter.BitmapPainter
@@ -25,10 +28,14 @@ import flow.ui.shell.App
 import flow.ui.shell.SettingsScreen
 import flow.ui.shell.closeOnEscape
 import flow.ui.shell.handleKey
+import flow.ui.theme.Size
 import flow.ui.theme.Theme
 import flow.model.Session
 import flow.platform.Platform
 import kotlinx.serialization.json.Json
+import com.jetbrains.JBR
+import com.jetbrains.WindowDecorations
+import java.awt.Frame
 import java.awt.Taskbar
 import java.awt.Toolkit
 import kotlinx.coroutines.flow.debounce
@@ -39,6 +46,31 @@ private fun savedTheme(): String = runCatching {
     val raw = Platform.loadSession() ?: return@runCatching Theme.SYSTEM
     Json { ignoreUnknownKeys = true }.decodeFromString<Session>(raw).theme
 }.getOrNull()?.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
+
+// Tells the OS the title bar is exactly [heightDp] tall, so the native traffic lights it overlays
+// on the (transparent, full-window-content) title strip centre on that height instead of on
+// whatever default height AWT assumes — the same JBR window-decoration API IntelliJ's own title
+// bar uses. This is layered on top of the fullWindowContent/transparentTitleBar setup below, not a
+// replacement for it — that trio is what makes the window full-content with overlaid native
+// controls in the first place; this just corrects where they land vertically.
+//
+// The returned CustomTitleBar is also how dragging works: per JBR's own test suite
+// (HitTestClientArea/HitTestNonClientArea in JetBrainsRuntime), a custom title bar's plain
+// background is chrome (draggable) by default, and `forceHitTest(true)` is what marks a point as
+// real content instead — a Compose Desktop window has no separate native child components for JBR
+// to tell those apart on its own (unlike the AWT/Swing test's real Button/Panel children), so
+// MenuBar's onTitleBarPress calls forceHitTest(false) to confirm "let this drag" only for presses
+// nothing else already consumed (Kotlin `false` here is the polarity that keeps dragging enabled;
+// see Main.kt's caller).
+private fun installCustomTitleBar(window: Frame, heightDp: Float): WindowDecorations.CustomTitleBar? {
+    if (!JBR.isAvailable() || !JBR.isWindowDecorationsSupported()) return null
+    return runCatching {
+        val bar = JBR.getWindowDecorations().createCustomTitleBar()
+        bar.height = heightDp
+        JBR.getWindowDecorations().setCustomTitleBar(window, bar)
+        bar
+    }.getOrNull()
+}
 
 fun main() {
     // App name shown in the macOS menu bar / Dock (instead of the main class name)
@@ -86,11 +118,22 @@ fun main() {
             AppMenuBar(ws) // macOS top system menu bar (Flow / File / Edit / View)
             // Use the native window but make the title bar transparent/full-content so the app theme shows through.
             // (close/minimize/fullscreen buttons and resize keep working natively)
+            var leadingInset by remember { mutableStateOf(if (isMac) 72.dp else 0.dp) }
+            var titleBar by remember { mutableStateOf<WindowDecorations.CustomTitleBar?>(null) }
             LaunchedEffect(Unit) {
                 if (isMac) {
                     window.rootPane.putClientProperty("apple.awt.fullWindowContent", true)
                     window.rootPane.putClientProperty("apple.awt.transparentTitleBar", true)
                     window.rootPane.putClientProperty("apple.awt.windowTitleVisible", false)
+                    // On top of the trio above: tells the OS the bar is exactly Size.toolbar tall,
+                    // so the traffic lights it already overlays centre on it correctly. leadingInset
+                    // becomes the exact width they occupy instead of the 72dp guess, when this
+                    // succeeds. Keeping the CustomTitleBar itself is what lets MenuBar's
+                    // onTitleBarPress make the plain part of the bar draggable (see installCustomTitleBar).
+                    installCustomTitleBar(window, Size.toolbar.value)?.let {
+                        titleBar = it
+                        leadingInset = it.leftInset.dp
+                    }
                 }
                 window.toFront()
                 window.requestFocus()
@@ -131,7 +174,7 @@ fun main() {
             // Reserve ~72px on the left for the native traffic lights so nothing overlaps them
             App(
                 ws,
-                leadingInset = if (isMac) 72.dp else 0.dp,
+                leadingInset = leadingInset,
                 // double-click zooms (maximize/restore) like the native title bar,
                 // not the green-button fullscreen
                 onTitleDoubleClick = {
@@ -139,6 +182,11 @@ fun main() {
                         if (windowState.placement == WindowPlacement.Maximized) WindowPlacement.Floating
                         else WindowPlacement.Maximized
                 },
+                // forceHitTest(false): "don't force this point to read as real content" — per JBR's
+                // own CustomTitleBar tests, that's what leaves it as draggable chrome. Compose's own
+                // input handling would otherwise claim every press itself before any native
+                // chrome/drag detection gets a look at it.
+                onTitleBarPress = { titleBar?.forceHitTest(false) },
             )
         }
 
@@ -239,6 +287,17 @@ private fun FrameWindowScope.AppMenuBar(ws: Workspace) {
             CheckboxItem(ws.t("toggleLeft"), checked = ws.showLeft, onCheckedChange = { ws.showLeft = it })
             CheckboxItem(ws.t("toggleProps"), checked = ws.showProps, onCheckedChange = { ws.showProps = it })
             CheckboxItem(ws.t("toggleMinimap"), checked = ws.showMinimap, onCheckedChange = { ws.showMinimap = it })
+        }
+        // Compose's MenuBar replaces the whole native bar rather than adding to it, so the
+        // standard macOS Window menu (Minimize/Zoom) doesn't show up on its own — it has to be
+        // declared like every other menu here.
+        Menu(ws.t("menuWindow")) {
+            Item(ws.t("minimize")) { window.extendedState = window.extendedState or Frame.ICONIFIED }
+            Item(ws.t("zoom")) {
+                window.extendedState =
+                    if (window.extendedState and Frame.MAXIMIZED_BOTH == Frame.MAXIMIZED_BOTH) Frame.NORMAL
+                    else window.extendedState or Frame.MAXIMIZED_BOTH
+            }
         }
     }
 }
