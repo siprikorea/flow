@@ -61,7 +61,7 @@ compose.desktop {
         jvmArgs += listOf(
             "-Dapple.awt.application.name=Flow",
             "-Xdock:name=Flow",
-            "-Xdock:icon=${project.projectDir}/appicon.png",
+            "-Xdock:icon=${project.projectDir}/icons/appicon.png",
         )
 
         nativeDistributions {
@@ -74,7 +74,7 @@ compose.desktop {
                 bundleID = "com.siprikorea.flow"
             }
             linux {
-                iconFile.set(project.file("appicon.png"))
+                iconFile.set(project.file("icons/appicon.png"))
             }
             // no .ico on hand (built on macOS, no Windows/ImageMagick tooling here) — jpackage falls
             // back to its default icon for the Windows target until one is added.
@@ -139,7 +139,7 @@ val mcpbStage = tasks.register<Copy>("mcpbStage") {
         val version = Regex("(\"version\":\\s*\")[^\"]+(\")")
         filter { line -> version.replace(line) { m -> m.groupValues[1] + flowVersion + m.groupValues[2] } }
     }
-    from("appicon.png") { rename { "icon.png" } }
+    from("icons/appicon.png") { rename { "icon.png" } }
     from("mcpb/flow-mcp") { into("server"); filePermissions { unix("0755") } }
     from(tasks.named("jvmJar")) { into("server/lib") }
     from(deps) { into("server/lib") }
