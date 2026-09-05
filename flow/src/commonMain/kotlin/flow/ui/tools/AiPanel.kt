@@ -28,6 +28,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -115,9 +116,25 @@ private fun Command(text: String) {
 @Composable
 private fun Transcript(ws: Workspace, modifier: Modifier) {
     val state = rememberLazyListState()
-    // a new turn should be the one you are looking at
-    LaunchedEffect(ws.aiMessages.size, ws.aiStreaming) {
-        if (ws.aiMessages.isNotEmpty()) state.scrollToItem(ws.aiMessages.lastIndex)
+
+    // Follows new content only while already at the bottom — scrolling up to reread an earlier
+    // answer shouldn't get yanked back down by the next streamed chunk. Starts true (a fresh
+    // conversation opens at the bottom); flips whenever a scroll gesture ends, to wherever that
+    // gesture actually left the view — including our own programmatic scrolls below, which is
+    // what keeps this true again once the user scrolls back down themselves.
+    var stickToBottom by remember { mutableStateOf(true) }
+    LaunchedEffect(state) {
+        snapshotFlow { state.isScrollInProgress }.collect { inProgress ->
+            if (!inProgress) stickToBottom = !state.canScrollForward
+        }
+    }
+    // A new turn, or the next chunk of a streaming one — scrollOffset is huge rather than the
+    // default 0 so a reply taller than the panel lands on its bottom, not its top, and re-lands
+    // there on every chunk while it keeps growing.
+    LaunchedEffect(ws.aiMessages) {
+        if (stickToBottom && ws.aiMessages.isNotEmpty()) {
+            state.scrollToItem(ws.aiMessages.lastIndex, Int.MAX_VALUE)
+        }
     }
 
     if (ws.aiMessages.isEmpty()) {
