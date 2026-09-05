@@ -185,7 +185,7 @@ val mcpbBundleVerify = tasks.register("mcpbBundleVerify") {
         }
         // The tool set is fixed, so every one of them must be here — a miss means the bundle is
         // short a jar and would fail in the client instead.
-        val expected = listOf("list_nodes", "list_flows", "read_flow", "validate_flow", "build_flow", "save_flow")
+        val expected = listOf("list_nodes", "list_flows", "read_flow", "validate_flow", "run_flow", "build_flow", "save_flow")
         val missing = expected.filterNot { out.contains("\"name\":\"$it\"") }
         check(missing.isEmpty()) {
             "bundle server is missing tool(s): ${missing.joinToString(", ")}\nstdout: $out\nstderr: $err"

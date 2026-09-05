@@ -1,7 +1,10 @@
 package flow.mcp
 
+import flow.cli.RunnableComponent
+import flow.cli.isInstalledComponent
 import flow.cli.listComponents
 import flow.cli.loadFlow
+import flow.cli.runComponent
 import flow.cli.runnerJson
 import flow.model.FlowFile
 import flow.model.IO_DEFS
@@ -26,13 +29,15 @@ import kotlinx.serialization.json.Json
 
 /**
  * MCP server over stdio: lets an MCP client (Claude Desktop/Code, …) author Flow files — see what
- * processors are available, draft a flow from a description, then read one back, review its wiring and
- * write the edit out again.
+ * processors are available, draft a flow from a description, then read one back, review its wiring,
+ * write the edit out again, and run it for real to check the output rather than just the wiring.
  *
- * The four tools are deliberately the whole surface: everything mechanical about the file format
+ * These tools are deliberately the whole surface: everything mechanical about the file format
  * (port lists, edge ids, node sizes, and coordinates when they aren't given) is worked out here, so
- * a client only ever describes what the flow does and how its processors connect. Running flows is the
- * app's job, not this server's.
+ * a client only ever describes what the flow does and how its processors connect. run_flow is the
+ * one exception to "authoring only" — it executes the same engine the app itself runs a flow with
+ * (flow.cli.runComponent), on whatever input the client gives it, so a built flow can be verified
+ * before telling the user it's done rather than asking them to test it by hand.
  *
  * Speaks JSON-RPC 2.0, one message per line, implementing initialize / tools/list / tools/call /
  * ping. Only protocol messages go to stdout — anything else is written to stderr.
@@ -149,6 +154,17 @@ object McpServer {
             call = { args -> validateFlowTool(argText(args, "path")) },
         ),
         Tool(
+            name = "run_flow",
+            description = "Run a saved flow with real input and return what it actually outputs — the " +
+                "only way to check a flow does what it's supposed to, since validate_flow only checks " +
+                "the wiring and never executes anything. Use this after save_flow, with representative " +
+                "input, to verify the result before telling the user it's done. Takes one value per " +
+                "input port under 'inputs' (port names come from list_flows/read_flow); a flow with " +
+                "exactly one input port may pass 'value' instead. Any port left out runs as empty input.",
+            schema = runFlowSchema(),
+            call = { args -> runFlowTool(args) },
+        ),
+        Tool(
             name = "build_flow",
             description = "Build a .flow file from a high-level spec and return its contents — name the " +
                 "nodes and how they wire together, and port lists, edge ids and node sizes are worked out " +
@@ -256,6 +272,61 @@ object McpServer {
         val head = "$name — ${flow.nodes.size} nodes, ${flow.edges.size} edges"
         if (problems.isEmpty()) return "$head\nno problems found"
         return "$head\n${problems.size} problem(s):\n" + problems.joinToString("\n") { "- $it" }
+    }
+
+    private fun runFlowSchema(): JsonObject = buildJsonObject {
+        put("type", "object")
+        putJsonObject("properties") {
+            putJsonObject("path") {
+                put("type", "string")
+                put("description", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)")
+            }
+            putJsonObject("inputs") {
+                put("type", "object")
+                put("description", "input port name -> value, e.g. {\"text\": \"hello\"} — see the flow's input ports from list_flows/read_flow")
+            }
+            putJsonObject("value") {
+                put("type", "string")
+                put("description", "shorthand for 'inputs' when the flow has exactly one input port")
+            }
+        }
+        putJsonArray("required") { add("path") }
+    }
+
+    /**
+     * Runs a saved flow with real input and reports its actual output — the one execution-capable
+     * tool this server exposes (see the class doc). Reuses the same [loadFlow]/[runComponent]
+     * primitives the CLI runs on, so a flow behaves identically whether run from the CLI, the app,
+     * or here.
+     */
+    private fun runFlowTool(args: JsonObject): String {
+        Platform.projectRoot() ?: return NO_PROJECT
+        val path = normalizeFlowPath(argText(args, "path"))
+        val flowFile = loadFlow(path) ?: return "flow file not found: $path"
+        val comp = flowFile.asComponent(path) ?: return "'$path' is not a component (no cin/cout boundary nodes) — nothing to run"
+
+        val inputs = LinkedHashMap<String, String>()
+        (args["inputs"] as? JsonObject)?.forEach { (k, v) -> inputs[k] = (v as? JsonPrimitive)?.content ?: v.toString() }
+        if (inputs.isEmpty() && comp.ins.size == 1) {
+            val value = argText(args, "value")
+            if (value.isNotEmpty()) inputs[comp.ins.first()] = value
+        }
+        comp.ins.forEach { inputs.putIfAbsent(it, "") }
+
+        val byteInputs = inputs.mapValues { it.value.encodeToByteArray() }
+        val target = RunnableComponent(path, comp, isInstalledComponent(path))
+        val (result, errors) = runComponent(target, byteInputs)
+
+        val out = StringBuilder()
+        out.append("ran $path with ")
+            .append(if (inputs.values.any { it.isNotEmpty() }) inputs.entries.joinToString(", ") { "${it.key}=${it.value}" } else "no input")
+            .append('\n')
+        comp.outs.forEach { port -> out.append("$port = ${result[port]?.decodeToString() ?: "(no output)"}\n") }
+        if (errors.isNotEmpty()) {
+            out.append("\nerrors:\n")
+            errors.forEach { (nodeId, msg) -> out.append("- $nodeId: $msg\n") }
+        }
+        return out.toString().trimEnd()
     }
 
     /**
