@@ -448,21 +448,25 @@ private fun FlowsSettings(ws: Workspace) {
             }
         }
         Txt(ws.t("installedComponents").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+        // every flow in the open folder is listed here, but only an installed one is usable as a
+        // comp: building block elsewhere (Workspace.components) — Install/Uninstall is what moves
+        // a flow between those two states. Deleting the file itself stays the Project panel's job.
         val flows = if (ws.hasProject) ws.files.filter { it.endsWith(".flow") } else emptyList()
         if (!ws.hasProject) Txt(ws.t("noProject"), 12.sp, Palette.faintText)
         else if (flows.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             flows.forEach { path ->
-                // a flow only reads as a component once it has boundary nodes; say so either way
-                val comp = ws.findComp(path)
+                // a flow only qualifies once it has boundary nodes; say so either way
+                val comp = ws.flowPorts(path)
+                val installed = ws.isInstalledAsComponent(path)
                 ExtensionRow(
                     ws,
                     title = flowLabel(path),
                     version = null,
                     note = comp?.let { "${it.ins.joinToString(",")} → ${it.outs.joinToString(",")}" }
                         ?: ws.t("flowNoPorts"),
-                    onUninstall = { ws.requestDeleteFiles(setOf(path)) },
-                    uninstallLabel = ws.t("delete"),
+                    onInstall = if (!installed && comp != null) ({ ws.installAsComponent(path) }) else null,
+                    onUninstall = if (installed) ({ ws.uninstallComponentFile(path) }) else null,
                 )
             }
         }

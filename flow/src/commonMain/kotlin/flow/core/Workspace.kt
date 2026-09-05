@@ -270,18 +270,47 @@ class Workspace(private val scope: CoroutineScope) {
         installedModules = Platform.installedModuleInfos().sortedBy { it.name.lowercase() }
         installedViews = Platform.installedViewInfos().sortedBy { it.name.lowercase() }
         extensionsRevision++
-        // project components (flows/) + installed components (components/, read-only)
-        val local = files.filter { it.endsWith(".flow") }.mapNotNull { name ->
-            val raw = Platform.readFlow(name) ?: return@mapNotNull null
-            val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return@mapNotNull null
-            flow.asComponent(name)
-        }
-        val installed = Platform.listInstalledComponents().mapNotNull { name ->
+        // Components on offer as a building block (the palette, comp:<ref> autocomplete-ish spots)
+        // are the installed ones only — a flow that merely lives in the open folder isn't one until
+        // explicitly installed (Settings ▸ Extensions ▸ Flows), the same as a processor or view
+        // isn't on the palette just because its jar exists somewhere. It can still be *referenced*
+        // as comp:<path> directly (the engine resolves either store), just not auto-discovered.
+        components = Platform.listInstalledComponents().mapNotNull { name ->
             val raw = Platform.readInstalledComponent(name) ?: return@mapNotNull null
             val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return@mapNotNull null
             flow.asComponent(name)?.copy(installed = true)
-        }
-        components = (local + installed).sortedBy { it.name.lowercase() }
+        }.sortedBy { it.name.lowercase() }
+    }
+
+    /** A project flow's ports, read fresh — independent of [components], which only lists the
+     * ones installed. Settings ▸ Extensions ▸ Flows shows this for every project flow so it can
+     * offer Install for one that qualifies, whether or not it already is. Null when the file is
+     * missing, unparseable, or has no cin/cout boundary — nothing an install would do anything with.
+     */
+    fun flowPorts(path: String): CompDef? {
+        val raw = Platform.readFlow(path) ?: return null
+        val flow = runCatching { json.decodeFromString<FlowFile>(raw) }.getOrNull() ?: return null
+        return flow.asComponent(path)
+    }
+
+    // the id installComponent/uninstallComponent store this project flow under — a plain folder
+    // name (installComponent refuses one with a slash), so a path under a subfolder is flattened
+    // rather than rejected
+    private fun componentId(path: String): String = path.removeSuffix(".flow").replace('/', '-')
+
+    fun isInstalledAsComponent(path: String): Boolean =
+        Platform.listInstalledComponents().contains("${componentId(path)}.json")
+
+    /** Registers a project flow as a comp: building block — see [components]. */
+    fun installAsComponent(path: String) {
+        val raw = Platform.readFlow(path) ?: return
+        Platform.installComponent(componentId(path), raw, overwrite = true)
+        refreshFiles()
+    }
+
+    fun uninstallComponentFile(path: String) {
+        Platform.uninstallComponent(componentId(path))
+        refreshFiles()
     }
 
     fun moduleInfo(type: String): ModuleInfo? = installedModules.find { it.id == type }

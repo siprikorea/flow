@@ -126,8 +126,11 @@ object McpServer {
         Tool(
             name = "list_nodes",
             description = "List everything that can be a node in a flow: the cin/cout boundary nodes, " +
-                "each installed processor with its ports and options, and each existing flow usable as a " +
-                "sub-component. Call this before build_flow to get exact type names and option values.",
+                "each installed processor with its ports and options, and each flow installed as a " +
+                "component (Settings ▸ Extensions ▸ Flows) usable as comp:<ref> — a flow that merely " +
+                "exists in the open folder isn't one of these until installed; use comp:<path relative " +
+                "to the folder> for a project flow that isn't. Call this before build_flow to get exact " +
+                "type names and option values.",
             schema = objectSchema(emptyList()),
             call = { listNodes() },
         ),
@@ -279,9 +282,9 @@ object McpServer {
             }
         }
 
-        val comps = listComponents().filterNot { it.installed }
+        val comps = listComponents()
         if (comps.isNotEmpty()) {
-            out.append("\n── existing flows, usable as a sub-component node ──\n")
+            out.append("\n── installed components, usable as a sub-component node ──\n")
             comps.forEach { t ->
                 out.append("comp:${t.ref}  '${t.comp.name}'  ")
                     .append("${t.comp.ins.joinToString(",").ifEmpty { "-" }} → ${t.comp.outs.joinToString(",").ifEmpty { "-" }}\n")

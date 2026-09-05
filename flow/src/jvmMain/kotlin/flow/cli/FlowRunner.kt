@@ -43,15 +43,16 @@ internal fun isInstalledComponent(ref: String): Boolean {
         Platform.readInstalledComponent(name) != null
 }
 
-// every component that can be run: project flows first, then installed ones
+// every component available as a comp: node — installed ones only. A project flow becomes one of
+// these by being explicitly installed (Settings ▸ Extensions ▸ Flows), same as a processor or
+// view; merely existing in the open folder does not, any more than a processor is on the palette
+// just because its jar is somewhere on disk. Running a flow directly by path (run_flow, the CLI's
+// own positional-arg mode) is unaffected — this list is only what's offered as a *building block*.
 internal fun listComponents(): List<RunnableComponent> {
-    val project = Platform.listFlows().mapNotNull { file ->
-        loadFlow(file)?.asComponent(file)?.let { RunnableComponent(file, it, installed = false) }
-    }
     val installed = Platform.listInstalledComponents().mapNotNull { file ->
         loadFlow(file)?.asComponent(file)?.let { RunnableComponent(file, it, installed = true) }
     }
-    return project + installed
+    return installed
 }
 
 // Run a component. Returns its outputs plus any per-node errors the engine recorded
