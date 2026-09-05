@@ -67,6 +67,7 @@ internal object ClaudeCli {
     fun ask(
         prompt: String,
         sessionId: String?,
+        model: String,
         workingDir: File?,
         mcpConfig: File?,
         systemPrompt: String,
@@ -84,6 +85,7 @@ internal object ClaudeCli {
             add("--output-format"); add("stream-json")
             add("--include-partial-messages")
             add("--verbose")
+            if (model.isNotBlank()) { add("--model"); add(model) }
             add("--append-system-prompt"); add(systemPrompt)
             mcpConfig?.let {
                 add("--mcp-config"); add(it.absolutePath)
@@ -92,6 +94,15 @@ internal object ClaudeCli {
                 // list is Flow's own tools and only those — they read the open folder and return
                 // file contents, and none of them writes anything or runs anything.
                 add("--allowedTools"); add(FLOW_TOOLS.joinToString(","))
+                // Without this, claude also connects to every MCP server configured in the user's
+                // own global/project settings — Slack, Gmail, Drive, Jira, an IDE bridge, whatever
+                // else they happen to have — none of which this panel has any business touching.
+                // Each one is a server this process now has to spawn or dial before it can answer
+                // at all, which is real, avoidable latency on every single turn (and, if one of
+                // them is slow or unreachable, a turn that never finishes). --bare would isolate
+                // further still but also stops OAuth/keychain auth from being read, breaking
+                // anyone not using a raw API key — this is the safe subset of that.
+                add("--strict-mcp-config")
             }
             sessionId?.let { add("--resume"); add(it) }
         }
@@ -108,25 +119,32 @@ internal object ClaudeCli {
         var session: String? = null
         var result: String? = null
 
-        process.inputStream.bufferedReader().useLines { lines ->
-            lines.forEach { line ->
-                if (line.isBlank()) return@forEach
-                val event = runCatching { json.parseToJsonElement(line) as? JsonObject }.getOrNull()
-                if (event == null) {
-                    // not an event this build knows how to read — showing it is better than
-                    // dropping it, since it is the only thing the run has said
-                    text.append(line).append('\n')
-                    onText(line + "\n")
-                    return@forEach
-                }
-                event.string("session_id")?.let { session = it }
-                event.string("result")?.let { result = it }
-                event.textDelta()?.let { chunk ->
-                    text.append(chunk)
-                    onText(chunk)
+        // destroyForcibly() (stop(), below) closes this stream out from under a blocking read,
+        // which surfaces here as a plain IOException ("Stream closed") rather than a clean end of
+        // stream. Caught rather than left to propagate: 'stopped' already tells a deliberate stop
+        // apart from a real failure, and without this the exception skipped that check entirely,
+        // reporting a stop the user asked for as "could not run it: Stream closed".
+        val readError = runCatching {
+            process.inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    if (line.isBlank()) return@forEach
+                    val event = runCatching { json.parseToJsonElement(line) as? JsonObject }.getOrNull()
+                    if (event == null) {
+                        // not an event this build knows how to read — showing it is better than
+                        // dropping it, since it is the only thing the run has said
+                        text.append(line).append('\n')
+                        onText(line + "\n")
+                        return@forEach
+                    }
+                    event.string("session_id")?.let { session = it }
+                    event.string("result")?.let { result = it }
+                    event.textDelta()?.let { chunk ->
+                        text.append(chunk)
+                        onText(chunk)
+                    }
                 }
             }
-        }
+        }.exceptionOrNull()
 
         val stderr = process.errorStream.bufferedReader().readText().trim()
         val code = process.waitFor()
@@ -137,8 +155,8 @@ internal object ClaudeCli {
             // stopped on purpose: whatever it had said stands, and the exit is not a failure
             stopped -> AiReply(text = answer, sessionId = session)
             answer.isNotEmpty() -> AiReply(text = answer, sessionId = session)
-            code != 0 -> AiReply(error = stderr.ifBlank { "claude exited with $code" }, sessionId = session)
-            else -> AiReply(error = stderr.ifBlank { "claude said nothing" }, sessionId = session)
+            code != 0 -> AiReply(error = stderr.ifBlank { readError?.message ?: "claude exited with $code" }, sessionId = session)
+            else -> AiReply(error = stderr.ifBlank { readError?.message ?: "claude said nothing" }, sessionId = session)
         }
     }
 
