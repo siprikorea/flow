@@ -208,10 +208,15 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
     PortSection(state, node, "out", editable = !isModule, onFocusChange)
 
     // one Primary per region (CLAUDE.md P4): run is the region's Primary action, delete is an
-    // icon button behind a confirm popover, not a second full-width button competing with it
+    // icon button behind a confirm popover, not a second full-width button competing with it.
+    // "Start from here" only makes sense for a module/component — a cin has no incoming edge to
+    // run from and a cout has nothing downstream, so neither gets the button, only delete.
+    val runnable = node.type != "cin" && node.type != "cout"
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        FlowButton(state.t("runFromHere"), FlowButtonVariant.Primary, icon = Lucide.Play, modifier = Modifier.weight(1f)) {
-            state.runFromSelection(node.id)
+        if (runnable) {
+            FlowButton(state.t("runFromHere"), FlowButtonVariant.Primary, icon = Lucide.Play, modifier = Modifier.weight(1f)) {
+                state.runFromSelection(node.id)
+            }
         }
         FlowDangerIconButton(Lucide.Trash2, state.t("confirmDeleteModule"), state.t("cancel"), state.t("deleteModule")) {
             state.deleteNode(node.id)
