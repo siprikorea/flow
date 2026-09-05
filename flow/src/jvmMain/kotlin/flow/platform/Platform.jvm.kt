@@ -12,6 +12,13 @@ import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 
 actual object Platform {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
@@ -23,6 +30,10 @@ actual object Platform {
     private val sessionFile = File(baseDir, "session.json")
     private val settingsFile = File(baseDir, "settings.json")
     private val openRequestFile = File(baseDir, "open-request.txt")
+    private val inputRequestFile = File(baseDir, "input-request.json")
+    private val runRequestFile = File(baseDir, "run-request.json")
+    private val pidFile = File(baseDir, "app.pid")
+    private val requestJson = Json { ignoreUnknownKeys = true }
     private val hms = DateTimeFormatter.ofPattern("HH:mm:ss")
 
     // 순회 최대 깊이 (심볼릭 링크 순환 방지)
@@ -371,6 +382,57 @@ actual object Platform {
         val name = runCatching { openRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()?.trim()
         runCatching { openRequestFile.delete() }
         return name?.takeIf { it.isNotEmpty() }
+    }
+
+    actual fun requestFlowInput(path: String, inputs: Map<String, String>) {
+        runCatching {
+            baseDir.mkdirs()
+            val obj = buildJsonObject {
+                put("path", path)
+                putJsonObject("inputs") { inputs.forEach { (k, v) -> put(k, v) } }
+            }
+            inputRequestFile.writeText(requestJson.encodeToString(JsonObject.serializer(), obj))
+        }
+    }
+
+    actual fun takePendingFlowInput(): Pair<String, Map<String, String>>? {
+        val text = runCatching { inputRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()
+        runCatching { inputRequestFile.delete() }
+        val obj = text?.let { runCatching { requestJson.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return null
+        val path = obj["path"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() } ?: return null
+        val inputs = (obj["inputs"] as? JsonObject)?.mapValues { it.value.jsonPrimitive.content } ?: emptyMap()
+        return path to inputs
+    }
+
+    actual fun requestFlowRun(path: String, start: Boolean) {
+        runCatching {
+            baseDir.mkdirs()
+            val obj = buildJsonObject { put("path", path); put("start", start) }
+            runRequestFile.writeText(requestJson.encodeToString(JsonObject.serializer(), obj))
+        }
+    }
+
+    actual fun takePendingFlowRun(): Pair<String, Boolean>? {
+        val text = runCatching { runRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()
+        runCatching { runRequestFile.delete() }
+        val obj = text?.let { runCatching { requestJson.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return null
+        val path = obj["path"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() } ?: return null
+        val start = obj["start"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: return null
+        return path to start
+    }
+
+    // A pid a dead process can eventually reuse would misreport as "running" forever; in practice
+    // that requires the exact pid to come back around before anyone calls this, on a desktop app
+    // restarted by a human — the actual failure mode this exists to catch (the app not running at
+    // all) is what matters, not that vanishingly unlikely one.
+    actual fun isAppRunning(): Boolean {
+        val pid = runCatching { pidFile.takeIf { it.isFile }?.readText()?.trim()?.toLongOrNull() }.getOrNull()
+            ?: return false
+        return runCatching { ProcessHandle.of(pid).isPresent }.getOrDefault(false)
+    }
+
+    actual fun markAppRunning() {
+        runCatching { baseDir.mkdirs(); pidFile.writeText(ProcessHandle.current().pid().toString()) }
     }
 
     actual fun loadSession(): String? =

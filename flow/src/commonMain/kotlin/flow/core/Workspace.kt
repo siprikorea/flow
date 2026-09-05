@@ -31,6 +31,7 @@ import flow.util.pathParent
 import flow.util.pathUnder
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -243,6 +244,17 @@ class Workspace(private val scope: CoroutineScope) {
         // preferences and window state but not a project
         refreshFiles()
         loadSession()
+        // open_flow/set_flow_input/start_flow/stop_flow are meant for an external MCP client
+        // (Claude Desktop, claude.ai) as much as Flow's own AI panel — a client like that never
+        // drives an askAi turn here to piggyback the pickup on, so this polls independently of one.
+        // askAi still applies a request the instant its own turn ends, same as always; this is
+        // only what covers the case nothing else does.
+        scope.launch {
+            while (true) {
+                delay(750)
+                applyPendingFlowRequests()
+            }
+        }
     }
 
     /* ───────── project files + installed ───────── */
@@ -315,10 +327,26 @@ class Workspace(private val scope: CoroutineScope) {
             aiStreaming = false
 
             // save_flow only writes — it never opens anything, however new the file — so the tree
-            // is re-read rather than waited on, and only a real open_flow call brings a file into
-            // view (Platform.requestOpenFlow leaves the request; this is the one place it's read).
+            // is re-read rather than waited on, and open_flow/set_flow_input/start_flow/stop_flow
+            // are what actually reach the screen (see applyPendingFlowRequests). Also polled on a
+            // timer (see init) for a client that never drives a turn here; done immediately too so
+            // Flow's own AI panel doesn't wait out that poll interval for its own requests.
             refreshFiles()
-            Platform.takePendingOpenFlow()?.let { openFile(it, reportError = false) }
+            applyPendingFlowRequests()
+        }
+    }
+
+    private fun applyPendingFlowRequests() {
+        Platform.takePendingOpenFlow()?.let { openFile(it, reportError = false) }
+        // each names its own flow and opens it if it isn't already, same as open_flow above — a
+        // value or a run on a tab that doesn't exist yet has nothing to land on.
+        Platform.takePendingFlowInput()?.let { (path, inputs) ->
+            openFile(path, reportError = false)
+            docs.find { it.fileName == path }?.setCinInputs(inputs)
+        }
+        Platform.takePendingFlowRun()?.let { (path, start) ->
+            openFile(path, reportError = false)
+            docs.find { it.fileName == path }?.let { doc -> if (start) doc.startRun() else doc.stopRun() }
         }
     }
 

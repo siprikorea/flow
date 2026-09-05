@@ -106,11 +106,31 @@ expect object Platform {
     fun pasteClipboardChunks(maxChunkChars: Int, onChunk: (String) -> Unit): Boolean
 
     // A flow to bring into view once the AI's current turn finishes — see the open_flow MCP tool
-    // and Workspace.askAi, the only reader. save_flow already opens anything it actually changes on
-    // disk (see askAi's own before/after diff); this is for the other case, an unchanged flow the
-    // assistant was asked to open as-is.
+    // and Workspace.askAi, the only reader. save_flow never opens anything on its own; open_flow is
+    // the one thing that does, for a flow it just saved or one that already existed.
     fun requestOpenFlow(name: String)
     fun takePendingOpenFlow(): String?  // consumes it — a second call the same turn sees nothing
+
+    // Sets a saved flow's cin inputs on its open tab (opening one first if needed) — the same
+    // field its inline data editor writes to, so a later run sees exactly what typing the value in
+    // by hand would have. See the set_flow_input MCP tool; Workspace.askAi is the only reader.
+    fun requestFlowInput(path: String, inputs: Map<String, String>)
+    fun takePendingFlowInput(): Pair<String, Map<String, String>>?
+
+    // Starts or stops the actual run on a flow's open tab (opening it first if needed) — real
+    // execution on screen, as pressing the title bar's Start/Stop would, unlike run_flow's headless
+    // one. See start_flow / stop_flow (MCP); Workspace.askAi is the only reader.
+    fun requestFlowRun(path: String, start: Boolean)
+    fun takePendingFlowRun(): Pair<String, Boolean>?
+
+    // Whether the Flow app itself is currently running. open_flow, requestFlowInput and
+    // requestFlowRun all need a live app to ever pick up what they leave behind, and the MCP
+    // server — a separate process — has no other way to tell before doing so.
+    fun isAppRunning(): Boolean
+    // Records that this process is the running app, for isAppRunning() to find. Called once, by
+    // the GUI entry point only — never by the CLI/MCP one, which loads this same Platform object
+    // but is not the app isAppRunning() means to detect.
+    fun markAppRunning()
 
     // session (open tabs + UI state) restore
     fun loadSession(): String?

@@ -374,6 +374,22 @@ class EditorState(
         nodes = nodes.map { if (it.id == id) transform(it) else it }
     }
 
+    // Sets a cin node's editable value by port name (its label) — the same field DataEditor's
+    // inline text box writes to (see DataEditor.kt's commit()), so a later startRun() sees exactly
+    // what typing the value in by hand and pressing Start would have. Any file-backing is cleared:
+    // an inline value set this way is what should actually run, not a stale file.
+    fun setCinInputs(values: Map<String, String>) {
+        nodes.filter { it.type == "cin" && it.label in values }.forEach { n ->
+            val bytes = values.getValue(n.label).encodeToByteArray()
+            updateNode(n.id) { node ->
+                node.copy(
+                    params = node.params - "dataFile",
+                    outputs = listOf((node.outputs.firstOrNull() ?: Port("out")).withData(bytes)),
+                )
+            }
+        }
+    }
+
     fun moveNode(id: String, x: Float, y: Float) = updateNode(id) { it.copy(x = x, y = y) }
 
     fun resizeNode(id: String, w: Float, h: Float) = updateNode(id) { it.copy(w = w, h = h) }

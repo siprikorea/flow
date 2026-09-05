@@ -32,12 +32,18 @@ import kotlinx.serialization.json.Json
  * processors are available, draft a flow from a description, then read one back, review its wiring,
  * write the edit out again, and run it for real to check the output rather than just the wiring.
  *
- * These tools are deliberately the whole surface: everything mechanical about the file format
- * (port lists, edge ids, node sizes, and coordinates when they aren't given) is worked out here, so
- * a client only ever describes what the flow does and how its processors connect. run_flow is the
- * one exception to "authoring only" — it executes the same engine the app itself runs a flow with
- * (flow.cli.runComponent), on whatever input the client gives it, so a built flow can be verified
- * before telling the user it's done rather than asking them to test it by hand.
+ * Everything mechanical about the file format (port lists, edge ids, node sizes, and coordinates
+ * when they aren't given) is worked out here, so a client only ever describes what the flow does
+ * and how its processors connect. list_nodes/list_flows/read_flow/validate_flow/build_flow/
+ * save_flow/run_flow are pure file I/O and the CLI's own headless engine — they work whether or
+ * not the app itself is running.
+ *
+ * open_flow/set_flow_input/start_flow/stop_flow are the other kind: this process is separate from
+ * the running app and can't reach into its open tabs directly, so each leaves a request behind
+ * (see Platform.request*) for Workspace.askAi to pick up once the current turn ends — the actual
+ * app, actually running the actual flow on screen, as opposed to run_flow's headless check. They
+ * refuse outright when the app isn't running (Platform.isAppRunning), rather than leaving a
+ * request nothing will ever read.
  *
  * Speaks JSON-RPC 2.0, one message per line, implementing initialize / tools/list / tools/call /
  * ping. Only protocol messages go to stdout — anything else is written to stderr.
@@ -57,6 +63,13 @@ object McpServer {
     private const val NO_PROJECT =
         "no project folder is open — open one in Flow (File \u25b8 Open Folder…), or use build_flow, " +
             "which returns the file's contents without needing one"
+
+    // open_flow, set_flow_input, start_flow and stop_flow all act on the running app's own open
+    // tabs; everything else here is plain file I/O and works with the app closed.
+    private const val APP_NOT_RUNNING =
+        "Flow isn't running, so there's no window for this to act on — open the app first. " +
+            "list_nodes, list_flows, read_flow, validate_flow, run_flow, build_flow and save_flow " +
+            "all work without it."
 
     fun run() {
         System.err.println("[flow-mcp] listening on stdio")
@@ -133,10 +146,38 @@ object McpServer {
             description = "Open a saved flow in Flow — the only tool here that does. save_flow never " +
                 "opens what it writes, so call this right after it whenever the user should see the " +
                 "result, as well as for a flow that already existed and just needs to be brought " +
-                "into view. Opens by the time this turn ends. Refuses when no folder is open or the " +
-                "path isn't a flow file that exists.",
+                "into view. Opens by the time this turn ends. Needs Flow actually running (unlike " +
+                "the authoring tools) — refuses if it isn't, if no folder is open, or if the path " +
+                "isn't a flow file that exists.",
             schema = objectSchema(listOf(StringField("path", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
             call = { args -> openFlowTool(argText(args, "path")) },
+        ),
+        Tool(
+            name = "set_flow_input",
+            description = "Sets input values on a flow's open tab (opening it first if needed), " +
+                "without running it — real ports on the actual canvas, the same fields the user's " +
+                "own typing would land in. Use this before start_flow when the user wants to watch " +
+                "the flow run on screen with real input, as opposed to run_flow's headless check. " +
+                "Takes the same 'inputs'/'value' shape run_flow does. Needs Flow actually running.",
+            schema = runFlowSchema(),
+            call = { args -> setFlowInputTool(args) },
+        ),
+        Tool(
+            name = "start_flow",
+            description = "Starts a flow's actual run on screen — opening its tab first if needed, " +
+                "setting inputs first with set_flow_input if the user wants to supply any — the same " +
+                "as pressing the title bar's Start button by hand. Unlike run_flow, this doesn't wait " +
+                "for a result or return one: the run plays out visibly in the app. Needs Flow " +
+                "actually running.",
+            schema = objectSchema(listOf(StringField("path", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
+            call = { args -> startFlowTool(argText(args, "path")) },
+        ),
+        Tool(
+            name = "stop_flow",
+            description = "Stops a flow's run in progress on screen — the same as pressing the title " +
+                "bar's Stop button by hand. Needs Flow actually running.",
+            schema = objectSchema(listOf(StringField("path", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
+            call = { args -> stopFlowTool(argText(args, "path")) },
         ),
         Tool(
             name = "list_flows",
@@ -361,12 +402,58 @@ object McpServer {
      *
      * The server is a separate process from the app and can't reach into its open tabs directly,
      * so this leaves a request behind (Platform.requestOpenFlow) for Workspace.askAi to pick up
-     * once this turn ends.
+     * once this turn ends. Only worth leaving at all when something is actually running to read
+     * it back — see APP_NOT_RUNNING.
      */
     private fun openFlowTool(path: String): String {
+        if (!Platform.isAppRunning()) return APP_NOT_RUNNING
         val (name, _) = loadForEdit(path)
         Platform.requestOpenFlow(name)
         return "$name will open in Flow"
+    }
+
+    /**
+     * Sets a flow's input ports on its open tab, same request-and-pick-up shape as open_flow.
+     * Reuses run_flow's own inputs/value parsing so the two tools take identical arguments for the
+     * identical thing (which ports a flow has, and what to put in them) — the only difference is
+     * what happens to those values: run_flow feeds them straight to the headless engine, this
+     * leaves them for the open tab to actually display.
+     */
+    private fun setFlowInputTool(args: JsonObject): String {
+        if (!Platform.isAppRunning()) return APP_NOT_RUNNING
+        Platform.projectRoot() ?: return NO_PROJECT
+        val path = normalizeFlowPath(argText(args, "path"))
+        val flowFile = loadFlow(path) ?: return "flow file not found: $path"
+        val comp = flowFile.asComponent(path) ?: return "'$path' is not a component (no cin/cout boundary nodes) — no inputs to set"
+
+        val inputs = LinkedHashMap<String, String>()
+        (args["inputs"] as? JsonObject)?.forEach { (k, v) -> inputs[k] = (v as? JsonPrimitive)?.content ?: v.toString() }
+        if (inputs.isEmpty() && comp.ins.size == 1) {
+            val value = argText(args, "value")
+            if (value.isNotEmpty()) inputs[comp.ins.first()] = value
+        }
+        if (inputs.isEmpty()) return "nothing to set — pass 'inputs' or 'value'"
+        val unknown = inputs.keys - comp.ins.toSet()
+        if (unknown.isNotEmpty()) {
+            return "not an input port of $path: ${unknown.joinToString(", ")} (ports: ${comp.ins.joinToString(", ")})"
+        }
+
+        Platform.requestFlowInput(path, inputs)
+        return "$path will show ${inputs.entries.joinToString(", ") { "${it.key}=${it.value}" }} once open"
+    }
+
+    private fun startFlowTool(path: String): String {
+        if (!Platform.isAppRunning()) return APP_NOT_RUNNING
+        val (name, _) = loadForEdit(path)
+        Platform.requestFlowRun(name, start = true)
+        return "$name will start running in Flow"
+    }
+
+    private fun stopFlowTool(path: String): String {
+        if (!Platform.isAppRunning()) return APP_NOT_RUNNING
+        val (name, _) = loadForEdit(path)
+        Platform.requestFlowRun(name, start = false)
+        return "$name will stop running in Flow"
     }
 
     /** What a build produced, so building and saving are the same work done once. */

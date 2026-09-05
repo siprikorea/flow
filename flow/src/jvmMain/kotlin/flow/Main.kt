@@ -73,6 +73,10 @@ private fun installCustomTitleBar(window: Frame, heightDp: Float): WindowDecorat
 }
 
 fun main() {
+    // Lets the MCP server (a separate process — flow.cli.CliKt --mcp, which loads this same
+    // Platform object but is not this app) tell whether the app itself is actually running, before
+    // leaving it a request (open_flow etc.) nothing would ever pick up.
+    Platform.markAppRunning()
     // App name shown in the macOS menu bar / Dock (instead of the main class name)
     System.setProperty("apple.awt.application.name", "Flow")
     // macOS: the title bar (and so the traffic lights) has to match the theme the app is about to
