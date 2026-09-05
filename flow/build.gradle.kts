@@ -4,7 +4,7 @@ plugins {
     kotlin("multiplatform") version "2.4.0"
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
     kotlin("plugin.serialization") version "2.4.0"
-    id("org.jetbrains.compose") version "1.9.0"
+    id("org.jetbrains.compose") version "1.12.0"
 }
 
 // The Java this app is compiled for and runs on. Named once because three places need it: the
@@ -28,13 +28,13 @@ kotlin {
             // Renders the AI panel's replies, which come back as Markdown. The core module only
             // (no -m2/-m3): those pull in a Material theme this app doesn't otherwise use, and the
             // core module's colors/typography are supplied directly from Palette/FlowType instead.
-            // Pinned to 0.38.0 rather than latest, and no longer for a bytecode reason — the
-            // toolchain is 25 now, so 0.42.0+'s Java 21 classes would load. 0.43.0 takes Compose
-            // as compileOnly and is built against a newer Compose UI than the 1.9.0 this app
-            // uses, so it resolves and compiles and then dies the first time a reply renders:
-            // NoSuchMethodError ComposeUiNode$Companion.getApplyOnDeactivatedNodeAssertion.
-            // Moving up means moving org.jetbrains.compose first.
-            implementation("com.mikepenz:multiplatform-markdown-renderer:0.38.0")
+            // It declares no Compose dependency of its own (compileOnly), so it links against
+            // whatever org.jetbrains.compose above resolves to and needs that to be at least as
+            // new as the Compose it was built against. Pinning it to 0.38.0 while Compose sat at
+            // 1.9.0 was what that costs when they drift: the version before this one compiled
+            // fine and then died on the first reply rendered, NoSuchMethodError on
+            // ComposeUiNode$Companion.getApplyOnDeactivatedNodeAssertion. Move the two together.
+            implementation("com.mikepenz:multiplatform-markdown-renderer:0.45.0")
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)

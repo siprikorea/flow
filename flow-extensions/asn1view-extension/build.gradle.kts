@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm") version "2.4.0"
     // this view opens a window of its own, which means it is written in Compose
     id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
-    id("org.jetbrains.compose") version "1.9.0"
+    id("org.jetbrains.compose") version "1.12.0"
 }
 
 kotlin {

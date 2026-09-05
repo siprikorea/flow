@@ -171,7 +171,7 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
                                 Txt(if (streaming) ws.t("aiThinking") else "", 12.sp, Palette.faintText)
                             // the user's own question is plain text; Claude's answer is Markdown
                             message.fromUser -> Txt(message.text, 12.sp, Palette.text)
-                            else -> FlowMarkdown(message.text)
+                            else -> FlowMarkdown(message.text, streaming = streaming)
                         }
                     }
                 }
