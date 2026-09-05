@@ -175,5 +175,6 @@ internal object ClaudeCli {
         "mcp__flow__run_flow",
         "mcp__flow__build_flow",
         "mcp__flow__save_flow",
+        "mcp__flow__open_flow",
     )
 }

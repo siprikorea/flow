@@ -121,10 +121,26 @@ object McpServer {
             name = "save_flow",
             description = "Write a flow into the folder Flow has open, and return where it went. " +
                 "Takes the same spec build_flow does, plus a name. Use this when the user wants the " +
-                "flow kept rather than shown — Flow opens what is written. Refuses when no folder is " +
-                "open, and never writes outside it.",
+                "flow kept rather than shown. Flow opens the file as soon as this call actually " +
+                "changes it on disk — a new file, or new content for one that already existed. " +
+                "Calling this again with content that is byte-for-byte the same as what's already " +
+                "there changes nothing and does not reopen it: there is no tool here that opens a " +
+                "file Flow was not just given new content for, so don't tell the user a file is now " +
+                "open unless this call's content actually differed from before. Refuses when no " +
+                "folder is open, and never writes outside it.",
             schema = buildFlowSchema(),
             call = { args -> saveFlowTool(args) },
+        ),
+        Tool(
+            name = "open_flow",
+            description = "Open an already-saved flow in Flow, unchanged — the one case save_flow's " +
+                "own opening doesn't cover, since it only opens a file it just wrote new content " +
+                "for. Use this when the user asks to see or open a flow that's already exactly as " +
+                "wanted, rather than telling them it's open without a way to make that true. Opens " +
+                "by the time this turn ends. Refuses when no folder is open or the path isn't a " +
+                "flow file that exists.",
+            schema = objectSchema(listOf(StringField("path", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
+            call = { args -> openFlowTool(argText(args, "path")) },
         ),
         Tool(
             name = "list_flows",
@@ -340,7 +356,22 @@ object McpServer {
         val root = Platform.projectRoot() ?: return NO_PROJECT
         val built = buildFlowResult(args)
         Platform.writeFlow(built.fileName, built.content)
-        return "${built.head}\nSaved as ${built.fileName} in $root; Flow has opened it.${built.notes}"
+        return "${built.head}\nSaved as ${built.fileName} in $root; Flow will open it if this " +
+            "actually changed the file (use open_flow if it didn't and it still needs opening)." +
+            built.notes
+    }
+
+    /**
+     * Asks the app to bring an already-saved flow into view, unmodified.
+     *
+     * The server is a separate process from the app and can't reach into its open tabs directly,
+     * so this leaves a request behind (Platform.requestOpenFlow) for Workspace.askAi to pick up
+     * once this turn ends — the same moment save_flow's own opening happens.
+     */
+    private fun openFlowTool(path: String): String {
+        val (name, _) = loadForEdit(path)
+        Platform.requestOpenFlow(name)
+        return "$name will open in Flow"
     }
 
     /** What a build produced, so building and saving are the same work done once. */

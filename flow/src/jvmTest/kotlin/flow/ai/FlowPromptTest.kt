@@ -26,7 +26,7 @@ class FlowPromptTest {
         val prompt = FlowPrompt.systemPrompt("/tmp/project")
         // the names as the MCP server registers them; a rename that misses this leaves the
         // assistant calling something that is not there
-        listOf("list_nodes", "list_flows", "read_flow", "validate_flow", "run_flow", "build_flow", "save_flow").forEach {
+        listOf("list_nodes", "list_flows", "read_flow", "validate_flow", "run_flow", "build_flow", "save_flow", "open_flow").forEach {
             assertTrue(prompt.contains(it), "the prompt does not mention $it")
         }
     }

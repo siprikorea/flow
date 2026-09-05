@@ -297,8 +297,11 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun askAi(question: String) {
         if (aiStreaming || !aiReady) return
-        // what was in the folder before, so anything the assistant writes can be opened after
-        val before = files.filter { it.endsWith(".flow") }.toSet()
+        // what was in the folder before, so anything the assistant writes — new or an overwrite of
+        // an existing file — can be opened after. Content, not just the file list: a save_flow onto
+        // a name that already existed is exactly as much "written just now" as a brand new one, and
+        // both deserve to be brought into view.
+        val before = files.filter { it.endsWith(".flow") }.associateWith { Platform.readFlow(it) }
         aiMessages = aiMessages + AiMessage(fromUser = true, text = question) +
             AiMessage(fromUser = false, text = "")
         aiStreaming = true
@@ -319,7 +322,12 @@ class Workspace(private val scope: CoroutineScope) {
             // a flow it saved is a flow to look at — the assistant writes through its own process,
             // so the folder is re-read rather than waited on
             refreshFiles()
-            files.filter { it.endsWith(".flow") && it !in before }.forEach { openFile(it, reportError = false) }
+            files.filter { it.endsWith(".flow") && Platform.readFlow(it) != before[it] }
+                .forEach { openFile(it, reportError = false) }
+            // open_flow: a flow the assistant was asked to open as-is, with nothing to write —
+            // save_flow's own diff above never catches this, so it leaves this request behind
+            // instead (see Platform.requestOpenFlow)
+            Platform.takePendingOpenFlow()?.let { openFile(it, reportError = false) }
         }
     }
 

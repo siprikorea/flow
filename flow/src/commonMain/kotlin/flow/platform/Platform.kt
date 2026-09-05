@@ -105,6 +105,13 @@ expect object Platform {
     // string) via onChunk; returns false if the clipboard has no text content at all.
     fun pasteClipboardChunks(maxChunkChars: Int, onChunk: (String) -> Unit): Boolean
 
+    // A flow to bring into view once the AI's current turn finishes — see the open_flow MCP tool
+    // and Workspace.askAi, the only reader. save_flow already opens anything it actually changes on
+    // disk (see askAi's own before/after diff); this is for the other case, an unchanged flow the
+    // assistant was asked to open as-is.
+    fun requestOpenFlow(name: String)
+    fun takePendingOpenFlow(): String?  // consumes it — a second call the same turn sees nothing
+
     // session (open tabs + UI state) restore
     fun loadSession(): String?
     fun saveSession(json: String)

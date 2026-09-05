@@ -22,6 +22,7 @@ actual object Platform {
     private var projectDir: File? = null
     private val sessionFile = File(baseDir, "session.json")
     private val settingsFile = File(baseDir, "settings.json")
+    private val openRequestFile = File(baseDir, "open-request.txt")
     private val hms = DateTimeFormatter.ofPattern("HH:mm:ss")
 
     // 순회 최대 깊이 (심볼릭 링크 순환 방지)
@@ -360,6 +361,16 @@ actual object Platform {
                 }
             }
         }.isSuccess
+    }
+
+    actual fun requestOpenFlow(name: String) {
+        runCatching { baseDir.mkdirs(); openRequestFile.writeText(name) }
+    }
+
+    actual fun takePendingOpenFlow(): String? {
+        val name = runCatching { openRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()?.trim()
+        runCatching { openRequestFile.delete() }
+        return name?.takeIf { it.isNotEmpty() }
     }
 
     actual fun loadSession(): String? =
