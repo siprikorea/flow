@@ -2,19 +2,34 @@
 # MCPB bundle entry point: runs the Flow MCP server (stdio) off the jars staged beside it.
 # Claude Desktop bundles a Node runtime but no JVM, so find one — JAVA_HOME first, then macOS's
 # java_home, then PATH (which is minimal for a GUI-launched app, hence the two fallbacks above).
+#
+# Each candidate is version-checked rather than taken on trust: these classes are Java 25 bytecode,
+# and a JAVA_HOME left pointing at an older JDK — common, and the first thing looked at — fails with
+# a LinkageError the client shows as nothing at all.
 DIR=$(cd "$(dirname "$0")" && pwd)
+NEED=25
+
+runnable() {
+    [ -x "$1" ] || return 1
+    v=$("$1" -XshowSettings:properties -version 2>&1 |
+        sed -n 's/.*java\.specification\.version *= *\([0-9][0-9]*\).*/\1/p' | head -1)
+    [ -n "$v" ] && [ "$v" -ge "$NEED" ]
+}
 
 JAVA=""
-if [ -n "$JAVA_HOME" ] && [ -x "$JAVA_HOME/bin/java" ]; then
+if [ -n "$JAVA_HOME" ] && runnable "$JAVA_HOME/bin/java"; then
     JAVA="$JAVA_HOME/bin/java"
 elif [ -x /usr/libexec/java_home ]; then
-    JH=$(/usr/libexec/java_home -v 17+ 2>/dev/null)
-    [ -n "$JH" ] && [ -x "$JH/bin/java" ] && JAVA="$JH/bin/java"
+    JH=$(/usr/libexec/java_home -v "$NEED+" 2>/dev/null)
+    [ -n "$JH" ] && runnable "$JH/bin/java" && JAVA="$JH/bin/java"
 fi
-[ -n "$JAVA" ] || JAVA=$(command -v java 2>/dev/null)
+if [ -z "$JAVA" ]; then
+    C=$(command -v java 2>/dev/null)
+    [ -n "$C" ] && runnable "$C" && JAVA="$C"
+fi
 
 if [ -z "$JAVA" ]; then
-    echo "flow-mcp: no Java 17+ runtime found — install a JDK 17+ or set JAVA_HOME." >&2
+    echo "flow-mcp: no Java $NEED+ runtime found — install a JDK $NEED+ or point JAVA_HOME at one." >&2
     exit 1
 fi
 

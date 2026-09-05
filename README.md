@@ -5,7 +5,7 @@ A visual data-transformation pipeline editor. Drag modules (sources, transforms,
 Built with **Compose Multiplatform** (Kotlin). All UI, state, and logic live in `commonMain`; `jvmMain` only provides the entry point and file I/O. It currently runs on the desktop (JVM) target.
 
 ## Requirements
-- JDK 17 or newer (the toolchain is pinned to 17)
+- JDK 25 (the toolchain, and the Gradle daemon, are both pinned to 25)
 - No separate Gradle install needed — the wrapper (`./gradlew`, pinned to 9.3.1) handles it
 
 ## Run / Build
@@ -280,7 +280,7 @@ Without Node, run `:flow:mcpbStage` alone and point **Install Unpacked Extension
 clean` removes it.
 The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carries no extensions of
 its own, reading both flows and installed extensions out of `~/.flow` as the app does. Claude Desktop bundles a Node runtime but no JVM,
-so the launcher resolves a JDK 17+ from `JAVA_HOME`, then `/usr/libexec/java_home`, then `PATH` — one
+so the launcher resolves a JDK 25+ from `JAVA_HOME`, then `/usr/libexec/java_home`, then `PATH` — one
 has to be installed on the machine. Only the jars the MCP path actually loads are staged (no Compose
 or Skiko), which keeps the bundle near 3MB.
 
