@@ -8,7 +8,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(17)
+    jvmToolchain(25)
     jvm()
 
     sourceSets {
@@ -23,12 +23,10 @@ kotlin {
             // Renders the AI panel's replies, which come back as Markdown. The core module only
             // (no -m2/-m3): those pull in a Material theme this app doesn't otherwise use, and the
             // core module's colors/typography are supplied directly from Palette/FlowType instead.
-            // Pinned to 0.38.0 rather than latest: 0.43.0's classes are Java 21 bytecode (class
-            // file 65), and this app runs on jvmToolchain(17) — the JVM refuses to even load them
-            // ("has been compiled by a more recent version of the Java Runtime"), a failure that
-            // only shows up at runtime, not at compile time. 0.38.0 is Java 17 bytecode (class
-            // file 61) and the newest release that is.
-            implementation("com.mikepenz:multiplatform-markdown-renderer:0.38.0")
+            // Needs 0.42.0+ specifically for StreamingMarkdownState (see FlowMarkdown.kt) — those
+            // releases are Java 21 bytecode, which is the whole reason this project runs on
+            // jvmToolchain(25) now rather than 17.
+            implementation("com.mikepenz:multiplatform-markdown-renderer:0.43.0")
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
