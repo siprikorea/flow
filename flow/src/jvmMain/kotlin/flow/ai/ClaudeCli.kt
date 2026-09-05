@@ -2,11 +2,8 @@ package flow.ai
 
 import flow.model.AiReply
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import java.io.File
 
@@ -81,8 +78,11 @@ internal object ClaudeCli {
             add(cli)
             add("-p")
             add(prompt)
-            // streamed, so a run that takes a minute is not a minute of nothing
+            // streamed, so a run that takes a minute is not a minute of nothing — and with
+            // --include-partial-messages, token by token rather than one whole message at a time,
+            // so the panel can show an answer typing in rather than landing all at once.
             add("--output-format"); add("stream-json")
+            add("--include-partial-messages")
             add("--verbose")
             add("--append-system-prompt"); add(systemPrompt)
             mcpConfig?.let {
@@ -121,7 +121,7 @@ internal object ClaudeCli {
                 }
                 event.string("session_id")?.let { session = it }
                 event.string("result")?.let { result = it }
-                event.assistantText()?.let { chunk ->
+                event.textDelta()?.let { chunk ->
                     text.append(chunk)
                     onText(chunk)
                 }
@@ -145,15 +145,22 @@ internal object ClaudeCli {
     private fun JsonObject.string(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content?.takeIf { it.isNotBlank() }
 
-    /** The text of an assistant turn, which arrives as content blocks rather than a string. */
-    private fun JsonObject.assistantText(): String? {
-        if (string("type") != "assistant") return null
-        val content = (this["message"] as? JsonObject)?.get("content") as? JsonArray ?: return null
-        val parts = content.jsonArray.mapNotNull { block ->
-            val obj = block as? JsonObject ?: return@mapNotNull null
-            if (obj.string("type") != "text") null else obj["text"]?.jsonPrimitive?.content
-        }
-        return parts.joinToString("").takeIf { it.isNotBlank() }
+    /**
+     * One token-ish chunk of assistant text, from a `--include-partial-messages` stream_event.
+     *
+     * Without that flag, "assistant" events each carry a whole message's text at once — which is
+     * what made replies land in one piece instead of typing in. With it, the same text arrives
+     * split into `content_block_delta`/`text_delta` events instead; the later whole-message
+     * "assistant" event that follows is redundant with what the deltas already built and is
+     * ignored here.
+     */
+    private fun JsonObject.textDelta(): String? {
+        if (string("type") != "stream_event") return null
+        val event = this["event"] as? JsonObject ?: return null
+        if (event.string("type") != "content_block_delta") return null
+        val delta = event["delta"] as? JsonObject ?: return null
+        if (delta.string("type") != "text_delta") return null
+        return delta["text"]?.jsonPrimitive?.content
     }
 
     /** Said when the CLI is not there, which is the one failure worth explaining rather than reporting. */

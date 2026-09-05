@@ -43,6 +43,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
 import flow.platform.Platform
+import flow.ui.common.FlowMarkdown
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.Palette
@@ -148,12 +149,13 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
                             )
                             .padding(8.dp),
                     ) {
-                        Txt(
-                            message.text.ifBlank { if (streaming) ws.t("aiThinking") else "" },
-                            12.sp,
-                            if (message.text.isBlank()) Palette.faintText else Palette.text,
-                            mono = !message.fromUser,
-                        )
+                        when {
+                            message.text.isBlank() ->
+                                Txt(if (streaming) ws.t("aiThinking") else "", 12.sp, Palette.faintText)
+                            // the user's own question is plain text; Claude's answer is Markdown
+                            message.fromUser -> Txt(message.text, 12.sp, Palette.text)
+                            else -> FlowMarkdown(message.text)
+                        }
                     }
                 }
             }
