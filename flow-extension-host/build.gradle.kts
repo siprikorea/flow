@@ -3,7 +3,7 @@ plugins {
 }
 
 kotlin {
-    jvmToolchain(25)
+    jvmToolchain(17)
 }
 
 // The worker process runs with this jar, the extension contract and the extension's own jars on its
