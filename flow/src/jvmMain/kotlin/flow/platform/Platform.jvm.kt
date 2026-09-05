@@ -374,31 +374,51 @@ actual object Platform {
         }.isSuccess
     }
 
-    actual fun requestOpenFlow(name: String) {
-        runCatching { baseDir.mkdirs(); openRequestFile.writeText(name) }
+    // Writes [text] to [file] via a temp-file-then-rename so a poll tick reading concurrently
+    // never sees a half-written file — plain writeText() truncates in place first, which a read
+    // landing mid-write could catch as truncated/corrupt JSON.
+    private fun writeAtomically(file: File, text: String) {
+        baseDir.mkdirs()
+        val tmp = File(file.parentFile, "${file.name}.tmp-${System.nanoTime()}")
+        tmp.writeText(text)
+        if (!tmp.renameTo(file)) { tmp.delete(); file.writeText(text) } // same-volume rename should always land; this is only a fallback
     }
 
-    actual fun takePendingOpenFlow(): String? {
-        val name = runCatching { openRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()?.trim()
-        runCatching { openRequestFile.delete() }
-        return name?.takeIf { it.isNotEmpty() }
+    // "Takes" [file]'s content by first renaming it away (atomic on the same volume) and only then
+    // reading and deleting that renamed copy. A plain read-then-delete has a real failure mode: if
+    // the delete silently fails for any reason, the file is still sitting there under its original
+    // name, and the *next* poll tick reads and re-applies the exact same request — repeating
+    // whatever it was (a run, most visibly) for as long as delete keeps failing. Once the rename
+    // lands, nothing can ever see the original name again, so a later delete failure on the
+    // renamed copy just leaves an orphaned temp file instead of a request that keeps re-firing.
+    private fun takeFile(file: File): String? {
+        if (!file.isFile) return null
+        val claimed = File(file.parentFile, "${file.name}.claimed-${System.nanoTime()}")
+        if (!runCatching { file.renameTo(claimed) }.getOrDefault(false)) return null
+        val text = runCatching { claimed.readText() }.getOrNull()
+        runCatching { claimed.delete() }
+        return text
     }
+
+    actual fun requestOpenFlow(name: String) {
+        runCatching { writeAtomically(openRequestFile, name) }
+    }
+
+    actual fun takePendingOpenFlow(): String? = takeFile(openRequestFile)?.trim()?.takeIf { it.isNotEmpty() }
 
     actual fun requestFlowInput(path: String, inputs: Map<String, String>) {
         runCatching {
-            baseDir.mkdirs()
             val obj = buildJsonObject {
                 put("path", path)
                 putJsonObject("inputs") { inputs.forEach { (k, v) -> put(k, v) } }
             }
-            inputRequestFile.writeText(requestJson.encodeToString(JsonObject.serializer(), obj))
+            writeAtomically(inputRequestFile, requestJson.encodeToString(JsonObject.serializer(), obj))
         }
     }
 
     actual fun takePendingFlowInput(): Pair<String, Map<String, String>>? {
-        val text = runCatching { inputRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()
-        runCatching { inputRequestFile.delete() }
-        val obj = text?.let { runCatching { requestJson.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return null
+        val obj = takeFile(inputRequestFile)
+            ?.let { runCatching { requestJson.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return null
         val path = obj["path"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() } ?: return null
         val inputs = (obj["inputs"] as? JsonObject)?.mapValues { it.value.jsonPrimitive.content } ?: emptyMap()
         return path to inputs
@@ -406,20 +426,18 @@ actual object Platform {
 
     actual fun requestFlowRun(path: String, start: Boolean, inputs: Map<String, String>) {
         runCatching {
-            baseDir.mkdirs()
             val obj = buildJsonObject {
                 put("path", path)
                 put("start", start)
                 putJsonObject("inputs") { inputs.forEach { (k, v) -> put(k, v) } }
             }
-            runRequestFile.writeText(requestJson.encodeToString(JsonObject.serializer(), obj))
+            writeAtomically(runRequestFile, requestJson.encodeToString(JsonObject.serializer(), obj))
         }
     }
 
     actual fun takePendingFlowRun(): FlowRunRequest? {
-        val text = runCatching { runRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()
-        runCatching { runRequestFile.delete() }
-        val obj = text?.let { runCatching { requestJson.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return null
+        val obj = takeFile(runRequestFile)
+            ?.let { runCatching { requestJson.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return null
         val path = obj["path"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() } ?: return null
         val start = obj["start"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: return null
         val inputs = (obj["inputs"] as? JsonObject)?.mapValues { it.value.jsonPrimitive.content } ?: emptyMap()
