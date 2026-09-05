@@ -27,6 +27,16 @@ kotlin {
             implementation(project(":flow-extension-api"))
             implementation(project(":flow-extension-host"))
         }
+        // AppIcon.kt (the Dock/Taskbar/window icon) loads "appicon.png" off the runtime
+        // classpath — reading straight out of icons/ instead of keeping a second copy under
+        // src/jvmMain/resources, so the PNG that Gradle packages the app with (jpackage,
+        // mcpbStage) and the one the running app loads are the same file, not two that can drift.
+        // Only the PNG is pulled in — icons/appicon.svg and .icns are build-time-only and would
+        // otherwise ride along into the jar for no reason.
+        getByName("jvmMain") {
+            resources.srcDir("icons")
+            resources.include("appicon.png")
+        }
         jvmTest.dependencies {
             implementation(kotlin("test"))
             // renders a composable to an image without a window, for looking at what a change did

@@ -15,7 +15,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import flow.ui.theme.Palette
 
-// The app icon drawn in Compose: gradient rounded square + flow (node-connection) motif.
+// The title-bar mark: same "f" (flow) motif as icons/appicon.svg — a curve between two node
+// dots with a small crossbar — but drawn rather than loaded from that PNG, so it keeps taking
+// the current theme's accent gradient (a static bitmap can't recolor itself for light/dark).
 @Composable
 fun AppLogo(size: Dp = 18.dp) {
     Canvas(Modifier.size(size)) {
@@ -26,12 +28,19 @@ fun AppLogo(size: Dp = 18.dp) {
             cornerRadius = CornerRadius(r, r),
         )
         val white = Color.White.copy(alpha = 0.92f)
+        val stroke = Stroke(width = s * 0.10f, cap = StrokeCap.Round)
+        // the curve: bottom-left node up to top-right node, bowing through the middle like an "f"
+        val ax = s * 0.28f; val ay = s * 0.72f
+        val bx = s * 0.72f; val by = s * 0.28f
         val path = Path().apply {
-            moveTo(s * 0.30f, s * 0.34f)
-            cubicTo(s * 0.55f, s * 0.34f, s * 0.45f, s * 0.66f, s * 0.70f, s * 0.66f)
+            moveTo(ax, ay)
+            cubicTo(s * 0.62f, ay, s * 0.38f, by, bx, by)
         }
-        drawPath(path, white, style = Stroke(width = s * 0.09f, cap = StrokeCap.Round))
-        drawCircle(white, s * 0.075f, Offset(s * 0.30f, s * 0.34f))
-        drawCircle(white, s * 0.075f, Offset(s * 0.70f, s * 0.66f))
+        drawPath(path, white, style = stroke)
+        // crossbar where the curve is steepest — the one detail that reads as an "f" rather than
+        // a plain S-curve
+        drawLine(white, Offset(s * 0.34f, s * 0.52f), Offset(s * 0.56f, s * 0.46f), strokeWidth = s * 0.09f, cap = StrokeCap.Round)
+        drawCircle(white, s * 0.10f, Offset(ax, ay))
+        drawCircle(white, s * 0.10f, Offset(bx, by))
     }
 }
