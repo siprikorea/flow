@@ -35,7 +35,9 @@ expect object Platform {
     fun aiCliPath(): String?
     // One turn. [onText] is called as the answer arrives; the reply's session carries the
     // conversation to the next turn.
-    suspend fun askAi(prompt: String, sessionId: String?, onText: (String) -> Unit): AiReply
+    // model is a full id ("claude-opus-5") from the Settings screen's AI_MODELS, or "" to leave it
+    // to whatever the claude CLI itself defaults to
+    suspend fun askAi(prompt: String, sessionId: String?, model: String, onText: (String) -> Unit): AiReply
     // Ends the run in progress. Whatever it had said by then stands.
     fun stopAi()
 

@@ -14,6 +14,7 @@ import flow.model.OptDef
 import flow.model.Node
 import flow.model.Session
 import flow.model.Settings
+import flow.model.AI_MODELS
 import flow.model.DEFAULT_REGISTRY_URL
 import flow.model.RegistryEntry
 import flow.model.RegistryIndex
@@ -64,6 +65,8 @@ class Workspace(private val scope: CoroutineScope) {
     var lang by mutableStateOf("en") // default language: English
     var theme by mutableStateOf(Theme.SYSTEM) // system | dark | light
     var registryUrl by mutableStateOf(DEFAULT_REGISTRY_URL)
+    // blank = whatever `claude` itself defaults to; see AI_MODELS for the choices Settings offers
+    var aiModel by mutableStateOf("")
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules | ai
     // palette sections left open, by key
@@ -315,7 +318,7 @@ class Workspace(private val scope: CoroutineScope) {
         scope.launch {
             val reply = runCatching {
                 withContext(Dispatchers.Default) {
-                    Platform.askAi(question, aiSession) { chunk ->
+                    Platform.askAi(question, aiSession, aiModel) { chunk ->
                         scope.launch { appendToLastAnswer(chunk) }
                     }
                 }
@@ -841,7 +844,7 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun settingsJson(): String = json.encodeToString(
         Settings(
-            lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
+            lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl, aiModel,
         )
     )
 
@@ -856,6 +859,9 @@ class Workspace(private val scope: CoroutineScope) {
             theme = saved.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
             animSeconds = saved.animSeconds.coerceIn(0.05f, 10f)
             registryUrl = saved.registryUrl.ifBlank { DEFAULT_REGISTRY_URL }
+            // an id from an older build that's since been retired falls back to Auto rather than
+            // silently passing something `claude --model` may no longer recognize
+            aiModel = saved.aiModel.takeIf { id -> AI_MODELS.any { it.first == id } } ?: ""
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }

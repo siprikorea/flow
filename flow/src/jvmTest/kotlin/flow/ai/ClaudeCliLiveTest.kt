@@ -23,6 +23,7 @@ class ClaudeCliLiveTest {
             prompt = "Call list_nodes and reply with only the number of node types it returned, " +
                 "or the single word NOTOOL if you cannot call it.",
             sessionId = null,
+            model = "",
             workingDir = File(System.getProperty("user.dir")),
             mcpConfig = FlowPrompt.mcpConfig(null),
             systemPrompt = FlowPrompt.systemPrompt(null),

@@ -98,11 +98,12 @@ actual object Platform {
         runInterruptible(Dispatchers.Default) { ExtensionLoader.focusView(id) }
     actual fun aiCliPath(): String? = flow.ai.ClaudeCli.path()
 
-    actual suspend fun askAi(prompt: String, sessionId: String?, onText: (String) -> Unit): AiReply =
+    actual suspend fun askAi(prompt: String, sessionId: String?, model: String, onText: (String) -> Unit): AiReply =
         runInterruptible(Dispatchers.IO) {
             flow.ai.ClaudeCli.ask(
                 prompt = prompt,
                 sessionId = sessionId,
+                model = model,
                 workingDir = projectDir,
                 mcpConfig = flow.ai.FlowPrompt.mcpConfig(projectRoot()),
                 systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),

@@ -56,6 +56,7 @@ import flow.core.Shortcut
 import flow.core.Workspace
 import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
+import flow.model.AI_MODELS
 import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.util.flowLabel
@@ -564,6 +565,7 @@ fun SettingsScreen(ws: Workspace) {
     var lang by remember { mutableStateOf(ws.lang) }
     var theme by remember { mutableStateOf(ws.theme) }
     var anim by remember { mutableStateOf(ws.animSeconds) }
+    var aiModel by remember { mutableStateOf(ws.aiModel) }
     var keymap by remember { mutableStateOf(ws.keymap) }
     var recording by remember { mutableStateOf<String?>(null) } // action waiting for a key press
     var category by remember { mutableStateOf(ws.settingsCategory) }
@@ -574,6 +576,7 @@ fun SettingsScreen(ws: Workspace) {
     // one you are looking for is the first thing you know.
     val categories = listOf(
         Category("appearance", ws.t("setAppearance")),
+        Category("ai", ws.t("setAi")),
         Category("keymap", ws.t("setKeymap")),
         Category("extensions", ws.t("manageTitle"), heading = true),
         Category("views", ws.t("setViews"), nested = true),
@@ -592,6 +595,7 @@ fun SettingsScreen(ws: Workspace) {
         ws.lang = lang
         ws.theme = theme
         ws.animSeconds = anim
+        ws.aiModel = aiModel
         ws.keymap = keymap
     }
 
@@ -660,6 +664,12 @@ fun SettingsScreen(ws: Workspace) {
                                 anim.toString(),
                             ) { anim = it.toFloat() }
                         }
+                    }
+                    "ai" -> Column {
+                        SettingRow(ws.t("aiModel")) {
+                            Segmented(AI_MODELS, aiModel) { aiModel = it }
+                        }
+                        Txt(ws.t("aiModelHint"), 11.sp, Palette.faintText)
                     }
                     "keymap" -> Column {
                         Action.ALL.forEach { action ->

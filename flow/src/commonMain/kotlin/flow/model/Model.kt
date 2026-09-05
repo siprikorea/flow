@@ -105,6 +105,9 @@ data class Settings(
     val animSeconds: Float = 0.25f,
     // where the Extensions screen looks for installable extensions
     val registryUrl: String = DEFAULT_REGISTRY_URL,
+    // the AI panel's model, as `claude --model` takes it (a full model id, e.g. "claude-opus-5");
+    // blank defers to whatever the claude CLI itself defaults to.
+    val aiModel: String = "",
     // outputs and inputs the user has switched off. Kept as the exception rather than the list of
     // enabled ones, so a newly installed one is usable without having to be turned on first.
     val disabledOutputs: List<String> = emptyList(),
@@ -117,6 +120,17 @@ data class Settings(
 // so publishing an extension update is part of cutting a release, not a separate deployment.
 const val DEFAULT_REGISTRY_URL =
     "https://github.com/siprikorea/flow/releases/latest/download/extensions.json"
+
+// Model choices the Settings screen offers for the AI panel, as ids `claude --model` accepts
+// verbatim (a full model name, not an alias like "opus" — those track "latest", which drifts).
+// "" (Auto) leaves it to the CLI's own default rather than pinning one here that would go stale.
+val AI_MODELS: List<Pair<String, String>> = listOf(
+    "" to "Auto",
+    "claude-sonnet-5" to "Sonnet 5",
+    "claude-opus-5" to "Opus 5",
+    "claude-haiku-4-5-20251001" to "Haiku 4.5",
+    "claude-fable-5-1" to "Fable 5.1",
+)
 
 // Session format: open tabs + the UI state that goes with them (IntelliJ-style workspace restore).
 // The `lang`/`theme`/`keymap`/`animSeconds` fields are the pre-settings.json layout, read once so an
