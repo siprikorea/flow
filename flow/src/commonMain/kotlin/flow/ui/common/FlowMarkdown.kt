@@ -11,6 +11,7 @@ import androidx.compose.ui.text.font.FontWeight
 import com.mikepenz.markdown.compose.Markdown
 import com.mikepenz.markdown.model.DefaultMarkdownColors
 import com.mikepenz.markdown.model.DefaultMarkdownTypography
+import com.mikepenz.markdown.model.rememberMarkdownState
 import flow.ui.theme.FlowType
 import flow.ui.theme.FlowTextStyle
 import flow.ui.theme.Mono
@@ -38,8 +39,15 @@ fun FlowMarkdown(content: String, modifier: Modifier = Modifier.fillMaxWidth()) 
     val body = style(FlowType.body, Palette.text)
     val mono = style(FlowType.mono, Palette.text)
 
+    // The content: String overload parses on a coroutine and shows an empty Box while that's in
+    // flight — fine for a document opened once, but a streamed reply changes content on every
+    // chunk, so that empty flash happened on every chunk too: the text visibly blanked out and
+    // reappeared instead of just growing. rememberMarkdownState's immediate=true parses inline on
+    // the composing thread instead, which is what the content overload can't be told to do —
+    // there's no flash to begin with since there's never a frame with nothing parsed yet.
+    val state = rememberMarkdownState(content = content, immediate = true)
     Markdown(
-        content = content,
+        markdownState = state,
         modifier = modifier,
         colors = DefaultMarkdownColors(
             text = Palette.text,
