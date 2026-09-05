@@ -208,9 +208,9 @@ private fun Composer(ws: Workspace) {
                     RoundedCornerShape(10.dp),
                 )
                 .padding(start = 10.dp, end = 6.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.Bottom,
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.weight(1f).padding(end = 8.dp, bottom = 4.dp)) {
+            Box(Modifier.weight(1f).padding(end = 8.dp)) {
                 if (text.isEmpty()) Txt(ws.t("aiPlaceholder"), 12.sp, Palette.faintText)
                 BasicTextField(
                     value = text,
