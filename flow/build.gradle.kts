@@ -1,9 +1,9 @@
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
-    kotlin("multiplatform") version "2.2.20"
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.20"
-    kotlin("plugin.serialization") version "2.2.20"
+    kotlin("multiplatform") version "2.4.0"
+    id("org.jetbrains.kotlin.plugin.compose") version "2.4.0"
+    kotlin("plugin.serialization") version "2.4.0"
     id("org.jetbrains.compose") version "1.9.0"
 }
 
@@ -23,11 +23,7 @@ kotlin {
             // Renders the AI panel's replies, which come back as Markdown. The core module only
             // (no -m2/-m3): those pull in a Material theme this app doesn't otherwise use, and the
             // core module's colors/typography are supplied directly from Palette/FlowType instead.
-            // Pinned to 0.38.0 rather than latest: newer releases pull a kotlin-stdlib built with a
-            // newer Kotlin than this project's 2.2.20 plugin, which that compiler cannot even read
-            // the metadata of ("compiled with an incompatible version of Kotlin"). 0.38.0 is the
-            // newest release still built against a 2.2.x stdlib.
-            implementation("com.mikepenz:multiplatform-markdown-renderer:0.38.0")
+            implementation("com.mikepenz:multiplatform-markdown-renderer:0.43.0")
         }
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
