@@ -404,21 +404,26 @@ actual object Platform {
         return path to inputs
     }
 
-    actual fun requestFlowRun(path: String, start: Boolean) {
+    actual fun requestFlowRun(path: String, start: Boolean, inputs: Map<String, String>) {
         runCatching {
             baseDir.mkdirs()
-            val obj = buildJsonObject { put("path", path); put("start", start) }
+            val obj = buildJsonObject {
+                put("path", path)
+                put("start", start)
+                putJsonObject("inputs") { inputs.forEach { (k, v) -> put(k, v) } }
+            }
             runRequestFile.writeText(requestJson.encodeToString(JsonObject.serializer(), obj))
         }
     }
 
-    actual fun takePendingFlowRun(): Pair<String, Boolean>? {
+    actual fun takePendingFlowRun(): FlowRunRequest? {
         val text = runCatching { runRequestFile.takeIf { it.isFile }?.readText() }.getOrNull()
         runCatching { runRequestFile.delete() }
         val obj = text?.let { runCatching { requestJson.parseToJsonElement(it).jsonObject }.getOrNull() } ?: return null
         val path = obj["path"]?.jsonPrimitive?.content?.takeIf { it.isNotEmpty() } ?: return null
         val start = obj["start"]?.jsonPrimitive?.content?.toBooleanStrictOrNull() ?: return null
-        return path to start
+        val inputs = (obj["inputs"] as? JsonObject)?.mapValues { it.value.jsonPrimitive.content } ?: emptyMap()
+        return FlowRunRequest(path, start, inputs)
     }
 
     // A pid a dead process can eventually reuse would misreport as "running" forever; in practice

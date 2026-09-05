@@ -344,9 +344,15 @@ class Workspace(private val scope: CoroutineScope) {
             openFile(path, reportError = false)
             docs.find { it.fileName == path }?.setCinInputs(inputs)
         }
-        Platform.takePendingFlowRun()?.let { (path, start) ->
-            openFile(path, reportError = false)
-            docs.find { it.fileName == path }?.let { doc -> if (start) doc.startRun() else doc.stopRun() }
+        Platform.takePendingFlowRun()?.let { req ->
+            openFile(req.path, reportError = false)
+            docs.find { it.fileName == req.path }?.let { doc ->
+                // inputs land before the run they're for even starts — one request, so nothing
+                // (another poll tick, a second call) can land between setting a value and running
+                // with it.
+                if (req.inputs.isNotEmpty()) doc.setCinInputs(req.inputs)
+                if (req.start) doc.startRun() else doc.stopRun()
+            }
         }
     }
 

@@ -6,6 +6,7 @@ import flow.cli.listComponents
 import flow.cli.loadFlow
 import flow.cli.runComponent
 import flow.cli.runnerJson
+import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.IO_DEFS
 import flow.model.OptType
@@ -156,21 +157,25 @@ object McpServer {
             name = "set_flow_input",
             description = "Sets input values on a flow's open tab (opening it first if needed), " +
                 "without running it — real ports on the actual canvas, the same fields the user's " +
-                "own typing would land in. Use this before start_flow when the user wants to watch " +
-                "the flow run on screen with real input, as opposed to run_flow's headless check. " +
-                "Takes the same 'inputs'/'value' shape run_flow does. Needs Flow actually running.",
+                "own typing would land in. Only for setting a value ahead of time without running " +
+                "yet; when the user wants to watch the flow actually run with that input, pass " +
+                "'inputs'/'value' to start_flow directly instead of calling this first — one request " +
+                "that sets and runs together, rather than two whose timings could land either order. " +
+                "Needs Flow actually running.",
             schema = runFlowSchema(),
             call = { args -> setFlowInputTool(args) },
         ),
         Tool(
             name = "start_flow",
-            description = "Starts a flow's actual run on screen — opening its tab first if needed, " +
-                "setting inputs first with set_flow_input if the user wants to supply any — the same " +
-                "as pressing the title bar's Start button by hand. Unlike run_flow, this doesn't wait " +
-                "for a result or return one: the run plays out visibly in the app. Needs Flow " +
-                "actually running.",
-            schema = objectSchema(listOf(StringField("path", "path relative to the open folder, e.g. 'sub/a.flow' ('.flow' may be omitted)"))),
-            call = { args -> startFlowTool(argText(args, "path")) },
+            description = "Starts a flow's actual run on screen, opening its tab first if needed — " +
+                "the same as pressing the title bar's Start button by hand. Takes the same " +
+                "'inputs'/'value' run_flow does, applied the instant before the run starts — this is " +
+                "the one call to make when the user wants to watch a flow run on screen with real " +
+                "input, not set_flow_input followed by this. Unlike run_flow, this doesn't wait for a " +
+                "result or return one: the run plays out visibly in the app. Needs Flow actually " +
+                "running.",
+            schema = runFlowSchema(),
+            call = { args -> startFlowTool(args) },
         ),
         Tool(
             name = "stop_flow",
@@ -352,18 +357,28 @@ object McpServer {
      * primitives the CLI runs on, so a flow behaves identically whether run from the CLI, the app,
      * or here.
      */
-    private fun runFlowTool(args: JsonObject): String {
-        Platform.projectRoot() ?: return NO_PROJECT
-        val path = normalizeFlowPath(argText(args, "path"))
-        val flowFile = loadFlow(path) ?: return "flow file not found: $path"
-        val comp = flowFile.asComponent(path) ?: return "'$path' is not a component (no cin/cout boundary nodes) — nothing to run"
-
+    /**
+     * The 'inputs'/'value' args run_flow, set_flow_input and start_flow all take, parsed the same
+     * way in all three: an explicit 'inputs' map, or 'value' as shorthand when there's exactly one
+     * input port to put it in.
+     */
+    private fun parseInputArgs(args: JsonObject, comp: CompDef): Map<String, String> {
         val inputs = LinkedHashMap<String, String>()
         (args["inputs"] as? JsonObject)?.forEach { (k, v) -> inputs[k] = (v as? JsonPrimitive)?.content ?: v.toString() }
         if (inputs.isEmpty() && comp.ins.size == 1) {
             val value = argText(args, "value")
             if (value.isNotEmpty()) inputs[comp.ins.first()] = value
         }
+        return inputs
+    }
+
+    private fun runFlowTool(args: JsonObject): String {
+        Platform.projectRoot() ?: return NO_PROJECT
+        val path = normalizeFlowPath(argText(args, "path"))
+        val flowFile = loadFlow(path) ?: return "flow file not found: $path"
+        val comp = flowFile.asComponent(path) ?: return "'$path' is not a component (no cin/cout boundary nodes) — nothing to run"
+
+        val inputs = parseInputArgs(args, comp).toMutableMap()
         comp.ins.forEach { inputs.putIfAbsent(it, "") }
 
         val byteInputs = inputs.mapValues { it.value.encodeToByteArray() }
@@ -412,6 +427,15 @@ object McpServer {
         return "$name will open in Flow"
     }
 
+    // Ports named in `inputs` that comp doesn't actually have, formatted as the error to return —
+    // or null when every key is real. Shared by set_flow_input and start_flow, the two tools that
+    // take a caller-supplied port map rather than run_flow's fill-the-rest-with-empty one.
+    private fun unknownPortError(path: String, inputs: Map<String, String>, comp: CompDef): String? {
+        val unknown = inputs.keys - comp.ins.toSet()
+        if (unknown.isEmpty()) return null
+        return "not an input port of $path: ${unknown.joinToString(", ")} (ports: ${comp.ins.joinToString(", ")})"
+    }
+
     /**
      * Sets a flow's input ports on its open tab, same request-and-pick-up shape as open_flow.
      * Reuses run_flow's own inputs/value parsing so the two tools take identical arguments for the
@@ -426,27 +450,32 @@ object McpServer {
         val flowFile = loadFlow(path) ?: return "flow file not found: $path"
         val comp = flowFile.asComponent(path) ?: return "'$path' is not a component (no cin/cout boundary nodes) — no inputs to set"
 
-        val inputs = LinkedHashMap<String, String>()
-        (args["inputs"] as? JsonObject)?.forEach { (k, v) -> inputs[k] = (v as? JsonPrimitive)?.content ?: v.toString() }
-        if (inputs.isEmpty() && comp.ins.size == 1) {
-            val value = argText(args, "value")
-            if (value.isNotEmpty()) inputs[comp.ins.first()] = value
-        }
+        val inputs = parseInputArgs(args, comp)
         if (inputs.isEmpty()) return "nothing to set — pass 'inputs' or 'value'"
-        val unknown = inputs.keys - comp.ins.toSet()
-        if (unknown.isNotEmpty()) {
-            return "not an input port of $path: ${unknown.joinToString(", ")} (ports: ${comp.ins.joinToString(", ")})"
-        }
+        unknownPortError(path, inputs, comp)?.let { return it }
 
         Platform.requestFlowInput(path, inputs)
         return "$path will show ${inputs.entries.joinToString(", ") { "${it.key}=${it.value}" }} once open"
     }
 
-    private fun startFlowTool(path: String): String {
+    /**
+     * Starts a flow's run on screen, optionally setting its inputs in the same request — one file
+     * written and read back together, rather than a separate set_flow_input call this would have
+     * to land before start_flow's own request is picked up. set_flow_input on its own remains for
+     * setting a value without running yet.
+     */
+    private fun startFlowTool(args: JsonObject): String {
         if (!Platform.isAppRunning()) return APP_NOT_RUNNING
-        val (name, _) = loadForEdit(path)
-        Platform.requestFlowRun(name, start = true)
-        return "$name will start running in Flow"
+        val path = normalizeFlowPath(argText(args, "path"))
+        val (name, flow) = loadForEdit(path)
+        val comp = flow.asComponent(name)
+        val inputs = comp?.let { parseInputArgs(args, it) } ?: emptyMap()
+        if (comp != null) unknownPortError(name, inputs, comp)?.let { return it }
+
+        Platform.requestFlowRun(name, start = true, inputs = inputs)
+        return if (inputs.isEmpty()) "$name will start running in Flow" else {
+            "$name will start running in Flow with ${inputs.entries.joinToString(", ") { "${it.key}=${it.value}" }}"
+        }
     }
 
     private fun stopFlowTool(path: String): String {

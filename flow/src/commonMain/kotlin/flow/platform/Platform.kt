@@ -6,6 +6,9 @@ import flow.model.ModuleInfo
 import flow.model.OptDef
 import flow.model.ViewInfo
 
+// See Platform.requestFlowRun / takePendingFlowRun.
+data class FlowRunRequest(val path: String, val start: Boolean, val inputs: Map<String, String> = emptyMap())
+
 expect object Platform {
     // ── installed modules/components (each folder isolated by a classloader = sandbox) ──
     fun installedModuleInfos(): List<ModuleInfo>
@@ -119,9 +122,12 @@ expect object Platform {
 
     // Starts or stops the actual run on a flow's open tab (opening it first if needed) — real
     // execution on screen, as pressing the title bar's Start/Stop would, unlike run_flow's headless
-    // one. See start_flow / stop_flow (MCP); Workspace.askAi is the only reader.
-    fun requestFlowRun(path: String, start: Boolean)
-    fun takePendingFlowRun(): Pair<String, Boolean>?
+    // one. [inputs] (start only; always empty for a stop) is applied the same instant, before the
+    // run itself starts — one request, so there's no gap between setting a value and running with
+    // it for something else to land in between. See start_flow / stop_flow (MCP); Workspace.askAi
+    // is the only reader.
+    fun requestFlowRun(path: String, start: Boolean, inputs: Map<String, String> = emptyMap())
+    fun takePendingFlowRun(): FlowRunRequest?
 
     // Whether the Flow app itself is currently running. open_flow, requestFlowInput and
     // requestFlowRun all need a live app to ever pick up what they leave behind, and the MCP
