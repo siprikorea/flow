@@ -136,35 +136,42 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
         runCatching { File(c.protectionDomain.codeSource.location.toURI()).absolutePath }.getOrNull()
 
     /**
-     * The app's own Compose, handed to the worker so a view can open a window.
+     * The app's own libraries, handed to the worker so a view can open a window.
      *
-     * A view extension could carry its own, but Compose's rendering half ships a native library per
-     * platform and a jar that bundled them all would be a hundred megabytes — for every view, in a
-     * registry served out of a git repository. So the app lends its copy.
+     * A view extension could carry its own Compose, but Compose's rendering half ships a native
+     * library per platform and a jar that bundled them all would be a hundred megabytes — for every
+     * view, in a registry served out of a git repository. So the app lends its copy.
      *
      * What that costs is that a view is built against the app's Compose rather than one of its
      * choosing. What it does not cost is the isolation that matters: this is still another process,
      * so a view that hangs or crashes takes only itself, and everything else an extension depends on
      * is still its own.
      *
-     * Named by prefix because the artifacts change between Compose versions — and getting the list
-     * wrong is quiet: a missing jar is a NoClassDefFoundError on the thread that was going to open
-     * the window, so nothing appears and nothing says why. UiClasspathTest is what checks it.
+     * This used to name the jars to lend by prefix — "compose-", "ui-", "skiko" and so on — and the
+     * list fell behind the first time Compose grew a module: 1.12 added androidx.navigationevent,
+     * which nothing matched, and a window that Compose could no longer construct simply never
+     * appeared. So the rule is now the one that was actually meant: lend the libraries the app runs
+     * on. Lending one a view never touches costs nothing, since a classpath entry is not read until
+     * something asks for it, whereas leaving one out costs a window.
+     *
+     * Two things are held back. Flow's own code, which an extension has no business reaching into;
+     * and anything that declares an extension of its own, because a worker finds its extensions by
+     * service declaration and would otherwise serve every extension that happened to be on the
+     * app's classpath as though it were the one installed in this folder.
      */
-    private fun uiJars(): List<String> =
-        (System.getProperty("java.class.path") ?: "").split(File.pathSeparator)
-            .filter { path ->
-                val name = File(path).name.lowercase()
-                UI_PREFIXES.any { name.startsWith(it) }
-            }
-
-    private companion object {
-        // Compose and what it stands on. Named by prefix because the exact artifacts change between
-        // Compose versions, and a view needs whichever ones this build happens to have.
-        val UI_PREFIXES = listOf(
-            "compose-", "desktop-jvm", "ui-", "foundation-", "runtime-", "animation-", "material-",
-            "skiko", "annotation-", "annotations-", "collection-", "lifecycle-", "savedstate-",
-            "kotlinx-coroutines-", "atomicfu", "core-common", "jbr-api", "kotlin-stdlib",
-        )
+    private fun uiJars(): List<String> {
+        // In a dev run Flow's own classes are the directories on the classpath (build/classes/…,
+        // build/resources/…); in a packaged app they are one jar, the one this class came from.
+        val own = jarOf(ExtensionProcess::class.java)
+        return (System.getProperty("java.class.path") ?: "").split(File.pathSeparator)
+            .filter { it.isNotBlank() }
+            .filterNot { it == own || File(it).isDirectory || declaresExtensions(File(it)) }
     }
+
+    /** Whether a jar announces an extension — the one thing a lent library must not do. */
+    private fun declaresExtensions(jar: File): Boolean = runCatching {
+        java.util.zip.ZipFile(jar).use { zip ->
+            zip.stream().anyMatch { it.name.startsWith("META-INF/services/flow.extension.") }
+        }
+    }.getOrDefault(false)
 }

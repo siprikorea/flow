@@ -25,8 +25,16 @@ import java.util.concurrent.*;
  */
 public final class ExtensionWorker {
 
-    /** Long enough for a window to fail, short enough not to be felt when it does not. */
-    private static final long WINDOW_GRACE_MS = 1500;
+    /**
+     * How long to keep watching a view before deciding the window is not coming.
+     *
+     * It is not a delay on the ordinary path: this returns the moment a window appears, which on a
+     * warm worker is immediate. It is how long a view that never manages one is given before that
+     * is reported, so it has to outlast a cold JVM loading Skiko — the failure that made this
+     * necessary took longer than a second and a half to surface, which is why the fixed wait it
+     * replaces called it a success.
+     */
+    private static final long WINDOW_GRACE_MS = 8_000;
 
     public static void main(String[] args) throws Exception {
         // an extension printing to stdout would land in the middle of a frame
@@ -105,11 +113,13 @@ public final class ExtensionWorker {
                     // app is not waiting for it. So this returns as soon as the window is up, and
                     // anything that happens afterwards is the window's own business.
                     //
-                    // But it waits a moment first. Everything that stops a window appearing —
-                    // a class that is not there, a display that cannot be opened — happens at once,
-                    // and without this the call would report success while nothing appeared and the
-                    // reason sat in a log nobody reads.
+                    // "As soon as the window is up" is watched for rather than waited out. A fixed
+                    // pause is wrong in both directions: too short and a view that dies slowly is
+                    // reported as opened — which is what happened when Compose gained a module the
+                    // worker was not being given, and views stopped opening with nothing said —
+                    // while too long is felt on every open that works.
                     final Throwable[] failure = new Throwable[1];
+                    int before = showingWindows();
                     Thread window = new Thread(() -> {
                         try {
                             v.open(data != null ? data : new byte[0], options);
@@ -119,10 +129,26 @@ public final class ExtensionWorker {
                     }, "view-" + id);
                     window.setDaemon(false);
                     window.start();
-                    window.join(WINDOW_GRACE_MS);
+
+                    // Watched for on screen, not waited on by the thread: open() hands the window
+                    // to the toolkit and returns at once, so the thread is finished a few
+                    // milliseconds later whether a window ever appears or not. That is why the
+                    // fixed join this replaces could never have caught anything.
+                    long deadline = System.currentTimeMillis() + WINDOW_GRACE_MS;
+                    while (failure[0] == null && showingWindows() <= before
+                        && System.currentTimeMillis() < deadline) {
+                        Thread.sleep(20);
+                    }
                     if (failure[0] != null) {
                         throw new IllegalStateException(
                             "the view could not open a window: " + failure[0], failure[0]);
+                    }
+                    if (showingWindows() <= before) {
+                        // Nothing threw where this could see it — a window that fails inside the
+                        // toolkit's own event thread takes the exception with it — so all that can
+                        // be said is what the user already knows. The reason is on stderr.
+                        throw new IllegalStateException(
+                            "the view did not open a window (see the log for why)");
                     }
                 });
             }
@@ -195,6 +221,15 @@ public final class ExtensionWorker {
      * A process with no dock icon is a background one to macOS and cannot put itself in front of
      * the app that is — raising the window above everything and letting go at once can.
      */
+    /** How many windows this process currently has on screen — the signal that a view opened one. */
+    private static int showingWindows() {
+        int n = 0;
+        for (java.awt.Window w : java.awt.Window.getWindows()) {
+            if (w.isShowing()) n++;
+        }
+        return n;
+    }
+
     private static void bringWindowsForward() {
         for (java.awt.Window w : java.awt.Window.getWindows()) {
             if (!w.isShowing()) continue;

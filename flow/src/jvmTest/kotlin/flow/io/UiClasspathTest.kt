@@ -1,67 +1,62 @@
 package flow.io
 
+import flow.extension.host.Wire
+import flow.platform.ExtensionProcess
+import java.awt.GraphicsEnvironment
 import java.io.File
+import java.security.KeyPairGenerator
+import kotlin.test.AfterTest
 import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * The classpath a view's process gets is enough to open a window.
+ * A view really opens a window with the classpath its process is given.
  *
- * A view is written in Compose but does not carry it — the app lends its own, chosen by matching
- * jar names. Getting that list wrong fails silently: the class that opens the window is simply not
- * there, the thread dies with a NoClassDefFoundError nobody reads, and no window appears. That is
- * exactly what happened, so this loads the classes in a JVM with that very classpath.
+ * A view is written in Compose but does not carry it — the app lends its own. Getting what to lend
+ * wrong fails silently: the class that builds the window is not there, the toolkit swallows the
+ * NoClassDefFoundError on its own thread, and no window appears.
+ *
+ * That has now happened twice, and what this test used to do would not have caught either: it
+ * called Class.forName on a handful of top-level names, and loading a class does not resolve what
+ * that class refers to. Compose 1.12 added androidx.navigationevent, the lending list did not have
+ * it, every name here still loaded, and views stopped opening. So this opens one for real — the
+ * only check that exercises the whole graph.
  */
 class UiClasspathTest {
 
-    /** Mirrors ExtensionProcess.uiJars, which is private to it. */
-    private fun uiJars(): List<String> {
-        val prefixes = listOf(
-            "compose-", "desktop-jvm", "ui-", "foundation-", "runtime-", "animation-", "material-",
-            "skiko", "annotation-", "annotations-", "collection-", "lifecycle-", "savedstate-",
-            "kotlinx-coroutines-", "atomicfu", "core-common", "jbr-api", "kotlin-stdlib",
-        )
-        return (System.getProperty("java.class.path") ?: "").split(File.pathSeparator)
-            .filter { path -> prefixes.any { File(path).name.lowercase().startsWith(it) } }
+    private var worker: ExtensionProcess? = null
+
+    @AfterTest
+    fun stop() {
+        worker?.kill()
+    }
+
+    /** Whether this machine can put a window on a screen at all; without one there is nothing to test. */
+    private fun hasDisplay(): Boolean {
+        if (GraphicsEnvironment.isHeadless()) return false
+        return runCatching {
+            java.awt.Frame().apply { pack(); dispose() }
+            true
+        }.getOrDefault(false)
     }
 
     @Test
-    fun `a view's process can load what it takes to open a window`() {
-        val classpath = uiJars().joinToString(File.pathSeparator)
-        // the classes a windowed view actually reaches for, each from a different artifact
-        val needed = listOf(
-            "androidx.compose.ui.window.Window_desktopKt",
-            "androidx.compose.ui.window.Application_desktopKt",
-            "androidx.compose.runtime.Composer",
-            "androidx.compose.foundation.BackgroundKt",
-            "androidx.compose.foundation.lazy.LazyDslKt",
-            "androidx.compose.material.TextKt",
-            "androidx.compose.ui.graphics.Color",
-            "org.jetbrains.skia.Image",
-            "kotlinx.coroutines.Job",
-        )
-        val java = File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
-        val script = needed.joinToString(";") { "Class.forName(\"$it\")" }
-        val probe = File.createTempFile("uiprobe", ".java").apply {
-            writeText(
-                """
-                public class ${nameWithoutExtension} {
-                    public static void main(String[] a) throws Exception {
-                        ${needed.joinToString("\n") { "Class.forName(\"$it\");" }}
-                        System.out.println("OK");
-                    }
-                }
-                """.trimIndent(),
-            )
-            deleteOnExit()
+    fun `a view opens a window with what the app lends it`() {
+        if (!hasDisplay()) return
+
+        val jar = File("../flow-extensions/asn1view-extension/build/libs/asn1view-extension.jar")
+            .let { if (it.isFile) it else File("flow-extensions/asn1view-extension/build/libs/asn1view-extension.jar") }
+        assertTrue(jar.isFile, "run :flow-extensions:asn1view-extension:jar first — ${jar.absolutePath}")
+
+        val proc = ExtensionProcess(jar.parentFile, listOf(jar)).also { worker = it }
+        val key = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair().public.encoded
+        val reply = proc.request(Wire.VIEW_OPEN) { o ->
+            Wire.writeString(o, "flow.view.asn1")
+            Wire.writeBytes(o, key)
+            Wire.writeStringMap(o, emptyMap())
         }
-        val process = ProcessBuilder(java, "-cp", classpath, probe.absolutePath)
-            .redirectErrorStream(true)
-            .start()
-        val output = process.inputStream.bufferedReader().readText().trim()
-        process.waitFor()
-        assertEquals("OK", output.lines().last(), "the window classes are not all there:\n$output")
-        assertTrue(script.isNotEmpty())
+
+        // the worker answers only once a window is actually on screen, so this is the real thing
+        assertTrue(reply.ok, "the view did not open: ${reply.payload.decodeToString()}")
     }
 }
