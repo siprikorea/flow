@@ -66,11 +66,18 @@ import flow.ui.common.LucideIcon
 import flow.ui.common.Txt
 import flow.ui.common.moveCursorIcon
 import flow.ui.common.rememberHover
+import flow.ui.common.resizeCursorIcon
 import flow.ui.theme.FlowType
 import flow.ui.theme.Mono
 import flow.ui.theme.Palette
 // aliased: this file already has androidx.compose.ui.geometry.Size for canvas draw sizes
 import flow.ui.theme.Size as FlowSize
+import kotlin.math.max
+
+// Smallest a node can be dragged to: below this the header's label and the status line underneath
+// it have nowhere to go, and what is left is a box that says nothing.
+private const val MIN_NODE_W = 120f
+private const val MIN_NODE_H = 60f
 
 @Composable
 internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
@@ -241,8 +248,54 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         // CanvasView — above this node's own body, but still in the same stacking order as the
         // nodes themselves, so an overlapping node's ports don't float above it
 
-        // No resize handle: the guide drops manual node resize entirely (CLAUDE.md §5), so the
-        // node's own drag no longer has a corner affordance to share the corner with.
+        // Resize handle (bottom-right L, min 120×60). Taken out by the design-guide pass on the
+        // grounds that the guide drops manual node resize; put back because a node holds text that
+        // does not fit at one size — a long label, a status line, a component's name — and there is
+        // nothing else in the editor that makes it fit.
+        //
+        // It consumes its own gesture, so the node's whole-body drag above never sees a press that
+        // lands here: the two share the corner and the handle wins it.
+        Box(
+            Modifier
+                .align(Alignment.BottomEnd)
+                .offset((-3).dp, (-3).dp)
+                .size(13.dp)
+                .pointerHoverIcon(resizeCursorIcon())
+                .drawBehind {
+                    // rounded L, not a right angle — the bend matches the node's own corner radius
+                    // instead of reading as a different, sharper shape stuck on top of it
+                    val w = 2f * density
+                    val r = 5f * density
+                    val x = size.width - w / 2
+                    val y = size.height - w / 2
+                    val path = Path().apply {
+                        moveTo(x, 0f)
+                        lineTo(x, y - r)
+                        quadraticTo(x, y, x - r, y)
+                        lineTo(0f, y)
+                    }
+                    drawPath(path, Palette.resizeHandle, style = Stroke(width = w, cap = StrokeCap.Round))
+                }
+                .pointerInput(node.id) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown()
+                        down.consume()
+                        val snap0 = state.snapshot()
+                        val start = state.nodeById(node.id) ?: return@awaitEachGesture
+                        var acc = Offset.Zero
+                        var moved = false
+                        drag(down.id) { ch ->
+                            acc += (ch.position - ch.previousPosition) / density
+                            val nw = max(MIN_NODE_W, snapF(start.w + acc.x))
+                            val nh = max(MIN_NODE_H, snapF(start.h + acc.y))
+                            if (nw != start.w || nh != start.h) moved = true
+                            state.resizeNode(node.id, nw, nh)
+                            ch.consume()
+                        }
+                        if (moved) state.pushHistory(snap0) // one undo step per drag, on release
+                    }
+                },
+        )
     }
 }
 
