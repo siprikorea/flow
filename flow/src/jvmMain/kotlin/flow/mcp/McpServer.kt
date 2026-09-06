@@ -121,6 +121,25 @@ object McpServer {
 
     private class Tool(val name: String, val description: String, val schema: JsonObject, val call: (JsonObject) -> String)
 
+    /**
+     * The same tools, for an assistant that is not on the other end of a pipe.
+     *
+     * Claude Code is a child process and reaches these over stdio; the Ollama provider runs inside
+     * the app and calls them directly. Nothing else differs — a tool that leaves a request behind
+     * for the app to pick up does that either way, and it happens to be this same process reading
+     * it back.
+     */
+    class ToolSpec(val name: String, val description: String, val schema: JsonObject)
+
+    fun toolSpecs(): List<ToolSpec> = tools().map { ToolSpec(it.name, it.description, it.schema) }
+
+    /** Runs one, returning what it said — including, as text, why it could not. */
+    fun invoke(name: String, args: JsonObject): String {
+        val tool = tools().find { it.name == name } ?: return "unknown tool: $name"
+        return runCatching { tool.call(args) }
+            .getOrElse { e -> e.message ?: e::class.simpleName ?: "the tool failed" }
+    }
+
     // Rebuilt per request so flows and processors added while the server runs are seen without a restart.
     private fun tools(): List<Tool> = listOf(
         Tool(

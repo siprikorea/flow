@@ -1,6 +1,8 @@
 package flow.platform
 
+import flow.model.AI_OLLAMA
 import flow.model.AiReply
+import flow.model.AiSetup
 import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
@@ -98,20 +100,43 @@ actual object Platform {
         runInterruptible(Dispatchers.Default) { ExtensionLoader.focusView(id) }
     actual fun aiCliPath(): String? = flow.ai.ClaudeCli.path()
 
-    actual suspend fun askAi(prompt: String, sessionId: String?, model: String, onText: (String) -> Unit): AiReply =
+    actual suspend fun askAi(prompt: String, sessionId: String?, ai: AiSetup, onText: (String) -> Unit): AiReply =
         runInterruptible(Dispatchers.IO) {
-            flow.ai.ClaudeCli.ask(
-                prompt = prompt,
-                sessionId = sessionId,
-                model = model,
-                workingDir = projectDir,
-                mcpConfig = flow.ai.FlowPrompt.mcpConfig(projectRoot()),
-                systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
-                onText = onText,
-            )
+            // The two get the same system prompt and the same tools; what differs is who runs the
+            // agent loop around them — Claude Code does it in its own process, Ollama.ask does it
+            // here, because a model on its own does not.
+            if (ai.provider == AI_OLLAMA) {
+                flow.ai.Ollama.ask(
+                    prompt = prompt,
+                    sessionId = sessionId,
+                    model = ai.model,
+                    baseUrl = ai.ollamaUrl,
+                    systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
+                    onText = onText,
+                )
+            } else {
+                flow.ai.ClaudeCli.ask(
+                    prompt = prompt,
+                    sessionId = sessionId,
+                    model = ai.model,
+                    workingDir = projectDir,
+                    mcpConfig = flow.ai.FlowPrompt.mcpConfig(projectRoot()),
+                    systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
+                    onText = onText,
+                )
+            }
         }
 
-    actual fun stopAi() = flow.ai.ClaudeCli.stop()
+    // Both, without asking which is running: only one can be, and stopping the other is a no-op.
+    actual fun stopAi() {
+        flow.ai.ClaudeCli.stop()
+        flow.ai.Ollama.stop()
+    }
+
+    actual fun forgetAi(sessionId: String?) = flow.ai.Ollama.forget(sessionId)
+
+    actual suspend fun ollamaModels(url: String): List<String> =
+        runInterruptible(Dispatchers.IO) { flow.ai.Ollama.models(url) }
 
     actual fun encodeText(text: String, charset: String): ByteArray =
         text.toByteArray(charsetOf(charset))

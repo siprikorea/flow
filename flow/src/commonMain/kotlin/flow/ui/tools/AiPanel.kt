@@ -29,6 +29,23 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.foundation.hoverable
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
+import flow.model.AI_OLLAMA
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -46,6 +63,7 @@ import flow.core.Workspace
 import flow.platform.Platform
 import flow.ui.common.FlowMarkdown
 import flow.ui.common.Txt
+import flow.ui.common.rememberHover
 import flow.ui.common.plainClick
 import flow.ui.theme.Palette
 
@@ -59,7 +77,11 @@ import flow.ui.theme.Palette
  */
 @Composable
 fun AiPanel(ws: Workspace) {
-    val installed = remember { Platform.aiCliPath() != null }
+    // Only the Claude provider is a command that has to be installed; Ollama is a server, and its
+    // being unreachable is something a turn reports rather than something that hides the panel.
+    val installed = remember(ws.aiProvider) { ws.aiProvider == AI_OLLAMA || Platform.aiCliPath() != null }
+    // what the picker offers, re-read when the provider or the server address changes
+    LaunchedEffect(ws.aiProvider, ws.ollamaUrl) { ws.refreshAiModels() }
     Column(Modifier.fillMaxSize()) {
         PanelHeader(ws.t("tabAi"))
         when {
@@ -237,10 +259,99 @@ private fun Composer(ws: Workspace) {
                 if (ws.aiStreaming) ws.stopAi() else send()
             }
         }
-        if (ws.aiMessages.isNotEmpty() && !ws.aiStreaming) {
-            Txt(ws.t("aiClear"), 11.sp, Palette.dimText, modifier = Modifier.plainClick { ws.clearAi() })
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            ModelPicker(ws)
+            Spacer(Modifier.weight(1f))
+            if (ws.aiMessages.isNotEmpty() && !ws.aiStreaming) {
+                Txt(ws.t("aiClear"), 11.sp, Palette.dimText, modifier = Modifier.plainClick { ws.clearAi() })
+            }
         }
     }
+}
+
+/**
+ * Which model answers, under the box the question is typed into.
+ *
+ * Here rather than only in Settings because it is a per-question choice: a quick edit and a whole
+ * flow to design want different models, and going through a settings screen between them is enough
+ * friction that nobody does. It offers whatever the current provider has — the fixed Claude list,
+ * or what Ollama reports it has pulled — and writes to that provider's own setting, so switching
+ * provider and back returns to the model that was in use, not the other one's id.
+ */
+@Composable
+private fun ModelPicker(ws: Workspace) {
+    var open by remember { mutableStateOf(false) }
+    val options = ws.aiModelOptions
+    val current = options.find { it.first == ws.aiModelChoice }?.second
+        ?: ws.aiModelChoice.ifBlank { ws.t("aiModelAuto") }
+
+    Box {
+        Row(
+            Modifier
+                .plainClick { if (options.isNotEmpty()) open = !open }
+                .padding(horizontal = 2.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Txt(current, 11.sp, Palette.dimText, maxLines = 1)
+            Txt(" \u25be", 9.sp, Palette.faintText)
+        }
+        if (open) {
+            Popup(
+                // the composer sits on the floor of the panel, so the menu belongs above it —
+                // anchored exactly, since how tall it is depends on how many models there are
+                popupPositionProvider = above,
+                onDismissRequest = { open = false },
+                properties = PopupProperties(focusable = true),
+            ) {
+                Column(
+                    Modifier
+                        .width(220.dp)
+                        .heightIn(max = 260.dp)
+                        .background(Palette.dropdownBg, RoundedCornerShape(8.dp))
+                        .border(1.dp, Palette.border, RoundedCornerShape(8.dp))
+                        .padding(5.dp)
+                        .verticalScroll(rememberScrollState()),
+                ) {
+                    options.forEach { (id, label) ->
+                        val (src, hovered) = rememberHover()
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .hoverable(src)
+                                .background(
+                                    if (hovered) Palette.holeBg else Color.Transparent,
+                                    RoundedCornerShape(5.dp),
+                                )
+                                .plainClick { ws.aiModelChoice = id; open = false }
+                                .padding(horizontal = 8.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Txt(
+                                label,
+                                11.sp,
+                                if (id == ws.aiModelChoice) Palette.accent else Palette.text,
+                                modifier = Modifier.weight(1f),
+                            )
+                            if (id == ws.aiModelChoice) Txt("\u2713", 10.sp, Palette.accent)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Puts a popup directly above whatever it is anchored to, left edges aligned. */
+private val above = object : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset = IntOffset(
+        x = anchorBounds.left.coerceAtMost(windowSize.width - popupContentSize.width).coerceAtLeast(0),
+        y = (anchorBounds.top - popupContentSize.height).coerceAtLeast(0),
+    )
 }
 
 /** An arrow to send, a square to stop — one round button that swaps which it is. */

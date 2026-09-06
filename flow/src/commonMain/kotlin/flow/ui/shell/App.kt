@@ -56,7 +56,8 @@ import flow.core.Shortcut
 import flow.core.Workspace
 import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
-import flow.model.AI_MODELS
+import flow.model.AI_OLLAMA
+import flow.model.AI_PROVIDERS
 import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.util.flowLabel
@@ -569,7 +570,10 @@ fun SettingsScreen(ws: Workspace) {
     var lang by remember { mutableStateOf(ws.lang) }
     var theme by remember { mutableStateOf(ws.theme) }
     var anim by remember { mutableStateOf(ws.animSeconds) }
+    var aiProvider by remember { mutableStateOf(ws.aiProvider) }
     var aiModel by remember { mutableStateOf(ws.aiModel) }
+    var ollamaUrl by remember { mutableStateOf(ws.ollamaUrl) }
+    var ollamaModel by remember { mutableStateOf(ws.ollamaModel) }
     var keymap by remember { mutableStateOf(ws.keymap) }
     var recording by remember { mutableStateOf<String?>(null) } // action waiting for a key press
     var category by remember { mutableStateOf(ws.settingsCategory) }
@@ -599,7 +603,10 @@ fun SettingsScreen(ws: Workspace) {
         ws.lang = lang
         ws.theme = theme
         ws.animSeconds = anim
+        ws.aiProvider = aiProvider
         ws.aiModel = aiModel
+        ws.ollamaUrl = ollamaUrl
+        ws.ollamaModel = ollamaModel
         ws.keymap = keymap
     }
 
@@ -670,10 +677,32 @@ fun SettingsScreen(ws: Workspace) {
                         }
                     }
                     "ai" -> Column {
-                        SettingRow(ws.t("aiModel")) {
-                            Segmented(AI_MODELS, aiModel) { aiModel = it }
+                        SettingRow(ws.t("aiProvider")) {
+                            Segmented(AI_PROVIDERS, aiProvider) { aiProvider = it }
                         }
-                        Txt(ws.t("aiModelHint"), 11.sp, Palette.faintText)
+                        Txt(ws.t("aiProviderHint"), 11.sp, Palette.faintText)
+                        if (aiProvider == AI_OLLAMA) {
+                            Spacer(Modifier.height(14.dp))
+                            // The server has to be reachable before there is a list to pick from,
+                            // so the address comes first and the models are re-read whenever it or
+                            // this screen changes.
+                            SettingRow(ws.t("ollamaUrl")) {
+                                DtxField(ollamaUrl, { ollamaUrl = it }, mono = true)
+                            }
+                            LaunchedEffect(ollamaUrl) {
+                                ws.ollamaUrl = ollamaUrl
+                                ws.refreshAiModels()
+                            }
+                            val models = ws.ollamaModels
+                            SettingRow(ws.t("ollamaModel")) {
+                                if (models.isEmpty()) {
+                                    Txt(ws.t("ollamaNoModels"), 11.sp, Palette.faintText)
+                                } else {
+                                    Segmented(models.map { it to it }, ollamaModel) { ollamaModel = it }
+                                }
+                            }
+                            Txt(ws.t("ollamaHint"), 11.sp, Palette.faintText)
+                        }
                     }
                     "keymap" -> Column {
                         Action.ALL.forEach { action ->

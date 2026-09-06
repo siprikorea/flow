@@ -9,6 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import flow.core.Workspace
+import flow.model.AI_OLLAMA
+import flow.model.AiMessage
+import flow.ui.shell.SettingsScreen
 import flow.ui.theme.ApplyTheme
 import flow.ui.theme.Palette
 import flow.ui.theme.Theme
@@ -19,8 +22,57 @@ import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
 
-/** Draws the assistant panel to a file. Skipped unless RENDER_OUT names a directory. */
+/** Draws the assistant panel and its settings to files. Skipped unless RENDER_OUT names a directory. */
 class AiPanelProbe {
+
+    private fun workspace(): Workspace {
+        val ws = Workspace(CoroutineScope(Dispatchers.Unconfined))
+        // a folder, so the panel shows the conversation rather than asking for one
+        val folder = File(System.getProperty("java.io.tmpdir"), "flow-ai-probe").apply { mkdirs() }
+        ws.openProject(folder.absolutePath)
+        return ws
+    }
+
+    /** A conversation and the composer under it — the model picker lives there. */
+    @Test
+    fun `draw a conversation`() {
+        val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
+        dir.mkdirs()
+        val scene = ImageComposeScene(380, 700, density = Density(2f)) {
+            ApplyTheme(Theme.DARK)
+            val ws = workspace()
+            ws.aiMessages = listOf(
+                AiMessage(true, "sha256 flow 를 만들어줘"),
+                AiMessage(false, "**sha256-hash.flow** 를 저장했습니다.\n\n- `text` → `SHA-256` → `hash`"),
+            )
+            Box(Modifier.fillMaxSize().background(Palette.panelBg)) { AiPanel(ws) }
+        }
+        File(dir, "ai-conversation.png").writeBytes(scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+    }
+
+    /**
+     * Settings ▸ AI with Ollama picked: the server address and the models it reports having.
+     *
+     * Rendered a few times over a second because that list is a request to the server, so the first
+     * frame has nothing in it — the same reason the real screen fills in a moment after it opens.
+     */
+    @Test
+    fun `draw the ai settings`() {
+        val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
+        dir.mkdirs()
+        val scene = ImageComposeScene(1400, 900, density = Density(1.4f), coroutineContext = Dispatchers.Unconfined) {
+            ApplyTheme(Theme.DARK)
+            val ws = workspace()
+            ws.aiProvider = AI_OLLAMA
+            ws.settingsCategory = "ai"
+            SettingsScreen(ws)
+        }
+        repeat(20) { scene.render(); Thread.sleep(50) }
+        File(dir, "ai-settings.png").writeBytes(scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+    }
+
     @Test
     fun `draw the ai panel`() {
         val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
@@ -28,10 +80,7 @@ class AiPanelProbe {
         listOf(Theme.DARK, Theme.LIGHT).forEach { theme ->
             val scene = ImageComposeScene(760, 900, density = Density(2f)) {
                 ApplyTheme(theme)
-                val ws = Workspace(CoroutineScope(Dispatchers.Unconfined))
-                // a folder, so the panel shows the conversation rather than asking for one
-                val folder = File(System.getProperty("java.io.tmpdir"), "flow-ai-probe").apply { mkdirs() }
-                ws.openProject(folder.absolutePath)
+                val ws = workspace()
                 Box(Modifier.fillMaxSize().background(Palette.panelBg)) {
                     Box(Modifier.width(340.dp).fillMaxSize()) { AiPanel(ws) }
                 }

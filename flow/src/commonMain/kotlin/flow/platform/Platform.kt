@@ -1,6 +1,7 @@
 package flow.platform
 
 import flow.model.AiReply
+import flow.model.AiSetup
 import flow.model.InstallResult
 import flow.model.ModuleInfo
 import flow.model.OptDef
@@ -30,16 +31,21 @@ expect object Platform {
     // another process, so this is how a keyboard reaches one.
     suspend fun focusView(id: String)
 
-    // ── the assistant, run as Claude Code ──
-    // Whether the CLI is installed. Null when it is not, which is worth saying rather than failing.
+    // ── the assistant: Claude Code, or an Ollama server on this machine ──
+    // Whether the claude CLI is installed. Null when it is not, which is worth saying rather than
+    // failing. Only the Claude provider needs it; Ollama is an HTTP server, not a command.
     fun aiCliPath(): String?
     // One turn. [onText] is called as the answer arrives; the reply's session carries the
     // conversation to the next turn.
-    // model is a full id ("claude-opus-5") from the Settings screen's AI_MODELS, or "" to leave it
-    // to whatever the claude CLI itself defaults to
-    suspend fun askAi(prompt: String, sessionId: String?, model: String, onText: (String) -> Unit): AiReply
+    suspend fun askAi(prompt: String, sessionId: String?, ai: AiSetup, onText: (String) -> Unit): AiReply
     // Ends the run in progress. Whatever it had said by then stands.
     fun stopAi()
+    // Drops a conversation the provider is holding. Only Ollama holds one — its transcript lives in
+    // this process, since the server itself remembers nothing between requests.
+    fun forgetAi(sessionId: String?)
+    // What the Ollama server at [url] has pulled, newest first, or empty if it cannot be reached —
+    // which is the same answer the panel gives either way: there is nothing to pick.
+    suspend fun ollamaModels(url: String): List<String>
 
     // text in a named encoding, for the built-in String input — commonMain has UTF-8 and nothing
     // else, and which encoding a value is written in is the user's choice

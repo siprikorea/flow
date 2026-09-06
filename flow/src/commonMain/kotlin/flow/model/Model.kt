@@ -105,9 +105,17 @@ data class Settings(
     val animSeconds: Float = 0.25f,
     // where the Extensions screen looks for installable extensions
     val registryUrl: String = DEFAULT_REGISTRY_URL,
+    // which assistant the AI panel talks to: AI_CLAUDE or AI_OLLAMA. Each keeps its own model,
+    // because they name nothing in common — one is a hosted model id, the other whatever the
+    // machine has pulled.
+    val aiProvider: String = AI_CLAUDE,
     // the AI panel's model, as `claude --model` takes it (a full model id, e.g. "claude-opus-5");
     // blank defers to whatever the claude CLI itself defaults to.
     val aiModel: String = "",
+    // where the Ollama server is, and which of its models to use. Blank model means the panel asks
+    // the server what it has and takes the first — a machine usually has one.
+    val ollamaUrl: String = DEFAULT_OLLAMA_URL,
+    val ollamaModel: String = "",
     // outputs and inputs the user has switched off. Kept as the exception rather than the list of
     // enabled ones, so a newly installed one is usable without having to be turned on first.
     val disabledOutputs: List<String> = emptyList(),
@@ -120,6 +128,20 @@ data class Settings(
 // so publishing an extension update is part of cutting a release, not a separate deployment.
 const val DEFAULT_REGISTRY_URL =
     "https://github.com/siprikorea/flow/releases/latest/download/extensions.json"
+
+// The two assistants the AI panel can talk to. Claude Code is a CLI with an account behind it;
+// Ollama is a server on the machine, so it costs nothing per turn and works offline, at whatever
+// quality the local model manages. Both are driven through the same flow tools.
+const val AI_CLAUDE = "claude"
+const val AI_OLLAMA = "ollama"
+
+val AI_PROVIDERS: List<Pair<String, String>> = listOf(
+    AI_CLAUDE to "Claude",
+    AI_OLLAMA to "Ollama",
+)
+
+// Ollama's own default: it binds to localhost:11434 unless told otherwise.
+const val DEFAULT_OLLAMA_URL = "http://localhost:11434"
 
 // Model choices the Settings screen offers for the AI panel, as ids `claude --model` accepts
 // verbatim (a full model name, not an alias like "opus" — those track "latest", which drifts).

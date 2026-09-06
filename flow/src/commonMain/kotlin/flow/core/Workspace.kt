@@ -14,7 +14,15 @@ import flow.model.OptDef
 import flow.model.Node
 import flow.model.Session
 import flow.model.Settings
+import flow.model.AI_CLAUDE
+import flow.model.AI_ERR_OLLAMA_DOWN
+import flow.model.AI_ERR_OLLAMA_NO_MODEL
+import flow.model.AI_ERR_OLLAMA_STEPS
 import flow.model.AI_MODELS
+import flow.model.AI_OLLAMA
+import flow.model.AI_PROVIDERS
+import flow.model.AiSetup
+import flow.model.DEFAULT_OLLAMA_URL
 import flow.model.DEFAULT_REGISTRY_URL
 import flow.model.RegistryEntry
 import flow.model.RegistryIndex
@@ -65,8 +73,15 @@ class Workspace(private val scope: CoroutineScope) {
     var lang by mutableStateOf("en") // default language: English
     var theme by mutableStateOf(Theme.SYSTEM) // system | dark | light
     var registryUrl by mutableStateOf(DEFAULT_REGISTRY_URL)
-    // blank = whatever `claude` itself defaults to; see AI_MODELS for the choices Settings offers
+    // Which assistant the AI panel talks to, and a model per provider — the two name nothing in
+    // common, so switching provider and switching back finds the model it was left on rather than
+    // an id the other one has never heard of.
+    var aiProvider by mutableStateOf(AI_CLAUDE)
+    // blank = whatever `claude` itself defaults to; see AI_MODELS for the choices offered
     var aiModel by mutableStateOf("")
+    var ollamaUrl by mutableStateOf(DEFAULT_OLLAMA_URL)
+    // blank = the first model the server reports, which on a machine with one is the one
+    var ollamaModel by mutableStateOf("")
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules | ai
     // palette sections left open, by key
@@ -330,6 +345,56 @@ class Workspace(private val scope: CoroutineScope) {
     private var aiSession: String? = null
 
     /**
+     * Which provider that session belongs to.
+     *
+     * The two mint session ids that mean nothing to each other — Claude Code's is a conversation on
+     * disk it can resume, Ollama's is a key into a transcript held in this process. Handing one to
+     * the other is not a degraded conversation, it is an error (`claude --resume ollama-1a2b3c`
+     * fails outright), so switching provider starts a fresh one.
+     */
+    private var aiSessionProvider: String? = null
+
+    /**
+     * The model in use, and where to set it: whichever of the two the current provider means.
+     *
+     * Writing it goes to that provider's own field, so the composer's picker and the Settings
+     * screen are two views of one value rather than two settings that can disagree. (Saving is
+     * App.kt's snapshotFlow on settingsJson(); nothing here has to ask for it.)
+     */
+    var aiModelChoice: String
+        get() = if (aiProvider == AI_OLLAMA) ollamaModel else aiModel
+        set(value) { if (aiProvider == AI_OLLAMA) ollamaModel = value else aiModel = value }
+
+    /**
+     * What the model picker offers: fixed for Claude, whatever the server has pulled for Ollama.
+     *
+     * The Ollama half is a network call, so it is a cached list refreshed by [refreshAiModels]
+     * rather than something read on every recomposition. An empty one is not an error to report —
+     * it is the ordinary state of a machine that hasn't started Ollama, and the picker says so.
+     */
+    var ollamaModels by mutableStateOf<List<String>>(emptyList())
+        private set
+
+    val aiModelOptions: List<Pair<String, String>>
+        get() = if (aiProvider == AI_OLLAMA) {
+            // whatever is configured stays in the list even if the server is unreachable, so the
+            // picker still shows what a turn would actually use
+            val names = (ollamaModels + ollamaModel.takeIf { it.isNotBlank() }.orEmpty()).filter { it.isNotBlank() }
+            names.distinct().map { it to it }
+        } else {
+            AI_MODELS
+        }
+
+    fun refreshAiModels() {
+        if (aiProvider != AI_OLLAMA) return
+        val url = ollamaUrl
+        scope.launch { ollamaModels = Platform.ollamaModels(url) }
+    }
+
+    /** A setup for one turn, as the provider in force now describes it. */
+    private fun aiSetup() = AiSetup(provider = aiProvider, model = aiModelChoice, ollamaUrl = ollamaUrl)
+
+    /**
      * Asks one question.
      *
      * The answer is appended to the last message as it arrives, so a run that takes a minute shows
@@ -341,20 +406,28 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun askAi(question: String) {
         if (aiStreaming || !aiReady) return
+        if (aiSessionProvider != null && aiSessionProvider != aiProvider) {
+            Platform.forgetAi(aiSession)
+            aiSession = null
+        }
+        aiSessionProvider = aiProvider
         aiMessages = aiMessages + AiMessage(fromUser = true, text = question) +
             AiMessage(fromUser = false, text = "")
         aiStreaming = true
         scope.launch {
             val reply = runCatching {
                 withContext(Dispatchers.Default) {
-                    Platform.askAi(question, aiSession, aiModel) { chunk ->
+                    Platform.askAi(question, aiSession, aiSetup()) { chunk ->
                         scope.launch { appendToLastAnswer(chunk) }
                     }
                 }
             }.getOrElse { flow.model.AiReply(error = it.message ?: "the assistant could not be reached") }
 
             reply.sessionId?.let { aiSession = it }
-            val text = reply.error?.let { t("aiFailed") + "\n" + it } ?: reply.text
+            // both, when there are both: a turn that failed partway still said something, and
+            // replacing it with the failure throws away the half that worked
+            val failure = reply.error?.let { t("aiFailed") + "\n" + aiErrorText(it) }
+            val text = listOfNotNull(reply.text.takeIf { it.isNotBlank() }, failure).joinToString("\n\n")
             aiMessages = aiMessages.dropLast(1) + AiMessage(fromUser = false, text = text)
             aiStreaming = false
 
@@ -388,6 +461,20 @@ class Workspace(private val scope: CoroutineScope) {
         }
     }
 
+    /**
+     * A failure the user can act on.
+     *
+     * The providers raise the few they can predict as ids (AI_ERR_*), because they run where the
+     * string table isn't; anything else came from the tool and is already a sentence.
+     */
+    private fun aiErrorText(error: String): String = when {
+        error.startsWith(AI_ERR_OLLAMA_DOWN) ->
+            t("aiOllamaMissingBody") + error.removePrefix(AI_ERR_OLLAMA_DOWN)
+        error == AI_ERR_OLLAMA_NO_MODEL -> t("aiOllamaNoModelBody")
+        error == AI_ERR_OLLAMA_STEPS -> t("aiTooManySteps")
+        else -> error
+    }
+
     /** Ends the run. What it had said by then stays. */
     fun stopAi() {
         if (!aiStreaming) return
@@ -404,7 +491,11 @@ class Workspace(private val scope: CoroutineScope) {
     fun clearAi() {
         if (aiStreaming) return
         aiMessages = emptyList()
+        // Claude Code keeps its own transcripts and a session id simply stops being used; Ollama's
+        // lives in this process, so dropping it is something that has to be said.
+        Platform.forgetAi(aiSession)
         aiSession = null
+        aiSessionProvider = null
     }
 
     /**
@@ -873,7 +964,8 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun settingsJson(): String = json.encodeToString(
         Settings(
-            lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl, aiModel,
+            lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
+            aiProvider, aiModel, ollamaUrl, ollamaModel,
         )
     )
 
@@ -891,6 +983,11 @@ class Workspace(private val scope: CoroutineScope) {
             // an id from an older build that's since been retired falls back to Auto rather than
             // silently passing something `claude --model` may no longer recognize
             aiModel = saved.aiModel.takeIf { id -> AI_MODELS.any { it.first == id } } ?: ""
+            aiProvider = saved.aiProvider.takeIf { p -> AI_PROVIDERS.any { it.first == p } } ?: AI_CLAUDE
+            ollamaUrl = saved.ollamaUrl.ifBlank { DEFAULT_OLLAMA_URL }
+            // not checked against a list the way the Claude id is: what Ollama has pulled is
+            // whatever this machine has, and the only way to know is to ask it
+            ollamaModel = saved.ollamaModel
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }
