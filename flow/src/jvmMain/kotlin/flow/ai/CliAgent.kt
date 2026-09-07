@@ -97,6 +97,12 @@ internal object CliAgent {
             .getOrElse { return AiReply(error = it.message ?: "could not start ${File(cli).name}") }
         running.set(process)
 
+        // The question is an argument, so nothing is ever written to the child — but it inherits a
+        // pipe for stdin all the same, and a CLI that also accepts a prompt on stdin waits for that
+        // pipe to end before it answers. Gemini's -p says so outright ("appended to input on stdin
+        // (if any)"). Left open, the turn never finishes and the panel sits on "thinking…" forever.
+        runCatching { process.outputStream.close() }
+
         val text = StringBuilder()
         var session: String? = null
         var result: String? = null

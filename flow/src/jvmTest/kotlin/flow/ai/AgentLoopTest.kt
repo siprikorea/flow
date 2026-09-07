@@ -1,6 +1,7 @@
 package flow.ai
 
 import com.sun.net.httpserver.HttpServer
+import flow.model.AI_ERR_EMPTY
 import flow.model.AI_ERR_NO_KEY
 import flow.model.AI_CLAUDE
 import flow.model.AI_GEMINI
@@ -163,6 +164,21 @@ class AgentLoopTest {
         val reply = Agents.ask("hello", null, AiSetup(AI_OPENAI, AI_VIA_API, "gpt-test", "http://127.0.0.1:1", ""), "sys") {}
         assertEquals(AI_ERR_NO_KEY, reply.error)
         assertTrue(received.isEmpty(), "it asked anyway")
+    }
+
+    /**
+     * A turn that ends having written nothing says so.
+     *
+     * It reached the panel as an empty bubble — no text, no error, nothing to act on — which reads
+     * as the assistant having ignored the question. A small local model really does do this: one
+     * observed run spent six minutes on tool calls and then stopped without a word.
+     */
+    @Test
+    fun `a turn that produces no text at all is reported rather than shown as silence`() {
+        val url = serve("""data: {"choices":[{"delta":{}}]}""" + "\n\ndata: [DONE]")
+        val reply = Agents.ask("hello", null, AiSetup(AI_OPENAI, AI_VIA_API, "gpt-test", url, "k"), "sys") {}
+        assertEquals(AI_ERR_EMPTY, reply.error)
+        assertEquals("", reply.text)
     }
 
     @Test

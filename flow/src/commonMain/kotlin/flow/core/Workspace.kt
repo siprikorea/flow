@@ -16,6 +16,7 @@ import flow.model.Session
 import flow.model.Settings
 import flow.model.AI_CLAUDE
 import flow.model.AI_ERR_OLLAMA_DOWN
+import flow.model.AI_ERR_EMPTY
 import flow.model.AI_ERR_NO_KEY
 import flow.model.AI_ERR_NO_MODEL
 import flow.model.AI_ERR_STEPS
@@ -386,15 +387,21 @@ class Workspace(private val scope: CoroutineScope) {
     /** What carries the conversation from one turn to the next; null starts a new one. */
     private var aiSession: String? = null
 
+    /** Visible to a test, which is the only way to see that a session was dropped rather than reused. */
+    internal val aiSessionForTest: String? get() = aiSession
+
     /**
-     * Which provider that session belongs to.
+     * Which assistant that session belongs to — provider and transport both.
      *
-     * The two mint session ids that mean nothing to each other — Claude Code's is a conversation on
-     * disk it can resume, Ollama's is a key into a transcript held in this process. Handing one to
-     * the other is not a degraded conversation, it is an error (`claude --resume ollama-1a2b3c`
-     * fails outright), so switching provider starts a fresh one.
+     * They mint session ids that mean nothing to each other: Claude Code's is a conversation on
+     * disk it can resume, the HTTP agents' is a key into a transcript held in this process. Handing
+     * one to the other is not a degraded conversation, it is an error — `claude --resume
+     * claude-1a2b3c` fails outright, and that is a turn that answers nothing at all.
+     *
+     * Transport counts as much as provider, because the same provider mints both kinds: reaching
+     * Claude by API and then by its CLI hands the CLI an id from the wrong world.
      */
-    private var aiSessionProvider: String? = null
+    private var aiSessionOwner: String? = null
 
     /**
      * The model in use, and where to set it: whichever provider is in force keeps its own.
@@ -535,11 +542,12 @@ class Workspace(private val scope: CoroutineScope) {
 
     fun askAi(question: String) {
         if (aiStreaming || !aiReady) return
-        if (aiSessionProvider != null && aiSessionProvider != aiProvider) {
+        val owner = "$aiProvider/$aiTransport"
+        if (aiSessionOwner != null && aiSessionOwner != owner) {
             Platform.forgetAi(aiSession)
             aiSession = null
         }
-        aiSessionProvider = aiProvider
+        aiSessionOwner = owner
         val answering = aiProvider
         aiMessages = aiMessages + AiMessage(fromUser = true, text = question) +
             AiMessage(fromUser = false, text = "", provider = answering)
@@ -603,6 +611,7 @@ class Workspace(private val scope: CoroutineScope) {
         error == AI_ERR_NO_MODEL -> t("aiNoModelBody")
         error == AI_ERR_NO_KEY -> t("aiNoKeyBody")
         error == AI_ERR_STEPS -> t("aiTooManySteps")
+        error == AI_ERR_EMPTY -> t("aiSaidNothing")
         else -> error
     }
 
@@ -626,7 +635,7 @@ class Workspace(private val scope: CoroutineScope) {
         // lives in this process, so dropping it is something that has to be said.
         Platform.forgetAi(aiSession)
         aiSession = null
-        aiSessionProvider = null
+        aiSessionOwner = null
     }
 
     /**

@@ -1,6 +1,7 @@
 package flow.ai
 
 import flow.mcp.McpServer
+import flow.model.AI_ERR_EMPTY
 import flow.model.AI_ERR_STEPS
 import flow.model.AiReply
 import kotlinx.serialization.json.Json
@@ -86,9 +87,16 @@ internal class HttpAgent(private val api: AiApi) {
 
             transcript += turn.assistant
             if (turn.calls.isEmpty()) {
+                // Nothing more was asked for, so this is the model saying it is finished. If it
+                // finished without writing anything, that is not an answer — it reached the panel
+                // as an empty bubble, which reads as the assistant having ignored the question.
+                // It happens: a model can spend a whole turn calling tools and then stop.
                 val answer = said.toString().trim()
-                return if (answer.isEmpty() && turn.error != null) AiReply(sessionId = id, error = turn.error)
-                else AiReply(text = answer, sessionId = id)
+                return when {
+                    answer.isNotEmpty() -> AiReply(text = answer, sessionId = id)
+                    turn.error != null -> AiReply(sessionId = id, error = turn.error)
+                    else -> AiReply(sessionId = id, error = AI_ERR_EMPTY)
+                }
             }
             turn.calls.forEach { call ->
                 transcript += api.toolResult(call, McpServer.invoke(call.name, call.args))
