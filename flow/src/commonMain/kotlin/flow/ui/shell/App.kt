@@ -571,16 +571,19 @@ private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            // state is null exactly when there is no registry entry — installed from a file — so
+            // every branch that has one has it for sure
+            val entry = item.entry
             when {
                 busy -> Txt(ws.t("installing"), 11.sp, Palette.faintText)
-                state == flow.model.RegistryState.UPDATABLE -> {
-                    DialogButton("${ws.t("update")} → ${item.entry!!.version}", Palette.accent, Palette.holeBg, filled = true) {
-                        ws.installFromRegistry(item.entry)
+                entry == null -> Unit
+                state == flow.model.RegistryState.UPDATABLE ->
+                    DialogButton("${ws.t("update")} → ${entry.version}", Palette.accent, Palette.holeBg, filled = true) {
+                        ws.installFromRegistry(entry)
                     }
-                }
                 state == flow.model.RegistryState.AVAILABLE ->
                     DialogButton(ws.t("install"), Palette.accent, Palette.holeBg, filled = true) {
-                        ws.installFromRegistry(item.entry!!)
+                        ws.installFromRegistry(entry)
                     }
             }
             if (item.installed) {
