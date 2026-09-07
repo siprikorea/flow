@@ -31,7 +31,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.Spacer
 import flow.model.AiMessage
-import flow.model.isHttpProvider
+import flow.model.AI_VIA_CLI
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.SolidColor
@@ -63,10 +63,11 @@ import flow.ui.theme.Palette
  */
 @Composable
 fun AiPanel(ws: Workspace) {
-    // Only the Claude provider is a command that has to be installed; the rest answer at an
-    // address, and one being unreachable is something a turn reports rather than something that
-    // hides the panel.
-    val installed = remember(ws.aiProvider) { isHttpProvider(ws.aiProvider) || Platform.aiCliPath() != null }
+    // A CLI has to be installed before there is anything to talk to; an address does not, and one
+    // being unreachable is something a turn reports rather than something that hides the panel.
+    val installed = remember(ws.aiProvider, ws.aiTransport) {
+        ws.aiTransport != AI_VIA_CLI || Platform.cliPath(ws.aiProvider) != null
+    }
     // what the picker offers, re-read whenever the provider, its address or its key changes
     LaunchedEffect(ws.aiProvider, ws.aiUrl, ws.aiApiKey) { ws.refreshAiModels() }
     Column(Modifier.fillMaxSize()) {

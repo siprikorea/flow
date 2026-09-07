@@ -2,6 +2,7 @@ package flow.ai
 
 import flow.model.AI_ERR_OLLAMA_DOWN
 import flow.model.AI_OLLAMA
+import flow.model.AI_VIA_API
 import flow.model.AiSetup
 import flow.model.DEFAULT_OLLAMA_URL
 import kotlin.test.Test
@@ -22,7 +23,7 @@ import kotlin.test.assertTrue
 class OllamaLiveTest {
 
     private fun setup(url: String = DEFAULT_OLLAMA_URL, model: String = "") =
-        AiSetup(provider = AI_OLLAMA, model = model, url = url)
+        AiSetup(provider = AI_OLLAMA, transport = AI_VIA_API, model = model, url = url)
 
     @Test
     fun `a server that isn't there is reported, not thrown`() {

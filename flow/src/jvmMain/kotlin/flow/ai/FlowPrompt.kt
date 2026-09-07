@@ -85,7 +85,7 @@ internal object FlowPrompt {
     }
 
     /**
-     * Points Claude Code at Flow's own MCP server.
+     * Flow's own MCP server, as the CLIs each want to be told about it.
      *
      * The server is this application's code, so it is started the same way this process was — no
      * separate install, and no version of the tools other than the one running.
@@ -93,12 +93,10 @@ internal object FlowPrompt {
      * Headless, and no dock icon. It talks over a pipe and has no business on the screen; without
      * saying so, a Java icon appears in the dock for as long as a question takes to answer.
      */
-    fun mcpConfig(projectRoot: String?): File? = runCatching {
+    fun mcpServersJson(projectRoot: String?): String {
         val java = File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
-        val classpath = System.getProperty("java.class.path") ?: return null
-        val config = File.createTempFile("flow-mcp", ".json").apply { deleteOnExit() }
-        config.writeText(
-            """
+        val classpath = System.getProperty("java.class.path").orEmpty()
+        return """
             {
               "mcpServers": {
                 "flow": {
@@ -112,10 +110,42 @@ internal object FlowPrompt {
                 }
               }
             }
-            """.trimIndent(),
-        )
-        config
+        """.trimIndent()
+    }
+
+    /** The same, in a file, for a CLI that takes one on the command line (Claude Code). */
+    fun mcpConfig(projectRoot: String?): File? = runCatching {
+        if (System.getProperty("java.class.path") == null) return null
+        File.createTempFile("flow-mcp", ".json").apply {
+            deleteOnExit()
+            writeText(mcpServersJson(projectRoot))
+        }
     }.getOrNull()
+
+    /**
+     * The same again, as one executable command, for a CLI that is given a command and no arguments.
+     *
+     * Codex names an MCP server by a single `command` on its own command line. Rather than thread a
+     * classpath as long as this one through TOML quoting, the command is a script that has it
+     * baked in — the same thing :flow:mcpLauncher writes for a terminal.
+     */
+    fun mcpLauncher(projectRoot: String?): File? = runCatching {
+        val java = File(File(System.getProperty("java.home"), "bin"), "java").absolutePath
+        val classpath = System.getProperty("java.class.path") ?: return null
+        File.createTempFile("flow-mcp", ".sh").apply {
+            deleteOnExit()
+            writeText(
+                "#!/bin/sh\n" +
+                    "exec ${shell(java)} -Djava.awt.headless=true -Dapple.awt.UIElement=true " +
+                    "-cp ${shell(classpath)} flow.cli.CliKt --mcp" +
+                    (projectRoot?.let { " --project ${shell(it)}" } ?: "") + "\n",
+            )
+            setExecutable(true)
+        }
+    }.getOrNull()
+
+    /** A single-quoted shell word, which is literal apart from the quote itself. */
+    private fun shell(s: String) = "'" + s.replace("'", "'\\''") + "'"
 
     private fun quote(s: String) = "\"" + s.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
 }

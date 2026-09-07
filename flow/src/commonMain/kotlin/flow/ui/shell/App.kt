@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.draganddrop.DragAndDropEvent
@@ -60,7 +61,11 @@ import flow.model.AI_CLAUDE
 import flow.model.AI_GEMINI
 import flow.model.AI_OPENAI
 import flow.model.AI_PROVIDERS
+import flow.model.AI_VIA_API
+import flow.model.AI_VIA_CLI
 import flow.model.apiKeyEnvVar
+import flow.model.cliCommand
+import flow.model.defaultTransport
 import flow.model.needsApiKey
 import flow.ui.common.Picker
 import flow.platform.Platform
@@ -586,6 +591,9 @@ fun SettingsScreen(ws: Workspace) {
     var geminiUrl by remember { mutableStateOf(ws.geminiUrl) }
     var geminiModel by remember { mutableStateOf(ws.geminiModel) }
     var geminiKey by remember { mutableStateOf(ws.geminiKey) }
+    var claudeUrl by remember { mutableStateOf(ws.claudeUrl) }
+    var claudeKey by remember { mutableStateOf(ws.claudeKey) }
+    var transports by remember { mutableStateOf(ws.aiTransports) }
     var keymap by remember { mutableStateOf(ws.keymap) }
     var recording by remember { mutableStateOf<String?>(null) } // action waiting for a key press
     var category by remember { mutableStateOf(ws.settingsCategory) }
@@ -623,9 +631,12 @@ fun SettingsScreen(ws: Workspace) {
         ws.openaiModel = openaiModel
         ws.geminiUrl = geminiUrl
         ws.geminiModel = geminiModel
+        ws.claudeUrl = claudeUrl
+        ws.aiTransports = transports
         // the keys are not part of settingsJson(), so they are written where they live
         ws.setApiKey(AI_OPENAI, openaiKey)
         ws.setApiKey(AI_GEMINI, geminiKey)
+        ws.setApiKey(AI_CLAUDE, claudeKey)
         ws.keymap = keymap
     }
 
@@ -701,26 +712,62 @@ fun SettingsScreen(ws: Workspace) {
                         }
                         Txt(ws.t("aiProviderHint"), 11.sp, Palette.faintText)
 
-                        // Claude is a command with its own account; the rest answer at an address,
-                        // and two of those want a key first. Each provider edits its own settings,
-                        // so switching back and forth keeps what was entered for the other.
-                        if (aiProvider != AI_CLAUDE) {
-                            Spacer(Modifier.height(14.dp))
+                        Spacer(Modifier.height(14.dp))
+
+                        // The same assistant two ways round. A command that is installed is already
+                        // signed in, so it needs no key and — where the sign-in is a subscription —
+                        // costs nothing more; the API needs a key but nothing installed. Which is
+                        // set up differs by provider and by machine, so it is chosen per provider.
+                        val cli = cliCommand(aiProvider)
+                        val cliPath = remember(aiProvider) { cli?.let { Platform.cliPath(aiProvider) } }
+                        if (cli != null) {
+                            SettingRow(ws.t("aiTransport")) {
+                                Radios(
+                                    listOf(
+                                        AI_VIA_CLI to ws.t("aiViaCli").replace("{cli}", cli),
+                                        AI_VIA_API to ws.t("aiViaApi"),
+                                    ),
+                                    transports[aiProvider] ?: defaultTransport(aiProvider),
+                                    enabled = { id -> id != AI_VIA_CLI || cliPath != null },
+                                ) { transports = transports + (aiProvider to it) }
+                            }
+                            Txt(
+                                if (cliPath != null) ws.t("aiCliFound").replace("{path}", cliPath)
+                                else ws.t("aiCliMissing").replace("{cli}", cli),
+                                11.sp,
+                                Palette.faintText,
+                            )
+                            Spacer(Modifier.height(10.dp))
+                        }
+
+                        val transport = transports[aiProvider] ?: defaultTransport(aiProvider)
+                        // A CLI brings its own account, its own model list and its own address;
+                        // there is nothing here for it beyond which model to ask for, and it takes
+                        // that as a name rather than offering a list.
+                        if (transport == AI_VIA_API) {
                             val key = when (aiProvider) {
                                 AI_OPENAI -> openaiKey
                                 AI_GEMINI -> geminiKey
+                                AI_CLAUDE -> claudeKey
                                 else -> ""
                             }
                             val url = when (aiProvider) {
                                 AI_OPENAI -> openaiUrl
                                 AI_GEMINI -> geminiUrl
+                                AI_CLAUDE -> claudeUrl
                                 else -> ollamaUrl
                             }
-                            if (needsApiKey(aiProvider)) {
+                            if (needsApiKey(aiProvider, transport)) {
                                 SettingRow(ws.t("aiApiKey")) {
                                     DtxField(
                                         key,
-                                        { v -> if (aiProvider == AI_OPENAI) openaiKey = v else geminiKey = v },
+                                        { v ->
+                                            when (aiProvider) {
+                                                AI_OPENAI -> openaiKey = v
+                                                AI_GEMINI -> geminiKey = v
+                                                else -> claudeKey = v
+                                            }
+                                        },
                                         mono = true,
                                         mask = true,
                                     )
@@ -750,27 +797,32 @@ fun SettingsScreen(ws: Workspace) {
                                         when (aiProvider) {
                                             AI_OPENAI -> openaiUrl = v
                                             AI_GEMINI -> geminiUrl = v
+                                            AI_CLAUDE -> claudeUrl = v
                                             else -> ollamaUrl = v
                                         }
                                     },
                                     mono = true,
                                 )
                             }
-                            LaunchedEffect(aiProvider, url, key) {
+                            LaunchedEffect(aiProvider, transport, url, key) {
                                 // the draft, not the saved value: the list has to follow what is
                                 // being typed, or it describes the previous server
                                 ws.aiProvider = aiProvider
+                                ws.aiTransports = transports
                                 ws.openaiUrl = openaiUrl
                                 ws.geminiUrl = geminiUrl
                                 ws.ollamaUrl = ollamaUrl
+                                ws.claudeUrl = claudeUrl
                                 ws.setApiKey(AI_OPENAI, openaiKey, save = false)
                                 ws.setApiKey(AI_GEMINI, geminiKey, save = false)
+                                ws.setApiKey(AI_CLAUDE, claudeKey, save = false)
                                 ws.refreshAiModels()
                             }
                             val models = ws.serverModels
                             val chosen = when (aiProvider) {
                                 AI_OPENAI -> openaiModel
                                 AI_GEMINI -> geminiModel
+                                AI_CLAUDE -> aiModel
                                 else -> ollamaModel
                             }
                             SettingRow(ws.t("aiModel")) {
@@ -784,6 +836,7 @@ fun SettingsScreen(ws: Workspace) {
                                             when (aiProvider) {
                                                 AI_OPENAI -> openaiModel = m
                                                 AI_GEMINI -> geminiModel = m
+                                                AI_CLAUDE -> aiModel = m
                                                 else -> ollamaModel = m
                                             }
                                         },
@@ -897,6 +950,52 @@ private fun SettingRow(label: String, control: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Txt(label, 12.5.sp, Palette.subText, modifier = Modifier.width(140.dp))
         control()
+    }
+}
+
+/**
+ * One of two, as radio buttons.
+ *
+ * A Segmented control would do the same job, but these two are not two values of one setting so
+ * much as two different ways to reach the same assistant, and one of them can be unavailable — a
+ * CLI that is not installed. A radio can be shown greyed and still say what it is; a segment that
+ * cannot be picked just looks broken.
+ */
+@Composable
+private fun Radios(
+    options: List<Pair<String, String>>,
+    selected: String,
+    enabled: (String) -> Boolean = { true },
+    onSelect: (String) -> Unit,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        options.forEach { (id, label) ->
+            val on = enabled(id)
+            val chosen = id == selected
+            Row(
+                Modifier.then(if (on) Modifier.plainClick { onSelect(id) } else Modifier),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(7.dp),
+            ) {
+                Box(
+                    Modifier
+                        .size(13.dp)
+                        .border(
+                            1.5.dp,
+                            if (!on) Palette.border else if (chosen) Palette.accent else Palette.buttonBorder,
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (chosen) Box(Modifier.size(6.dp).background(if (on) Palette.accent else Palette.border, CircleShape))
+                }
+                Txt(
+                    label,
+                    12.sp,
+                    if (!on) Palette.faintText else if (chosen) Palette.textPrimary else Palette.menuText,
+                )
+            }
+        }
     }
 }
 

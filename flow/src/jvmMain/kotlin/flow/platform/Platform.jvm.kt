@@ -1,6 +1,6 @@
 package flow.platform
 
-import flow.model.AI_OLLAMA
+import flow.model.AI_VIA_CLI
 import flow.model.AiReply
 import flow.model.AiSetup
 import flow.model.InstallResult
@@ -99,29 +99,35 @@ actual object Platform {
         runInterruptible(Dispatchers.Default) { ExtensionLoader.openView(id, data, options) }
     actual suspend fun focusView(id: String) =
         runInterruptible(Dispatchers.Default) { ExtensionLoader.focusView(id) }
-    actual fun aiCliPath(): String? = flow.ai.ClaudeCli.path()
+    actual fun cliPath(provider: String): String? = flow.ai.CliAgent.path(provider)
 
     actual suspend fun askAi(prompt: String, sessionId: String?, ai: AiSetup, onText: (String) -> Unit): AiReply =
         runInterruptible(Dispatchers.IO) {
             // The two get the same system prompt and the same tools; what differs is who runs the
             // agent loop around them — Claude Code does it in its own process, Ollama.ask does it
             // here, because a model on its own does not.
-            if (flow.ai.Agents.handles(ai.provider)) {
-                flow.ai.Agents.ask(
-                    prompt = prompt,
-                    sessionId = sessionId,
-                    setup = ai,
-                    systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
-                    onText = onText,
-                )
-            } else {
-                flow.ai.ClaudeCli.ask(
+            // The same assistant is reachable two ways and the setting says which: as its own
+            // command, already signed in and running the agent loop itself, or as a model this
+            // process drives (see HttpAgent). The system prompt and the tools are the same either
+            // way — what differs is who is holding the conversation.
+            val systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot())
+            if (ai.transport == AI_VIA_CLI && flow.ai.CliAgent.handles(ai.provider)) {
+                flow.ai.CliAgent.ask(
+                    provider = ai.provider,
                     prompt = prompt,
                     sessionId = sessionId,
                     model = ai.model,
                     workingDir = projectDir,
-                    mcpConfig = flow.ai.FlowPrompt.mcpConfig(projectRoot()),
-                    systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
+                    projectRoot = projectRoot(),
+                    systemPrompt = systemPrompt,
+                    onText = onText,
+                )
+            } else {
+                flow.ai.Agents.ask(
+                    prompt = prompt,
+                    sessionId = sessionId,
+                    setup = ai,
+                    systemPrompt = systemPrompt,
                     onText = onText,
                 )
             }
@@ -130,7 +136,7 @@ actual object Platform {
     // All of them, without asking which is running: only one can be, and stopping the rest is a
     // no-op.
     actual fun stopAi() {
-        flow.ai.ClaudeCli.stop()
+        flow.ai.CliAgent.stop()
         flow.ai.Agents.stop()
     }
 

@@ -32,9 +32,9 @@ expect object Platform {
     suspend fun focusView(id: String)
 
     // ── the assistant: Claude Code, or an Ollama server on this machine ──
-    // Whether the claude CLI is installed. Null when it is not, which is worth saying rather than
-    // failing. Only the Claude provider needs it; Ollama is an HTTP server, not a command.
-    fun aiCliPath(): String?
+    // Where a provider's CLI is, or null when it is not installed — worth saying rather than
+    // failing. Only asked of a provider set to be reached that way.
+    fun cliPath(provider: String): String?
     // One turn. [onText] is called as the answer arrives; the reply's session carries the
     // conversation to the next turn.
     suspend fun askAi(prompt: String, sessionId: String?, ai: AiSetup, onText: (String) -> Unit): AiReply

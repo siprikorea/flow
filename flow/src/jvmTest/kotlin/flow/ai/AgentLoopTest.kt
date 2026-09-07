@@ -2,9 +2,11 @@ package flow.ai
 
 import com.sun.net.httpserver.HttpServer
 import flow.model.AI_ERR_NO_KEY
+import flow.model.AI_CLAUDE
 import flow.model.AI_GEMINI
 import flow.model.AI_OLLAMA
 import flow.model.AI_OPENAI
+import flow.model.AI_VIA_API
 import flow.model.AiSetup
 import java.net.InetSocketAddress
 import kotlin.test.AfterTest
@@ -78,7 +80,7 @@ class AgentLoopTest {
         ).joinToString("\n\n")
 
         val url = serve(askForTool, answer)
-        val (text, streamed) = ask(AiSetup(AI_OPENAI, "gpt-test", url, "k"))
+        val (text, streamed) = ask(AiSetup(AI_OPENAI, AI_VIA_API, "gpt-test", url, "k"))
 
         assertEquals("there are nodes", text)
         assertEquals("there are nodes", streamed, "the answer did not arrive in pieces")
@@ -97,7 +99,7 @@ class AgentLoopTest {
         val answer = """data: {"candidates":[{"content":{"parts":[{"text":"there are nodes"}]}}]}"""
 
         val url = serve(askForTool, answer)
-        val (text, _) = ask(AiSetup(AI_GEMINI, "gemini-test", url, "k"))
+        val (text, _) = ask(AiSetup(AI_GEMINI, AI_VIA_API, "gemini-test", url, "k"))
 
         assertEquals("there are nodes", text)
         assertEquals(2, received.size)
@@ -117,7 +119,7 @@ class AgentLoopTest {
         val answer = """{"message":{"role":"assistant","content":"there are nodes"}}"""
 
         val url = serve(askForTool, answer)
-        val (text, _) = ask(AiSetup(AI_OLLAMA, "llama-test", url, ""))
+        val (text, _) = ask(AiSetup(AI_OLLAMA, AI_VIA_API, "llama-test", url, ""))
 
         assertEquals("there are nodes", text)
         assertEquals(2, received.size)
@@ -126,8 +128,39 @@ class AgentLoopTest {
     }
 
     @Test
+    fun `anthropic - a tool_use block is assembled from its fragments, run, and answered`() {
+        // content arrives as numbered blocks: the call is announced, then its arguments come as
+        // JSON fragments, then a text block holds the answer
+        val askForTool = listOf(
+            """data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"toolu_1","name":"list_nodes"}}""",
+            """data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{"}}""",
+            """data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"}"}}""",
+        ).joinToString("\n\n")
+        val answer = listOf(
+            """data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}""",
+            """data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"there are "}}""",
+            """data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"nodes"}}""",
+        ).joinToString("\n\n")
+
+        val url = serve(askForTool, answer)
+        val (text, streamed) = ask(AiSetup(AI_CLAUDE, AI_VIA_API, "claude-test", url, "k"))
+
+        assertEquals("there are nodes", text)
+        assertEquals("there are nodes", streamed, "the answer did not arrive in pieces")
+        assertEquals(2, received.size, "the tool result was never sent back")
+        assertTrue(
+            received[1].contains("\"tool_use_id\":\"toolu_1\""),
+            "the result was not paired with the id the block announced:\n${received[1].take(400)}",
+        )
+        assertTrue(received[1].contains("boundary nodes"), "list_nodes' output is not in the transcript")
+        // this API makes the caller name a ceiling, and refuses a request without one
+        assertTrue(received[0].contains("max_tokens"), "max_tokens is required: ${received[0].take(200)}")
+        assertTrue(received[0].contains("input_schema"), "tools are declared with input_schema here")
+    }
+
+    @Test
     fun `a provider that needs a key says so instead of asking without one`() {
-        val reply = Agents.ask("hello", null, AiSetup(AI_OPENAI, "gpt-test", "http://127.0.0.1:1", ""), "sys") {}
+        val reply = Agents.ask("hello", null, AiSetup(AI_OPENAI, AI_VIA_API, "gpt-test", "http://127.0.0.1:1", ""), "sys") {}
         assertEquals(AI_ERR_NO_KEY, reply.error)
         assertTrue(received.isEmpty(), "it asked anyway")
     }
@@ -143,14 +176,14 @@ class AgentLoopTest {
         server.start()
         val url = "http://127.0.0.1:${server.address.port}"
 
-        val reply = Agents.ask("hello", null, AiSetup(AI_OPENAI, "gpt-test", url, "bad"), "sys") {}
+        val reply = Agents.ask("hello", null, AiSetup(AI_OPENAI, AI_VIA_API, "gpt-test", url, "bad"), "sys") {}
         assertEquals("Incorrect API key provided", reply.error)
     }
 
     @Test
     fun `each provider keeps its own conversation`() {
         val url = serve("""data: {"choices":[{"delta":{"content":"hi"}}]}""", "data: [DONE]")
-        val first = Agents.ask("hello", null, AiSetup(AI_OPENAI, "gpt-test", url, "k"), "sys") {}
+        val first = Agents.ask("hello", null, AiSetup(AI_OPENAI, AI_VIA_API, "gpt-test", url, "k"), "sys") {}
         assertTrue(first.sessionId!!.startsWith("openai-"), "a session id should say whose it is: ${first.sessionId}")
     }
 }

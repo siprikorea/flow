@@ -28,6 +28,8 @@ data class AiMessage(val fromUser: Boolean, val text: String, val provider: Stri
  */
 data class AiSetup(
     val provider: String,
+    /** AI_VIA_CLI or AI_VIA_API: the command, or the model driven directly. */
+    val transport: String = AI_VIA_API,
     /** The model for [provider]: a `claude --model` id, or a name the server offers. */
     val model: String,
     /** Where the server is. Empty for Claude, which is a command rather than an address. */

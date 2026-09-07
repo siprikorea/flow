@@ -27,7 +27,12 @@ import flow.model.AI_GEMINI
 import flow.model.AI_KEY_GEMINI
 import flow.model.AI_KEY_OPENAI
 import flow.model.AI_OPENAI
+import flow.model.AI_KEY_CLAUDE
+import flow.model.AI_VIA_API
+import flow.model.AI_VIA_CLI
+import flow.model.DEFAULT_CLAUDE_URL
 import flow.model.DEFAULT_GEMINI_URL
+import flow.model.defaultTransport
 import flow.model.DEFAULT_OLLAMA_URL
 import flow.model.DEFAULT_OPENAI_URL
 import flow.model.apiKeyEnvVar
@@ -95,11 +100,30 @@ class Workspace(private val scope: CoroutineScope) {
     var openaiModel by mutableStateOf("")
     var geminiUrl by mutableStateOf(DEFAULT_GEMINI_URL)
     var geminiModel by mutableStateOf("")
+    var claudeUrl by mutableStateOf(DEFAULT_CLAUDE_URL)
+
+    /**
+     * How each provider is reached — its command, or its API.
+     *
+     * Per provider rather than one setting for the panel: a machine often has one of the two set up
+     * and not the other, and which it is differs by provider. Unset means that provider's own
+     * default (defaultTransport).
+     */
+    var aiTransports by mutableStateOf<Map<String, String>>(emptyMap())
+
+    val aiTransport: String get() = transportOf(aiProvider)
+
+    fun transportOf(provider: String): String = aiTransports[provider] ?: defaultTransport(provider)
+
+    fun setTransport(provider: String, transport: String) {
+        aiTransports = aiTransports + (provider to transport)
+    }
 
     // Kept apart from the settings file (Platform.loadSecret) and loaded once at startup. Blank
     // here does not mean "no key": the environment is consulted too — see aiApiKey.
     var openaiKey by mutableStateOf(Platform.loadSecret(AI_KEY_OPENAI).orEmpty())
     var geminiKey by mutableStateOf(Platform.loadSecret(AI_KEY_GEMINI).orEmpty())
+    var claudeKey by mutableStateOf(Platform.loadSecret(AI_KEY_CLAUDE).orEmpty())
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules | ai
     // palette sections left open, by key
@@ -412,6 +436,7 @@ class Workspace(private val scope: CoroutineScope) {
             AI_OLLAMA -> ollamaUrl
             AI_OPENAI -> openaiUrl
             AI_GEMINI -> geminiUrl
+            AI_CLAUDE -> claudeUrl
             else -> ""
         }
 
@@ -422,12 +447,17 @@ class Workspace(private val scope: CoroutineScope) {
      * machine that already exports OPENAI_API_KEY for other tools does not have to have it entered
      * again. Blank when the provider needs none.
      */
-    val aiApiKey: String
-        get() = when (aiProvider) {
-            AI_OPENAI -> openaiKey.ifBlank { Platform.env(apiKeyEnvVar(AI_OPENAI)!!).orEmpty() }
-            AI_GEMINI -> geminiKey.ifBlank { Platform.env(apiKeyEnvVar(AI_GEMINI)!!).orEmpty() }
-            else -> ""
+    val aiApiKey: String get() = apiKeyFor(aiProvider)
+
+    fun apiKeyFor(provider: String): String {
+        val typed = when (provider) {
+            AI_OPENAI -> openaiKey
+            AI_GEMINI -> geminiKey
+            AI_CLAUDE -> claudeKey
+            else -> return ""
         }
+        return typed.ifBlank { apiKeyEnvVar(provider)?.let { Platform.env(it) }.orEmpty() }
+    }
 
     /**
      * What the model picker offers: a fixed list for Claude, whatever the server says otherwise.
@@ -441,7 +471,9 @@ class Workspace(private val scope: CoroutineScope) {
         private set
 
     val aiModelOptions: List<Pair<String, String>>
-        get() = if (aiProvider == AI_CLAUDE) {
+        get() = if (aiProvider == AI_CLAUDE && aiTransport == AI_VIA_CLI) {
+            // the CLI takes an id rather than offering a list, so this is the one place a set of
+            // names is written down instead of asked for
             AI_MODELS
         } else {
             // whatever is configured stays in the list even if the server is unreachable, so the
@@ -455,7 +487,9 @@ class Workspace(private val scope: CoroutineScope) {
      * screen both ask whenever the provider, address or key they are showing changes.
      */
     fun refreshAiModels() {
-        if (aiProvider == AI_CLAUDE) {
+        // A CLI is asked for nothing: it has its own idea of which models it can run, and the one
+        // it is told to use is passed through to it.
+        if (aiTransport == AI_VIA_CLI) {
             serverModels = emptyList()
             return
         }
@@ -474,14 +508,20 @@ class Workspace(private val scope: CoroutineScope) {
         when (provider) {
             AI_OPENAI -> openaiKey = value
             AI_GEMINI -> geminiKey = value
+            AI_CLAUDE -> claudeKey = value
             else -> return
         }
         if (save) apiKeySecret(provider)?.let { Platform.saveSecret(it, value) }
     }
 
     /** A setup for one turn, as the provider in force now describes it. */
-    private fun aiSetup() =
-        AiSetup(provider = aiProvider, model = aiModelChoice, url = aiUrl, apiKey = aiApiKey)
+    private fun aiSetup() = AiSetup(
+        provider = aiProvider,
+        transport = aiTransport,
+        model = aiModelChoice,
+        url = aiUrl,
+        apiKey = aiApiKey,
+    )
 
     /**
      * Asks one question.
@@ -1057,6 +1097,7 @@ class Workspace(private val scope: CoroutineScope) {
         Settings(
             lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
             aiProvider, aiModel, ollamaUrl, ollamaModel, openaiUrl, openaiModel, geminiUrl, geminiModel,
+            claudeUrl, aiTransports,
         )
     )
 
@@ -1083,6 +1124,8 @@ class Workspace(private val scope: CoroutineScope) {
             openaiModel = saved.openaiModel
             geminiUrl = saved.geminiUrl.ifBlank { DEFAULT_GEMINI_URL }
             geminiModel = saved.geminiModel
+            claudeUrl = saved.claudeUrl.ifBlank { DEFAULT_CLAUDE_URL }
+            aiTransports = saved.aiTransport.filterValues { it == AI_VIA_CLI || it == AI_VIA_API }
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }

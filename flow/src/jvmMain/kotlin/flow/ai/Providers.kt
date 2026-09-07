@@ -363,6 +363,149 @@ internal object GeminiApi : AiApi {
     }
 }
 
+/* ───────── Claude, over the Anthropic API ───────── */
+
+internal object AnthropicApi : AiApi {
+    override val id = "claude"
+
+    override fun models(url: String, apiKey: String): List<String> {
+        val body = getJson("${url.trimEnd('/')}/models", "x-api-key" to apiKey) ?: return emptyList()
+        return body["data"]?.jsonArray.orEmpty().mapNotNull { (it as? JsonObject)?.str("id") }
+    }
+
+    /**
+     * The system prompt is a field of its own, and max_tokens is required — there is no default, and
+     * a request without it is refused rather than answered at some sensible length.
+     */
+    override fun request(call: Call, transcript: List<JsonObject>): HttpRequest {
+        val body = buildJsonObject {
+            put("model", call.model)
+            put("max_tokens", MAX_TOKENS)
+            put("system", call.systemPrompt)
+            put("messages", JsonArray(transcript))
+            put("stream", true)
+            putJsonArray("tools") {
+                McpServer.toolSpecs().forEach { tool ->
+                    add(
+                        buildJsonObject {
+                            put("name", tool.name)
+                            put("description", tool.description)
+                            // named input_schema here, parameters everywhere else
+                            put("input_schema", tool.schema)
+                        },
+                    )
+                }
+            }
+        }
+        return jsonRequest("${call.url.trimEnd('/')}/messages", body)
+            .header("x-api-key", call.apiKey)
+            .header("anthropic-version", ANTHROPIC_VERSION)
+            .build()
+    }
+
+    /**
+     * Content arrives as numbered blocks rather than one stream.
+     *
+     * A block is announced (content_block_start), filled by deltas, and closed; a tool call is a
+     * block whose name arrives in the announcement and whose arguments arrive as JSON fragments
+     * after it, so the index is what ties a call's pieces together — the same problem OpenAI has,
+     * spelled differently.
+     */
+    override fun read(stream: InputStream, onText: (String) -> Unit): Turn {
+        val text = StringBuilder()
+        val building = sortedMapOf<Int, Fragment>()
+        var error: String? = null
+
+        readSse(stream) { event ->
+            when (event.str("type")) {
+                "error" -> ((event["error"] as? JsonObject)?.str("message"))?.let { error = it }
+                "content_block_start" -> {
+                    val index = intOf(event["index"])
+                    val block = event["content_block"] as? JsonObject ?: return@readSse
+                    if (block.str("type") == "tool_use") {
+                        building[index] = Fragment(block.str("id").orEmpty(), block.str("name"))
+                    }
+                }
+                "content_block_delta" -> {
+                    val delta = event["delta"] as? JsonObject ?: return@readSse
+                    when (delta.str("type")) {
+                        "text_delta" -> delta.str("text")?.let { chunk ->
+                            text.append(chunk)
+                            onText(chunk)
+                        }
+                        "input_json_delta" -> {
+                            val fragment = building[intOf(event["index"])] ?: return@readSse
+                            ((delta["partial_json"] as? JsonPrimitive)?.takeIf { it.isString })?.let {
+                                fragment.arguments.append(it.content)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        val calls = building.values.mapNotNull { fragment ->
+            fragment.name?.let {
+                ToolCall(it, argumentsOf(JsonPrimitive(fragment.arguments.toString())), fragment.id)
+            }
+        }
+        return Turn(assistantMessage(text.toString(), calls), calls, error)
+    }
+
+    private class Fragment(val id: String, val name: String?) {
+        val arguments = StringBuilder()
+    }
+
+    private fun intOf(element: kotlinx.serialization.json.JsonElement?): Int =
+        (element as? JsonPrimitive)?.content?.toIntOrNull() ?: 0
+
+    override fun userMessage(text: String) = buildJsonObject {
+        put("role", "user")
+        putJsonArray("content") { add(buildJsonObject { put("type", "text"); put("text", text) }) }
+    }
+
+    override fun assistantMessage(text: String, calls: List<ToolCall>) = buildJsonObject {
+        put("role", "assistant")
+        putJsonArray("content") {
+            if (text.isNotEmpty()) add(buildJsonObject { put("type", "text"); put("text", text) })
+            calls.forEach { call ->
+                add(
+                    buildJsonObject {
+                        put("type", "tool_use")
+                        put("id", call.id)
+                        put("name", call.name)
+                        put("input", call.args)
+                    },
+                )
+            }
+        }
+    }
+
+    /** A result is a user turn holding a tool_result block, paired to the call by the id given. */
+    override fun toolResult(call: ToolCall, output: String) = buildJsonObject {
+        put("role", "user")
+        putJsonArray("content") {
+            add(
+                buildJsonObject {
+                    put("type", "tool_result")
+                    put("tool_use_id", call.id)
+                    put("content", output)
+                },
+            )
+        }
+    }
+
+    private const val ANTHROPIC_VERSION = "2023-06-01"
+
+    /**
+     * The ceiling on one answer, which this API makes the caller name.
+     *
+     * Large enough that an answer is never cut off mid-sentence in practice, and it costs nothing
+     * to ask for: what is billed is what comes back, not what was allowed.
+     */
+    private const val MAX_TOKENS = 8192
+}
+
 /* ───────── shared between the two OpenAI-shaped APIs ───────── */
 
 /** Flow's tools as a `tools` array of function declarations — the MCP schemas, rewrapped. */

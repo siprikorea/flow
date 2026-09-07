@@ -125,6 +125,11 @@ data class Settings(
     val openaiModel: String = "",
     val geminiUrl: String = DEFAULT_GEMINI_URL,
     val geminiModel: String = "",
+    val claudeUrl: String = DEFAULT_CLAUDE_URL,
+    // How each provider is reached: AI_VIA_CLI or AI_VIA_API, by provider id. Missing means the
+    // provider's own default — the CLI where it has one worth using, since a CLI that is installed
+    // is already signed in and costs nothing to configure.
+    val aiTransport: Map<String, String> = emptyMap(),
     // outputs and inputs the user has switched off. Kept as the exception rather than the list of
     // enabled ones, so a newly installed one is usable without having to be turned on first.
     val disabledOutputs: List<String> = emptyList(),
@@ -156,28 +161,62 @@ val AI_PROVIDERS: List<Pair<String, String>> = listOf(
     AI_OLLAMA to "Ollama",
 )
 
-/** Whether [provider] is one Flow drives itself over HTTP, rather than a CLI with its own agent. */
-fun isHttpProvider(provider: String): Boolean =
-    provider == AI_OPENAI || provider == AI_GEMINI || provider == AI_OLLAMA
+/**
+ * The two ways to reach an assistant.
+ *
+ * A CLI is a whole agent in a subprocess, already signed in — nothing to configure and, where the
+ * sign-in is a subscription, nothing more to pay. The API is Flow driving the model itself, which
+ * needs a key but does not need anything installed. Which of the two a provider uses is a per
+ * provider setting, because a machine can well have one of them set up and not the other.
+ */
+const val AI_VIA_CLI = "cli"
+const val AI_VIA_API = "api"
 
-/** Whether [provider] needs an API key before it will answer at all. */
-fun needsApiKey(provider: String): Boolean = provider == AI_OPENAI || provider == AI_GEMINI
+/**
+ * Whichever a provider uses unless told otherwise.
+ *
+ * The CLI where there is one that can call Flow's tools, since it needs no key. Ollama is the
+ * exception in the other direction: its command cannot call tools at all, so the local server is
+ * not a fallback there but the only way its assistant is an assistant.
+ */
+fun defaultTransport(provider: String): String =
+    if (cliCommand(provider) != null) AI_VIA_CLI else AI_VIA_API
+
+/**
+ * The command that provider's agent runs as, or null where there is none worth using.
+ *
+ * Ollama's `ollama run` is deliberately not here: it cannot call tools, so reaching Ollama that way
+ * would be an assistant that can talk about flows and not touch one.
+ */
+fun cliCommand(provider: String): String? = when (provider) {
+    AI_CLAUDE -> "claude"
+    AI_OPENAI -> "codex"
+    AI_GEMINI -> "gemini"
+    else -> null
+}
+
+/** Whether [provider] reached over [transport] needs an API key before it will answer at all. */
+fun needsApiKey(provider: String, transport: String): Boolean =
+    transport == AI_VIA_API && provider != AI_OLLAMA
 
 // Where a key is kept (Platform.saveSecret) and the environment variable each provider's own tools
 // use, which is read when nothing has been typed into Settings — a machine that already has the
 // key exported does not need it entered a second time.
 const val AI_KEY_OPENAI = "openai-key"
 const val AI_KEY_GEMINI = "gemini-key"
+const val AI_KEY_CLAUDE = "claude-key"
 
 fun apiKeyEnvVar(provider: String): String? = when (provider) {
     AI_OPENAI -> "OPENAI_API_KEY"
     AI_GEMINI -> "GEMINI_API_KEY"
+    AI_CLAUDE -> "ANTHROPIC_API_KEY"
     else -> null
 }
 
 fun apiKeySecret(provider: String): String? = when (provider) {
     AI_OPENAI -> AI_KEY_OPENAI
     AI_GEMINI -> AI_KEY_GEMINI
+    AI_CLAUDE -> AI_KEY_CLAUDE
     else -> null
 }
 
@@ -187,6 +226,7 @@ fun apiKeySecret(provider: String): String? = when (provider) {
 const val DEFAULT_OLLAMA_URL = "http://localhost:11434"
 const val DEFAULT_OPENAI_URL = "https://api.openai.com/v1"
 const val DEFAULT_GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta"
+const val DEFAULT_CLAUDE_URL = "https://api.anthropic.com/v1"
 
 // Model choices the Settings screen offers for the AI panel, as ids `claude --model` accepts
 // verbatim (a full model name, not an alias like "opus" — those track "latest", which drifts).

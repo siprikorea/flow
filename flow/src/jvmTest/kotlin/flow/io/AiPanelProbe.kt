@@ -68,7 +68,7 @@ class AiPanelProbe {
     fun `draw the ai settings`() {
         val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
         dir.mkdirs()
-        listOf(AI_OLLAMA, AI_OPENAI, AI_GEMINI).forEach { provider ->
+        listOf(AI_CLAUDE, AI_OLLAMA, AI_OPENAI, AI_GEMINI).forEach { provider ->
             val scene = ImageComposeScene(1400, 900, density = Density(1.4f), coroutineContext = Dispatchers.Unconfined) {
                 ApplyTheme(Theme.DARK)
                 val ws = workspace()
