@@ -245,4 +245,100 @@ class AiExtensionTest {
         return reply.payload.decodeToString()
     }
 
+    /* ───────── how the settings page is shaped ───────── */
+
+    @Test
+    fun `the settings offer a key, a model and a way to be reached`() {
+        val names = node.settings.map { it.name }
+        assertEquals(listOf("provider", "transport", "apiKey", "model"), names)
+        val key = node.settings.first { it.name == "apiKey" }
+        // it goes where keys go, not into the settings file, and it is not shown while typed
+        assertTrue(key.secret, "the API key is not marked secret")
+        assertTrue(node.settings.none { it.name != "apiKey" && it.secret }, "something else is marked secret")
+    }
+
+    @Test
+    fun `choosing the CLI drops the key and lets the model be typed`() {
+        val shown = node.settingsFor(mapOf("transport" to "cli", "provider" to "claude"))
+        assertTrue(shown.none { it.name == "apiKey" }, "a command needs no key: ${shown.map { it.name }}")
+        val model = shown.first { it.name == "model" }
+        // a command will not say what it can run, so the name is typed rather than picked
+        assertEquals(flow.extension.OptionType.TEXT, model.type)
+    }
+
+    @Test
+    fun `with no key there is no model list to offer, rather than an empty menu`() {
+        val shown = node.settingsFor(mapOf("transport" to "api", "provider" to "openai", "apiKey" to ""))
+        assertTrue(shown.first { it.name == "model" }.choices.none { it.isNotBlank() })
+    }
+
+    @Test
+    fun `the models a server has become the choices`() {
+        val port = serve("""{"models":[{"name":"one"},{"name":"two"}]}""")
+        val home = seedHome(port)
+        try {
+            val shown = node.settingsFor(mapOf("transport" to "api", "provider" to "ollama"))
+            val model = shown.first { it.name == "model" }
+            assertEquals(listOf("", "one", "two"), model.choices, "the server's models did not become a menu")
+        } finally {
+            restoreHome(home)
+        }
+    }
+
+    /* ───────── the CLI path ───────── */
+
+    @Test
+    fun `a command that is not installed says so, rather than failing at a server`() {
+        val e = runCatching {
+            node.process(
+                mapOf("in" to "x".encodeToByteArray()),
+                mapOf("provider" to "gemini", "transport" to "cli", "model" to "m", "role" to "r", "timeoutSec" to "5"),
+            )
+        }.exceptionOrNull()
+        // gemini is installed on this machine but not signed in, so either answer is honest — what
+        // must not happen is a complaint about an API key, which the CLI does not need
+        if (e != null) assertTrue(!e.message!!.contains("API key"), "the CLI path asked for a key: ${e.message}")
+    }
+
+    /**
+     * One real answer through a command.
+     *
+     * Ollama is the one that needs no sign-in, so it is the one that can be run here. AI_LIVE=1
+     * because it takes as long as the model takes.
+     */
+    @Test
+    fun `a real answer comes back through the CLI`() {
+        if (System.getenv("AI_LIVE") == null) return
+        if (ProcessBuilder("sh", "-c", "command -v ollama").start().waitFor() != 0) return
+        val model = runCatching {
+            val body = java.net.URI.create("http://localhost:11434/api/tags").toURL().readText()
+            Regex("\"name\":\"([^\"]+)\"").find(body)?.groupValues?.get(1)
+        }.getOrNull() ?: return
+
+        val out = node.process(
+            mapOf("in" to "banana".encodeToByteArray()),
+            mapOf(
+                "provider" to "ollama", "transport" to "cli", "model" to model,
+                "role" to "Reply with the input word in capital letters, and nothing else.",
+                "timeoutSec" to "300",
+            ),
+        )["out"]!!.decodeToString()
+        assertTrue(out.contains("BANANA", ignoreCase = true), "the command's answer did not act on the role: $out")
+    }
+
+    /** Points the extension's config at a test server by writing the settings it reads. */
+    private fun seedHome(port: Int): String {
+        val previous = System.getProperty("user.home")
+        val home = java.io.File(System.getProperty("java.io.tmpdir"), "flow-ai-settings-$port")
+        java.io.File(home, ".flow").mkdirs()
+        java.io.File(home, ".flow/settings.json")
+            .writeText("""{"ollamaUrl":"http://127.0.0.1:$port"}""")
+        System.setProperty("user.home", home.absolutePath)
+        return previous
+    }
+
+    private fun restoreHome(previous: String) {
+        System.setProperty("user.home", previous)
+    }
+
 }

@@ -595,22 +595,40 @@ private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
 
         // The extension's own settings, the way a plugin has a settings page: declared by the
         // extension, kept by the app, and handed to it underneath a node's own options — so this
-        // is where a value that every node of it should share is set once.
+        // is where a value that every node of it should share is set once, an API key included.
+        //
+        // The list is asked of the extension rather than taken from what it declared, because one
+        // setting can decide another: pick a provider and the models that provider has become the
+        // choices for the next one. That is a question it may have to go and answer, so it is asked
+        // off this thread and remembered — see Workspace.refreshExtensionSettings.
         if (item.installed && item.settings.isNotEmpty()) {
+            val values = ws.extensionSettings[item.id].orEmpty()
+            LaunchedEffect(item.id, values) { ws.refreshExtensionSettings(item.id) }
+            val settings = ws.extensionSettingSpecs[item.id] ?: item.settings
+
             Spacer(Modifier.height(4.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
             Txt(ws.t("extSettings").uppercase(), 10.sp, Palette.dimText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-            item.settings.forEach { setting ->
-                val value = ws.extensionSettings[item.id]?.get(setting.name) ?: setting.default
+            settings.forEach { setting ->
+                val value = ws.settingValues(item.id, listOf(setting))[setting.name].orEmpty()
                 SettingRow(setting.name) {
-                    if (setting.type == OptType.SELECT && setting.choices.isNotEmpty()) {
-                        Picker(
+                    when {
+                        setting.type == OptType.SELECT && setting.choices.isNotEmpty() -> Picker(
                             options = setting.choices.map { c -> c to c.ifBlank { ws.t("extSettingDefault") } },
                             selected = value,
                             onSelect = { ws.setExtensionSetting(item.id, setting.name, it) },
                         ) { label, open -> PickerField(label, open) }
-                    } else {
-                        DtxField(value, { ws.setExtensionSetting(item.id, setting.name, it) }, mono = true)
+                        // a SELECT with nothing in it is one whose list could not be fetched — an
+                        // address that is wrong, a key that is not entered yet. Saying so beats an
+                        // empty menu that looks broken.
+                        setting.type == OptType.SELECT ->
+                            Txt(ws.t("extSettingNoChoices"), 11.sp, Palette.faintText)
+                        else -> DtxField(
+                            value,
+                            { ws.setExtensionSetting(item.id, setting.name, it, secret = setting.secret) },
+                            mono = true,
+                            mask = setting.secret,
+                        )
                     }
                 }
             }

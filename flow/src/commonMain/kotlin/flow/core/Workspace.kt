@@ -135,10 +135,68 @@ class Workspace(private val scope: CoroutineScope) {
     var extensionSettings by mutableStateOf<Map<String, Map<String, String>>>(emptyMap())
         private set
 
-    fun setExtensionSetting(extensionId: String, name: String, value: String) {
+    fun setExtensionSetting(extensionId: String, name: String, value: String, secret: Boolean = false) {
         val forExtension = (extensionSettings[extensionId] ?: emptyMap()) + (name to value)
         extensionSettings = extensionSettings + (extensionId to forExtension)
-        Platform.setExtensionSettings(extensionSettings)
+        // a key does not go in the settings file — that one is rewritten on every preference change
+        // and is meant to be readable — so it is written where the panel's keys are written
+        if (secret) Platform.saveSecret(extensionSecretName(extensionId, name), value)
+        pushExtensionSettings()
+    }
+
+    /**
+     * Hands the platform what a run should see, secrets included.
+     *
+     * They are kept apart on disk and put back together here: an extension asked to do its work
+     * needs the key as much as the rest, and the place they are kept apart is a storage decision,
+     * not something a processor should have to know about.
+     */
+    private fun pushExtensionSettings() {
+        val full = installedModules.associate { module ->
+            module.id to settingValues(module.id, extensionSettingSpecs[module.id] ?: module.settings)
+        }
+        Platform.setExtensionSettings(full)
+    }
+
+    /** Where an extension's secret setting is kept, namespaced so two extensions cannot collide. */
+    private fun extensionSecretName(extensionId: String, name: String) = "ext:$extensionId:$name"
+
+    /**
+     * The settings an extension offers right now, and what they are set to.
+     *
+     * Asked of the extension rather than read off what it declared, because it may answer with a
+     * list it had to fetch — which is what makes a model a menu rather than a box to type a name
+     * into. Cached per extension and re-asked whenever a value changes, off the UI thread; secret
+     * values are filled in from where they are kept, so the extension is asked with the key it
+     * would actually use.
+     */
+    var extensionSettingSpecs by mutableStateOf<Map<String, List<OptDef>>>(emptyMap())
+        private set
+
+    fun refreshExtensionSettings(extensionId: String) {
+        val known = installedModules.find { it.id == extensionId }?.settings.orEmpty()
+        val values = settingValues(extensionId, known)
+        scope.launch {
+            val offered = Platform.extensionSettingsFor(extensionId, values)
+            if (offered.isNotEmpty()) {
+                extensionSettingSpecs = extensionSettingSpecs + (extensionId to offered)
+                // a setting the extension only offers once it knows the others — a model list, say
+                // — is one a run has to be given too
+                pushExtensionSettings()
+            }
+        }
+    }
+
+    /** What one extension's settings are set to, secrets included, ready to hand to it. */
+    fun settingValues(extensionId: String, specs: List<OptDef>): Map<String, String> {
+        val stored = extensionSettings[extensionId] ?: emptyMap()
+        return specs.associate { spec ->
+            val value = when {
+                spec.secret -> Platform.loadSecret(extensionSecretName(extensionId, spec.name)).orEmpty()
+                else -> stored[spec.name] ?: spec.default
+            }
+            spec.name to value
+        }
     }
 
     var showLeft by mutableStateOf(true)
@@ -344,6 +402,9 @@ class Workspace(private val scope: CoroutineScope) {
         installedModules = Platform.installedModuleInfos().sortedBy { it.name.lowercase() }
         installedViews = Platform.installedViewInfos().sortedBy { it.name.lowercase() }
         extensionsRevision++
+        // what a run sees is built from what is installed, so it is rebuilt whenever that changes —
+        // including at startup, which is the first time this list exists at all
+        pushExtensionSettings()
         // Components on offer as a building block (the palette, comp:<ref> autocomplete-ish spots)
         // are the installed ones only — a flow that merely lives in the open folder isn't one until
         // explicitly installed (Settings ▸ Extensions ▸ Flows), the same as a processor or view
@@ -1152,8 +1213,6 @@ class Workspace(private val scope: CoroutineScope) {
             claudeUrl = saved.claudeUrl.ifBlank { DEFAULT_CLAUDE_URL }
             aiTransports = saved.aiTransport.filterValues { it == AI_VIA_CLI || it == AI_VIA_API }
             extensionSettings = saved.extensionSettings
-            // the platform is what a run reads them from, and it starts out knowing nothing
-            Platform.setExtensionSettings(extensionSettings)
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }

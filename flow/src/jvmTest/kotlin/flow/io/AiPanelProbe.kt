@@ -105,7 +105,9 @@ class AiPanelProbe {
                     version = "1.0.0",
                     settings = listOf(
                         flow.model.OptDef("provider", flow.model.OptType.SELECT, "", listOf("", "claude", "openai", "gemini", "ollama")),
-                        flow.model.OptDef("model", flow.model.OptType.TEXT, ""),
+                        flow.model.OptDef("transport", flow.model.OptType.SELECT, "api", listOf("api", "cli")),
+                        flow.model.OptDef("apiKey", flow.model.OptType.TEXT, "", secret = true),
+                        flow.model.OptDef("model", flow.model.OptType.SELECT, "", listOf("", "claude-opus-5", "claude-sonnet-5")),
                     ),
                 ),
             )

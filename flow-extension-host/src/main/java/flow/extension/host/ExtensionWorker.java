@@ -101,6 +101,13 @@ public final class ExtensionWorker {
                 Map<String, String> values = Wire.readStringMap(in);
                 return () -> reply(out, writeLock, reqId, o -> writeOptions(o, need(byId, id).optionsFor(values)));
             }
+            case Wire.SETTINGS: {
+                String id = Wire.readString(in);
+                Map<String, String> values = Wire.readStringMap(in);
+                // off the host's UI thread by the time it gets here, which is what lets an
+                // extension answer this by asking a server what it has
+                return () -> reply(out, writeLock, reqId, o -> writeOptions(o, need(byId, id).settingsFor(values)));
+            }
             case Wire.VIEW_DESCRIBE:
                 return () -> reply(out, writeLock, reqId, o -> describeViews(loaded.views, o));
             case Wire.VIEW_OPEN: {
@@ -277,6 +284,7 @@ public final class ExtensionWorker {
             Wire.writeString(o, opt.getType().name());
             Wire.writeString(o, opt.getDefault());
             Wire.writeStringList(o, opt.getChoices());
+            o.writeBoolean(opt.getSecret());
         }
     }
 

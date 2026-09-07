@@ -21,6 +21,14 @@ data class ExtensionOption(
     val type: OptionType = OptionType.TEXT,
     val default: String = "",
     val choices: List<String> = emptyList(),
+    /**
+     * An API key or the like: shown as dots, and kept where keys are kept rather than in the
+     * settings file, which is written on every preference change and is meant to be readable.
+     *
+     * Only meaningful for a setting ([ProcessorExtension.settings]) — a node's options travel in
+     * the flow file, which is a document the user shares, so a secret has no business being one.
+     */
+    val secret: Boolean = false,
 )
 
 /**
@@ -69,6 +77,17 @@ interface ProcessorExtension {
      * Defaults to none, so an extension written before this existed still compiles and still loads.
      */
     val settings: List<ExtensionOption> get() = emptyList()
+
+    /**
+     * Settings for the values they currently hold, when one setting decides another.
+     *
+     * The same idea as [optionsFor], and the way a list that has to be fetched is offered: an
+     * extension that talks to a server can name the models that server has, once it knows which
+     * server and which key. The host calls this off the UI thread and remembers the answer, so it
+     * may do real work — but it is called again whenever a value changes, so it should not do more
+     * than the question needs.
+     */
+    fun settingsFor(values: Map<String, String>): List<ExtensionOption> = settings
 
     /**
      * Input port ids for the given option values, when a module's ports depend on an option

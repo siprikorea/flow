@@ -156,7 +156,7 @@ internal object ExtensionLoader {
                 "SELECT" -> OptType.SELECT
                 else -> OptType.TEXT
             }
-            OptDef(name, type, Wire.readString(input), Wire.readStringList(input))
+            OptDef(name, type, Wire.readString(input), Wire.readStringList(input), input.readBoolean())
         }
 
     // a worker's failure is this call's failure, carrying whatever the extension said
@@ -186,6 +186,23 @@ internal object ExtensionLoader {
             Wire.writeStringMap(o, settingsFor(id))
         }
         return Wire.readByteMap(reply.orThrow())
+    }
+
+    /**
+     * The settings an extension offers for the values they currently hold.
+     *
+     * Asked rather than taken from what DESCRIBE said, because an extension may answer it with
+     * something it had to go and find out — the models a server has, for the key just entered. That
+     * makes this slow enough to matter, so the caller does it off the UI thread and remembers.
+     */
+    fun settingsFor(id: String, values: Map<String, String>): List<OptDef>? {
+        val loaded = loadedModules()[id] ?: return null
+        val reply = processFor(loaded.dir).request(Wire.SETTINGS) { o ->
+            Wire.writeString(o, id)
+            Wire.writeStringMap(o, values)
+        }
+        if (!reply.ok) return null
+        return readOptions(DataInputStream(ByteArrayInputStream(reply.payload)))
     }
 
     // ports for the given option values (null = id isn't a known processor — the host treats a null

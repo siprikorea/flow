@@ -67,6 +67,11 @@ expect object Platform {
     // node's own options. Pushed in when it changes rather than read per run.
     fun setExtensionSettings(values: Map<String, Map<String, String>>)
 
+    // The settings an extension offers for the values it currently holds — asked rather than taken
+    // from what it declared, because an extension may answer with something it had to go and find
+    // out (the models a server has, for the key just entered). Suspending for that reason.
+    suspend fun extensionSettingsFor(id: String, values: Map<String, String>): List<OptDef>
+
     fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?
     // run a component in its own folder sandbox (bundled dependency modules)

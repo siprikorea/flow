@@ -10,6 +10,10 @@ data class OptDef(
     val type: OptType = OptType.TEXT,
     val default: String = "",
     val choices: List<String> = emptyList(),
+    // an API key: masked where it is typed, and kept where keys are kept rather than in the
+    // settings file. Only an extension's settings can be one; a node's options travel in the flow
+    // file, which is a document the user shares.
+    val secret: Boolean = false,
 )
 
 data class ModuleDef(
