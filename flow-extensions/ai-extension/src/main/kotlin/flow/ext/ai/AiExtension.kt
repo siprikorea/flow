@@ -41,7 +41,7 @@ import java.time.Duration
 class AiExtension : ProcessorExtension {
     override val id = "flow.ai"
     override val displayName = "AI"
-    override val version = "1.2.0"
+    override val version = "1.2.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
 
@@ -69,9 +69,12 @@ class AiExtension : ProcessorExtension {
         // or the API with a key. A node is one question, so the CLI here runs it and reads the
         // answer — no tools, no conversation.
         ExtensionOption("transport", OptionType.SELECT, "api", listOf("api", "cli")),
-        ExtensionOption("apiKey", OptionType.TEXT, "", secret = true),
+        ExtensionOption("apiKey", OptionType.TEXT, ""),
         ExtensionOption("model", OptionType.SELECT, "", listOf("")),
     )
+
+    /** The key, which is not kept in the settings file and is not shown while it is typed. */
+    override val secretSettings = listOf("apiKey")
 
     /**
      * The models the chosen provider will actually answer with.

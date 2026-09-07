@@ -99,14 +99,17 @@ public final class ExtensionWorker {
             case Wire.OPTIONS: {
                 String id = Wire.readString(in);
                 Map<String, String> values = Wire.readStringMap(in);
-                return () -> reply(out, writeLock, reqId, o -> writeOptions(o, need(byId, id).optionsFor(values)));
+                return () -> reply(out, writeLock, reqId, o -> writeOptions(o, need(byId, id).optionsFor(values), java.util.List.of()));
             }
             case Wire.SETTINGS: {
                 String id = Wire.readString(in);
                 Map<String, String> values = Wire.readStringMap(in);
                 // off the host's UI thread by the time it gets here, which is what lets an
                 // extension answer this by asking a server what it has
-                return () -> reply(out, writeLock, reqId, o -> writeOptions(o, need(byId, id).settingsFor(values)));
+                return () -> reply(out, writeLock, reqId, o -> {
+                    ProcessorExtension e = need(byId, id);
+                    writeOptions(o, e.settingsFor(values), e.getSecretSettings());
+                });
             }
             case Wire.VIEW_DESCRIBE:
                 return () -> reply(out, writeLock, reqId, o -> describeViews(loaded.views, o));
@@ -214,9 +217,10 @@ public final class ExtensionWorker {
             Wire.writeString(o, e.getVersion());
             Wire.writeStringList(o, e.getInputs());
             Wire.writeStringList(o, e.getOutputs());
-            writeOptions(o, e.getOptions());
-            // the extension's own settings, which the host edits once rather than per node
-            writeOptions(o, e.getSettings());
+            writeOptions(o, e.getOptions(), java.util.List.of());
+            // the extension's own settings, which the host edits once rather than per node, and
+            // which of them hold a key
+            writeOptions(o, e.getSettings(), e.getSecretSettings());
         }
     }
 
@@ -277,14 +281,15 @@ public final class ExtensionWorker {
         return all;
     }
 
-    private static void writeOptions(DataOutputStream o, List<ExtensionOption> options) throws IOException {
+    private static void writeOptions(DataOutputStream o, List<ExtensionOption> options, List<String> secrets)
+        throws IOException {
         o.writeInt(options.size());
         for (ExtensionOption opt : options) {
             Wire.writeString(o, opt.getName());
             Wire.writeString(o, opt.getType().name());
             Wire.writeString(o, opt.getDefault());
             Wire.writeStringList(o, opt.getChoices());
-            o.writeBoolean(opt.getSecret());
+            o.writeBoolean(secrets.contains(opt.getName()));
         }
     }
 

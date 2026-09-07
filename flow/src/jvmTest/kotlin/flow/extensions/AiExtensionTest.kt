@@ -251,10 +251,10 @@ class AiExtensionTest {
     fun `the settings offer a key, a model and a way to be reached`() {
         val names = node.settings.map { it.name }
         assertEquals(listOf("provider", "transport", "apiKey", "model"), names)
-        val key = node.settings.first { it.name == "apiKey" }
-        // it goes where keys go, not into the settings file, and it is not shown while typed
-        assertTrue(key.secret, "the API key is not marked secret")
-        assertTrue(node.settings.none { it.name != "apiKey" && it.secret }, "something else is marked secret")
+        // it goes where keys go, not into the settings file, and it is not shown while typed —
+        // named rather than flagged on the option, because adding a parameter to ExtensionOption
+        // breaks every extension jar built before it (see ExtensionAbiTest)
+        assertEquals(listOf("apiKey"), node.secretSettings)
     }
 
     @Test

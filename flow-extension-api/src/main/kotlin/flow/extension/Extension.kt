@@ -21,14 +21,6 @@ data class ExtensionOption(
     val type: OptionType = OptionType.TEXT,
     val default: String = "",
     val choices: List<String> = emptyList(),
-    /**
-     * An API key or the like: shown as dots, and kept where keys are kept rather than in the
-     * settings file, which is written on every preference change and is meant to be readable.
-     *
-     * Only meaningful for a setting ([ProcessorExtension.settings]) — a node's options travel in
-     * the flow file, which is a document the user shares, so a secret has no business being one.
-     */
-    val secret: Boolean = false,
 )
 
 /**
@@ -88,6 +80,21 @@ interface ProcessorExtension {
      * than the question needs.
      */
     fun settingsFor(values: Map<String, String>): List<ExtensionOption> = settings
+
+    /**
+     * Which of the [settings] hold a key: shown as dots, and kept where keys are kept rather than
+     * in the settings file, which is written on every preference change and is meant to be read.
+     *
+     * By name rather than as a flag on the option itself, because ExtensionOption is a data class
+     * every extension already calls the constructor of — adding a parameter to it changes a JVM
+     * signature, and every jar built before that stops loading with a NoSuchMethodError. Which is
+     * exactly what happened. Everything added to this contract has to be additive: a new member
+     * with a default, never a new parameter on an existing one.
+     *
+     * Only settings can be secret. A node's options travel in the flow file, which is a document
+     * people share, so a secret has no business being one.
+     */
+    val secretSettings: List<String> get() = emptyList()
 
     /**
      * Input port ids for the given option values, when a module's ports depend on an option
