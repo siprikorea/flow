@@ -8,7 +8,8 @@
       "file": "base64-extension.jar",
       "inputs": ["in"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "other"
     },
     {
       "id": "flow.cipher",
@@ -18,7 +19,8 @@
       "file": "cipher-extension.jar",
       "inputs": ["in", "key", "iv"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.hash",
@@ -28,7 +30,8 @@
       "file": "hash-extension.jar",
       "inputs": ["in"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.hotp",
@@ -38,7 +41,8 @@
       "file": "hotp-extension.jar",
       "inputs": ["secret", "counter"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.json",
@@ -48,7 +52,8 @@
       "file": "json-extension.jar",
       "inputs": ["in"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "other"
     },
     {
       "id": "flow.jwt",
@@ -58,7 +63,8 @@
       "file": "jwt-extension.jar",
       "inputs": ["jwt", "secret"],
       "outputs": ["header", "payload", "signature"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.keyfactory",
@@ -68,7 +74,8 @@
       "file": "keyfactory-extension.jar",
       "inputs": ["password", "salt", "key"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.keygen",
@@ -78,7 +85,8 @@
       "file": "keygen-extension.jar",
       "inputs": [],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.keypairgen",
@@ -88,7 +96,8 @@
       "file": "keypairgen-extension.jar",
       "inputs": [],
       "outputs": ["publicKey", "privateKey"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.keystore",
@@ -98,7 +107,8 @@
       "file": "keystore-extension.jar",
       "inputs": ["store", "password"],
       "outputs": ["privateKey", "certificate", "publicKey"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.mac",
@@ -108,7 +118,8 @@
       "file": "mac-extension.jar",
       "inputs": ["in", "key"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.mcp",
@@ -118,7 +129,8 @@
       "file": "mcp-extension.jar",
       "inputs": ["in"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "ai"
     },
     {
       "id": "flow.merge",
@@ -128,7 +140,8 @@
       "file": "merge-extension.jar",
       "inputs": ["a", "b"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "other"
     },
     {
       "id": "flow.securerandom",
@@ -138,7 +151,8 @@
       "file": "securerandom-extension.jar",
       "inputs": [],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.signature",
@@ -148,7 +162,8 @@
       "file": "signature-extension.jar",
       "inputs": ["in", "key", "signature"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.sleep",
@@ -158,7 +173,8 @@
       "file": "sleep-extension.jar",
       "inputs": ["in"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "other"
     },
     {
       "id": "flow.slice",
@@ -168,7 +184,8 @@
       "file": "slice-extension.jar",
       "inputs": ["in"],
       "outputs": ["out", "rest"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "other"
     },
     {
       "id": "flow.split",
@@ -178,7 +195,8 @@
       "file": "split-extension.jar",
       "inputs": ["in"],
       "outputs": ["a", "b"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "other"
     },
     {
       "id": "flow.totp",
@@ -188,13 +206,15 @@
       "file": "totp-extension.jar",
       "inputs": ["secret"],
       "outputs": ["out"],
-      "kind": "processor"
+      "kind": "processor",
+      "category": "crypto"
     },
     {
       "id": "flow.qr",
       "name": "QR Code",
       "version": "1.0.0",
       "kind": "processor",
+      "category": "other",
       "description": "Encode the input as a QR code image, ready for the Image View.",
       "file": "qr-extension.jar",
       "inputs": ["in"],
@@ -205,6 +225,7 @@
       "name": "ASN.1",
       "version": "3.4.0",
       "kind": "view",
+      "category": "crypto",
       "description": "Read DER — certificates, keys, PKCS — as a tree beside its bytes.",
       "file": "asn1view-extension.jar"
     },
@@ -213,6 +234,7 @@
       "name": "Image",
       "version": "2.3.0",
       "kind": "view",
+      "category": "other",
       "description": "Show a result as a picture, for processors that produce an image.",
       "file": "imageview-extension.jar"
     }

@@ -84,6 +84,22 @@ class AiPanelProbe {
         }
     }
 
+    /** The Extensions page, where the registry's categories become headings. */
+    @Test
+    fun `draw the extensions settings`() {
+        val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
+        dir.mkdirs()
+        val scene = ImageComposeScene(1400, 1000, density = Density(1.4f), coroutineContext = Dispatchers.Unconfined) {
+            ApplyTheme(Theme.DARK)
+            val ws = workspace()
+            ws.settingsCategory = "processors"
+            SettingsScreen(ws)
+        }
+        repeat(30) { scene.render(); Thread.sleep(50) }
+        File(dir, "ext-settings.png").writeBytes(scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes)
+        scene.close()
+    }
+
     @Test
     fun `draw the ai panel`() {
         val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return

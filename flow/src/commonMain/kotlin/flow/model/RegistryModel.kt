@@ -17,6 +17,11 @@ data class RegistryEntry(
     // treated as a processor, so an older build still offers an extension a newer registry has
     // categorised in a way it has never heard of.
     val kind: String = KIND_PROCESSOR,
+    // What the extension is for, chosen when it is registered. Grouping in the Extensions screen
+    // is the whole of it — an extension works the same whichever category it is in. One this build
+    // does not know, or none at all, is listed under "Other" rather than dropped, so a registry
+    // that has grown a category since is still fully usable here.
+    val category: String = "",
     // where the jar sits, relative to the manifest's own URL, or an absolute https URL
     val file: String = "",
     val inputs: List<String> = emptyList(),
@@ -25,6 +30,33 @@ data class RegistryEntry(
 
 const val KIND_PROCESSOR = "processor"
 const val KIND_VIEW = "view"
+
+// The categories a registry may put an extension in. Kept as a list rather than an enum because
+// the manifest is shared with builds other than this one: a name from a newer registry has to
+// survive being read here, and does — as CATEGORY_OTHER.
+const val CATEGORY_CRYPTO = "crypto"
+const val CATEGORY_AI = "ai"
+const val CATEGORY_OTHER = "other"
+
+/** The order they are shown in, which is also the order they are listed to whoever registers one. */
+val CATEGORIES: List<String> = listOf(CATEGORY_CRYPTO, CATEGORY_AI, CATEGORY_OTHER)
+
+/** Which section an entry belongs in: its own category, or Other for none and for one from the future. */
+fun categoryOf(entry: RegistryEntry): String =
+    entry.category.lowercase().takeIf { it in CATEGORIES } ?: CATEGORY_OTHER
+
+/**
+ * The entries of each category, in [CATEGORIES] order, leaving out the ones with nothing in them.
+ *
+ * Order within a category is the order the registry gave, so whoever maintains the manifest decides
+ * what comes first rather than it being alphabetised out from under them.
+ */
+fun byCategory(entries: List<RegistryEntry>): List<Pair<String, List<RegistryEntry>>> {
+    val grouped = entries.groupBy(::categoryOf)
+    return CATEGORIES.mapNotNull { category ->
+        grouped[category]?.takeIf { it.isNotEmpty() }?.let { category to it }
+    }
+}
 
 @Serializable
 data class RegistryIndex(

@@ -57,6 +57,8 @@ import flow.core.Shortcut
 import flow.core.Workspace
 import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
+import flow.model.RegistryEntry
+import flow.model.byCategory
 import flow.model.AI_CLAUDE
 import flow.model.AI_GEMINI
 import flow.model.AI_OPENAI
@@ -401,7 +403,7 @@ private fun ExtensionsSettings(ws: Workspace) {
         ws.registryError?.takeIf { offered.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            offered.forEach { entry -> ExtensionRow(ws, entry) }
+            CategorisedRows(ws, offered)
             strays.forEach { m ->
                 ExtensionRow(
                     ws, title = m.name, version = m.version, note = ws.t("fromFile"),
@@ -409,6 +411,34 @@ private fun ExtensionsSettings(ws: Workspace) {
                 )
             }
         }
+    }
+}
+
+/**
+ * The registry's offerings, under a heading per category.
+ *
+ * The category comes from the manifest — whoever registers an extension picks it — so this only
+ * arranges what it is told. A heading appears only if something is in it, and one category is not
+ * given a heading at all: with a single group there is nothing to distinguish it from, and a lone
+ * "Other" over a list is a label that says nothing.
+ */
+@Composable
+private fun CategorisedRows(ws: Workspace, entries: List<RegistryEntry>) {
+    val groups = byCategory(entries)
+    if (groups.size <= 1) {
+        entries.forEach { entry -> ExtensionRow(ws, entry) }
+        return
+    }
+    groups.forEach { (category, inCategory) ->
+        Txt(
+            ws.t("cat_$category").uppercase(),
+            10.sp,
+            Palette.dimText,
+            weight = FontWeight.Bold,
+            letterSpacing = 1.sp,
+            modifier = Modifier.padding(top = 6.dp),
+        )
+        inCategory.forEach { entry -> ExtensionRow(ws, entry) }
     }
 }
 
@@ -438,7 +468,7 @@ private fun ViewsSettings(ws: Workspace) {
         }
 
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            offered.forEach { entry -> ExtensionRow(ws, entry) }
+            CategorisedRows(ws, offered)
             strays.forEach { v ->
                 ExtensionRow(
                     ws, title = v.name, version = v.version, note = ws.t("fromFile"),

@@ -98,4 +98,56 @@ class RegistryKindTest {
 
     private fun manifest(): String =
         javaClass.getResourceAsStream("/extensions-registry.json")!!.readBytes().decodeToString()
+    /* ───────── categories ───────── */
+
+    @Test
+    fun `an entry with no category is listed under Other`() {
+        val index = json.decodeFromString<RegistryIndex>(
+            """{"extensions":[{"id":"flow.base64","name":"Base64","file":"x"}]}""",
+        )
+        assertEquals(CATEGORY_OTHER, categoryOf(index.extensions.single()))
+    }
+
+    @Test
+    fun `a category this build does not know is listed under Other, not dropped`() {
+        // the manifest is shared with builds newer than this one, which may add categories
+        val index = json.decodeFromString<RegistryIndex>(
+            """{"extensions":[{"id":"flow.x","name":"X","file":"x","category":"quantum"}]}""",
+        )
+        assertEquals(CATEGORY_OTHER, categoryOf(index.extensions.single()))
+        assertEquals(1, byCategory(index.extensions).sumOf { it.second.size })
+    }
+
+    @Test
+    fun `groups come out in a fixed order, and empty ones do not appear`() {
+        val index = json.decodeFromString<RegistryIndex>(
+            """{"extensions":[
+                {"id":"a","file":"x","category":"ai"},
+                {"id":"b","file":"x","category":"crypto"},
+                {"id":"c","file":"x","category":"crypto"}
+            ]}""",
+        )
+        val groups = byCategory(index.extensions)
+        assertEquals(listOf(CATEGORY_CRYPTO, CATEGORY_AI), groups.map { it.first })
+        // within a category, the registry's own order stands
+        assertEquals(listOf("b", "c"), groups.first().second.map { it.id })
+    }
+
+    /**
+     * The shipped manifest says what each extension is for.
+     *
+     * A typo would not fail anything — the entry would quietly appear under Other — so the check
+     * that every category is one the app knows belongs here rather than being left to notice.
+     */
+    @Test
+    fun `every extension in the shipped registry has a category this build knows`() {
+        val file = java.io.File("../flow-extensions/registry.json")
+            .let { if (it.isFile) it else java.io.File("flow-extensions/registry.json") }
+        assertTrue(file.isFile, "registry.json not found at ${file.absolutePath}")
+        val index = json.decodeFromString<RegistryIndex>(file.readText())
+        assertTrue(index.extensions.isNotEmpty())
+        val unknown = index.extensions.filter { it.category !in CATEGORIES }
+        assertTrue(unknown.isEmpty(), "not a category this build knows: ${unknown.map { it.id to it.category }}")
+    }
+
 }
