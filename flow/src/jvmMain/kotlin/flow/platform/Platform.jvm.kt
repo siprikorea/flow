@@ -16,6 +16,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runInterruptible
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonObject
@@ -105,12 +106,11 @@ actual object Platform {
             // The two get the same system prompt and the same tools; what differs is who runs the
             // agent loop around them — Claude Code does it in its own process, Ollama.ask does it
             // here, because a model on its own does not.
-            if (ai.provider == AI_OLLAMA) {
-                flow.ai.Ollama.ask(
+            if (flow.ai.Agents.handles(ai.provider)) {
+                flow.ai.Agents.ask(
                     prompt = prompt,
                     sessionId = sessionId,
-                    model = ai.model,
-                    baseUrl = ai.ollamaUrl,
+                    setup = ai,
                     systemPrompt = flow.ai.FlowPrompt.systemPrompt(projectRoot()),
                     onText = onText,
                 )
@@ -127,16 +127,65 @@ actual object Platform {
             }
         }
 
-    // Both, without asking which is running: only one can be, and stopping the other is a no-op.
+    // All of them, without asking which is running: only one can be, and stopping the rest is a
+    // no-op.
     actual fun stopAi() {
         flow.ai.ClaudeCli.stop()
-        flow.ai.Ollama.stop()
+        flow.ai.Agents.stop()
     }
 
-    actual fun forgetAi(sessionId: String?) = flow.ai.Ollama.forget(sessionId)
+    actual fun forgetAi(sessionId: String?) = flow.ai.Agents.forget(sessionId)
 
-    actual suspend fun ollamaModels(url: String): List<String> =
-        runInterruptible(Dispatchers.IO) { flow.ai.Ollama.models(url) }
+    actual suspend fun aiModels(ai: AiSetup): List<String> =
+        runInterruptible(Dispatchers.IO) { flow.ai.Agents.models(ai) }
+
+    /**
+     * API keys, in ~/.flow/credentials.json, readable only by the user who owns it.
+     *
+     * Apart from settings.json because these are not preferences: that file is rewritten whenever
+     * anything in Settings changes, is meant to be looked at, and gets copied around with the rest
+     * of a home directory. The permissions are set on the file itself rather than trusted to the
+     * umask, and set before anything is written into it.
+     */
+    actual fun env(name: String): String? = System.getenv(name)?.takeIf { it.isNotBlank() }
+
+    private val secretsFile = File(baseDir, "credentials.json")
+
+    actual fun loadSecret(name: String): String? = runCatching {
+        if (!secretsFile.isFile) return null
+        val root = Json.parseToJsonElement(secretsFile.readText()) as? JsonObject ?: return null
+        (root[name] as? JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+    }.getOrNull()
+
+    actual fun saveSecret(name: String, value: String) {
+        runCatching {
+            baseDir.mkdirs()
+            val root = (
+                runCatching { Json.parseToJsonElement(secretsFile.readText()) as? JsonObject }
+                    .getOrNull() ?: JsonObject(emptyMap())
+                ).toMutableMap()
+            if (value.isBlank()) root.remove(name) else root[name] = JsonPrimitive(value)
+            if (!secretsFile.exists()) secretsFile.createNewFile()
+            ownerOnly(secretsFile)
+            secretsFile.writeText(Json.encodeToString(JsonObject.serializer(), JsonObject(root)))
+        }
+    }
+
+    /**
+     * Owner read/write, nothing else.
+     *
+     * POSIX only. On a filesystem without it (Windows) this does nothing and the file is left as
+     * the user's home directory made it — File.setReadable would report success there while
+     * changing no ACL, which is worse than plainly not applying.
+     */
+    private fun ownerOnly(file: File) {
+        runCatching {
+            java.nio.file.Files.setPosixFilePermissions(
+                file.toPath(),
+                java.nio.file.attribute.PosixFilePermissions.fromString("rw-------"),
+            )
+        }
+    }
 
     actual fun encodeText(text: String, charset: String): ByteArray =
         text.toByteArray(charsetOf(charset))

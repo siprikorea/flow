@@ -21,9 +21,12 @@ data class AiMessage(val fromUser: Boolean, val text: String)
  */
 data class AiSetup(
     val provider: String,
-    /** The model for [provider]: a `claude --model` id, or a name Ollama has pulled. */
+    /** The model for [provider]: a `claude --model` id, or a name the server offers. */
     val model: String,
-    val ollamaUrl: String,
+    /** Where the server is. Empty for Claude, which is a command rather than an address. */
+    val url: String = "",
+    /** The API key, already resolved from Settings or the environment. Empty where none is needed. */
+    val apiKey: String = "",
 )
 
 /**
@@ -35,5 +38,6 @@ data class AiSetup(
  * shown as it came.
  */
 const val AI_ERR_OLLAMA_DOWN = "ollama-not-running"
-const val AI_ERR_OLLAMA_NO_MODEL = "ollama-no-model"
-const val AI_ERR_OLLAMA_STEPS = "ollama-too-many-steps"
+const val AI_ERR_NO_MODEL = "ai-no-model"
+const val AI_ERR_STEPS = "ai-too-many-steps"
+const val AI_ERR_NO_KEY = "ai-no-key"

@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -121,6 +123,9 @@ fun DtxField(
     mono: Boolean = false,
     textColor: Color = Palette.textPrimary,
     fontSize: TextUnit = 12.sp,
+    // an API key: shown as dots, since it is pasted in once and read by anyone looking over a
+    // shoulder for the rest of the session otherwise
+    mask: Boolean = false,
     onFocusChange: (Boolean) -> Unit = {},
 ) {
     var focused by remember { mutableStateOf(false) }
@@ -129,6 +134,7 @@ fun DtxField(
         value = value,
         onValueChange = onChange,
         singleLine = true,
+        visualTransformation = if (mask) PasswordVisualTransformation() else VisualTransformation.None,
         textStyle = TextStyle(
             color = textColor,
             fontSize = fontSize,

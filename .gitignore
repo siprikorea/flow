@@ -15,3 +15,6 @@ bin/
 .idea/
 *.iml
 .vscode/
+
+# oh-my-claudecode session state, written wherever a tool happens to run
+.omc/

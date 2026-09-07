@@ -9,7 +9,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import flow.core.Workspace
+import flow.model.AI_GEMINI
 import flow.model.AI_OLLAMA
+import flow.model.AI_OPENAI
 import flow.model.AiMessage
 import flow.ui.shell.SettingsScreen
 import flow.ui.theme.ApplyTheme
@@ -61,16 +63,20 @@ class AiPanelProbe {
     fun `draw the ai settings`() {
         val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
         dir.mkdirs()
-        val scene = ImageComposeScene(1400, 900, density = Density(1.4f), coroutineContext = Dispatchers.Unconfined) {
-            ApplyTheme(Theme.DARK)
-            val ws = workspace()
-            ws.aiProvider = AI_OLLAMA
-            ws.settingsCategory = "ai"
-            SettingsScreen(ws)
+        listOf(AI_OLLAMA, AI_OPENAI, AI_GEMINI).forEach { provider ->
+            val scene = ImageComposeScene(1400, 900, density = Density(1.4f), coroutineContext = Dispatchers.Unconfined) {
+                ApplyTheme(Theme.DARK)
+                val ws = workspace()
+                ws.aiProvider = provider
+                ws.settingsCategory = "ai"
+                SettingsScreen(ws)
+            }
+            repeat(20) { scene.render(); Thread.sleep(50) }
+            File(dir, "ai-settings-$provider.png").writeBytes(
+                scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes,
+            )
+            scene.close()
         }
-        repeat(20) { scene.render(); Thread.sleep(50) }
-        File(dir, "ai-settings.png").writeBytes(scene.render().encodeToData(EncodedImageFormat.PNG)!!.bytes)
-        scene.close()
     }
 
     @Test

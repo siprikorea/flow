@@ -16,13 +16,22 @@ import flow.model.Session
 import flow.model.Settings
 import flow.model.AI_CLAUDE
 import flow.model.AI_ERR_OLLAMA_DOWN
-import flow.model.AI_ERR_OLLAMA_NO_MODEL
-import flow.model.AI_ERR_OLLAMA_STEPS
+import flow.model.AI_ERR_NO_KEY
+import flow.model.AI_ERR_NO_MODEL
+import flow.model.AI_ERR_STEPS
 import flow.model.AI_MODELS
 import flow.model.AI_OLLAMA
 import flow.model.AI_PROVIDERS
 import flow.model.AiSetup
+import flow.model.AI_GEMINI
+import flow.model.AI_KEY_GEMINI
+import flow.model.AI_KEY_OPENAI
+import flow.model.AI_OPENAI
+import flow.model.DEFAULT_GEMINI_URL
 import flow.model.DEFAULT_OLLAMA_URL
+import flow.model.DEFAULT_OPENAI_URL
+import flow.model.apiKeyEnvVar
+import flow.model.apiKeySecret
 import flow.model.DEFAULT_REGISTRY_URL
 import flow.model.RegistryEntry
 import flow.model.RegistryIndex
@@ -82,6 +91,15 @@ class Workspace(private val scope: CoroutineScope) {
     var ollamaUrl by mutableStateOf(DEFAULT_OLLAMA_URL)
     // blank = the first model the server reports, which on a machine with one is the one
     var ollamaModel by mutableStateOf("")
+    var openaiUrl by mutableStateOf(DEFAULT_OPENAI_URL)
+    var openaiModel by mutableStateOf("")
+    var geminiUrl by mutableStateOf(DEFAULT_GEMINI_URL)
+    var geminiModel by mutableStateOf("")
+
+    // Kept apart from the settings file (Platform.loadSecret) and loaded once at startup. Blank
+    // here does not mean "no key": the environment is consulted too — see aiApiKey.
+    var openaiKey by mutableStateOf(Platform.loadSecret(AI_KEY_OPENAI).orEmpty())
+    var geminiKey by mutableStateOf(Platform.loadSecret(AI_KEY_GEMINI).orEmpty())
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules | ai
     // palette sections left open, by key
@@ -355,44 +373,104 @@ class Workspace(private val scope: CoroutineScope) {
     private var aiSessionProvider: String? = null
 
     /**
-     * The model in use, and where to set it: whichever of the two the current provider means.
+     * The model in use, and where to set it: whichever provider is in force keeps its own.
      *
      * Writing it goes to that provider's own field, so the composer's picker and the Settings
      * screen are two views of one value rather than two settings that can disagree. (Saving is
      * App.kt's snapshotFlow on settingsJson(); nothing here has to ask for it.)
      */
     var aiModelChoice: String
-        get() = if (aiProvider == AI_OLLAMA) ollamaModel else aiModel
-        set(value) { if (aiProvider == AI_OLLAMA) ollamaModel = value else aiModel = value }
+        get() = when (aiProvider) {
+            AI_OLLAMA -> ollamaModel
+            AI_OPENAI -> openaiModel
+            AI_GEMINI -> geminiModel
+            else -> aiModel
+        }
+        set(value) {
+            when (aiProvider) {
+                AI_OLLAMA -> ollamaModel = value
+                AI_OPENAI -> openaiModel = value
+                AI_GEMINI -> geminiModel = value
+                else -> aiModel = value
+            }
+        }
+
+    /** Where the provider in force answers. Empty for Claude, which is a command, not an address. */
+    val aiUrl: String
+        get() = when (aiProvider) {
+            AI_OLLAMA -> ollamaUrl
+            AI_OPENAI -> openaiUrl
+            AI_GEMINI -> geminiUrl
+            else -> ""
+        }
 
     /**
-     * What the model picker offers: fixed for Claude, whatever the server has pulled for Ollama.
+     * The key for the provider in force.
      *
-     * The Ollama half is a network call, so it is a cached list refreshed by [refreshAiModels]
-     * rather than something read on every recomposition. An empty one is not an error to report —
-     * it is the ordinary state of a machine that hasn't started Ollama, and the picker says so.
+     * What was typed into Settings wins; otherwise the provider's own environment variable, so a
+     * machine that already exports OPENAI_API_KEY for other tools does not have to have it entered
+     * again. Blank when the provider needs none.
      */
-    var ollamaModels by mutableStateOf<List<String>>(emptyList())
+    val aiApiKey: String
+        get() = when (aiProvider) {
+            AI_OPENAI -> openaiKey.ifBlank { Platform.env(apiKeyEnvVar(AI_OPENAI)!!).orEmpty() }
+            AI_GEMINI -> geminiKey.ifBlank { Platform.env(apiKeyEnvVar(AI_GEMINI)!!).orEmpty() }
+            else -> ""
+        }
+
+    /**
+     * What the model picker offers: a fixed list for Claude, whatever the server says otherwise.
+     *
+     * The server half is a network call, so it is a cached list refreshed by [refreshAiModels]
+     * rather than something read on every recomposition. An empty one is not an error to report —
+     * a machine that hasn't started Ollama, or a key not entered yet, is the ordinary case, and the
+     * picker says so.
+     */
+    var serverModels by mutableStateOf<List<String>>(emptyList())
         private set
 
     val aiModelOptions: List<Pair<String, String>>
-        get() = if (aiProvider == AI_OLLAMA) {
+        get() = if (aiProvider == AI_CLAUDE) {
+            AI_MODELS
+        } else {
             // whatever is configured stays in the list even if the server is unreachable, so the
             // picker still shows what a turn would actually use
-            val names = (ollamaModels + ollamaModel.takeIf { it.isNotBlank() }.orEmpty()).filter { it.isNotBlank() }
+            val names = (serverModels + aiModelChoice).filter { it.isNotBlank() }
             names.distinct().map { it to it }
-        } else {
-            AI_MODELS
         }
 
+    /**
+     * Re-reads the model list. Cheap to call: it is one request, and the panel and the Settings
+     * screen both ask whenever the provider, address or key they are showing changes.
+     */
     fun refreshAiModels() {
-        if (aiProvider != AI_OLLAMA) return
-        val url = ollamaUrl
-        scope.launch { ollamaModels = Platform.ollamaModels(url) }
+        if (aiProvider == AI_CLAUDE) {
+            serverModels = emptyList()
+            return
+        }
+        val setup = aiSetup()
+        scope.launch { serverModels = Platform.aiModels(setup) }
+    }
+
+    /**
+     * Sets a provider's API key, and by default writes it where keys live.
+     *
+     * [save] is false while a Settings field is being typed into: the model list has to follow what
+     * is in the box to be about the right server, but a half-typed key is not something to put on
+     * disk. Apply/OK calls this again with save on.
+     */
+    fun setApiKey(provider: String, value: String, save: Boolean = true) {
+        when (provider) {
+            AI_OPENAI -> openaiKey = value
+            AI_GEMINI -> geminiKey = value
+            else -> return
+        }
+        if (save) apiKeySecret(provider)?.let { Platform.saveSecret(it, value) }
     }
 
     /** A setup for one turn, as the provider in force now describes it. */
-    private fun aiSetup() = AiSetup(provider = aiProvider, model = aiModelChoice, ollamaUrl = ollamaUrl)
+    private fun aiSetup() =
+        AiSetup(provider = aiProvider, model = aiModelChoice, url = aiUrl, apiKey = aiApiKey)
 
     /**
      * Asks one question.
@@ -470,8 +548,9 @@ class Workspace(private val scope: CoroutineScope) {
     private fun aiErrorText(error: String): String = when {
         error.startsWith(AI_ERR_OLLAMA_DOWN) ->
             t("aiOllamaMissingBody") + error.removePrefix(AI_ERR_OLLAMA_DOWN)
-        error == AI_ERR_OLLAMA_NO_MODEL -> t("aiOllamaNoModelBody")
-        error == AI_ERR_OLLAMA_STEPS -> t("aiTooManySteps")
+        error == AI_ERR_NO_MODEL -> t("aiNoModelBody")
+        error == AI_ERR_NO_KEY -> t("aiNoKeyBody")
+        error == AI_ERR_STEPS -> t("aiTooManySteps")
         else -> error
     }
 
@@ -965,7 +1044,7 @@ class Workspace(private val scope: CoroutineScope) {
     fun settingsJson(): String = json.encodeToString(
         Settings(
             lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
-            aiProvider, aiModel, ollamaUrl, ollamaModel,
+            aiProvider, aiModel, ollamaUrl, ollamaModel, openaiUrl, openaiModel, geminiUrl, geminiModel,
         )
     )
 
@@ -988,6 +1067,10 @@ class Workspace(private val scope: CoroutineScope) {
             // not checked against a list the way the Claude id is: what Ollama has pulled is
             // whatever this machine has, and the only way to know is to ask it
             ollamaModel = saved.ollamaModel
+            openaiUrl = saved.openaiUrl.ifBlank { DEFAULT_OPENAI_URL }
+            openaiModel = saved.openaiModel
+            geminiUrl = saved.geminiUrl.ifBlank { DEFAULT_GEMINI_URL }
+            geminiModel = saved.geminiModel
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }

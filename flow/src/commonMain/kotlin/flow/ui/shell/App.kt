@@ -56,8 +56,13 @@ import flow.core.Shortcut
 import flow.core.Workspace
 import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
-import flow.model.AI_OLLAMA
+import flow.model.AI_CLAUDE
+import flow.model.AI_GEMINI
+import flow.model.AI_OPENAI
 import flow.model.AI_PROVIDERS
+import flow.model.apiKeyEnvVar
+import flow.model.needsApiKey
+import flow.ui.common.Picker
 import flow.platform.Platform
 import flow.platform.droppedFilePath
 import flow.util.flowLabel
@@ -73,6 +78,7 @@ import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.ApplyTheme
 import flow.ui.theme.Palette
+import flow.ui.theme.Radius
 import flow.ui.theme.Size
 import flow.ui.theme.Theme
 import flow.ui.tools.LeftToolWindow
@@ -574,6 +580,12 @@ fun SettingsScreen(ws: Workspace) {
     var aiModel by remember { mutableStateOf(ws.aiModel) }
     var ollamaUrl by remember { mutableStateOf(ws.ollamaUrl) }
     var ollamaModel by remember { mutableStateOf(ws.ollamaModel) }
+    var openaiUrl by remember { mutableStateOf(ws.openaiUrl) }
+    var openaiModel by remember { mutableStateOf(ws.openaiModel) }
+    var openaiKey by remember { mutableStateOf(ws.openaiKey) }
+    var geminiUrl by remember { mutableStateOf(ws.geminiUrl) }
+    var geminiModel by remember { mutableStateOf(ws.geminiModel) }
+    var geminiKey by remember { mutableStateOf(ws.geminiKey) }
     var keymap by remember { mutableStateOf(ws.keymap) }
     var recording by remember { mutableStateOf<String?>(null) } // action waiting for a key press
     var category by remember { mutableStateOf(ws.settingsCategory) }
@@ -607,6 +619,13 @@ fun SettingsScreen(ws: Workspace) {
         ws.aiModel = aiModel
         ws.ollamaUrl = ollamaUrl
         ws.ollamaModel = ollamaModel
+        ws.openaiUrl = openaiUrl
+        ws.openaiModel = openaiModel
+        ws.geminiUrl = geminiUrl
+        ws.geminiModel = geminiModel
+        // the keys are not part of settingsJson(), so they are written where they live
+        ws.setApiKey(AI_OPENAI, openaiKey)
+        ws.setApiKey(AI_GEMINI, geminiKey)
         ws.keymap = keymap
     }
 
@@ -681,27 +700,97 @@ fun SettingsScreen(ws: Workspace) {
                             Segmented(AI_PROVIDERS, aiProvider) { aiProvider = it }
                         }
                         Txt(ws.t("aiProviderHint"), 11.sp, Palette.faintText)
-                        if (aiProvider == AI_OLLAMA) {
+
+                        // Claude is a command with its own account; the rest answer at an address,
+                        // and two of those want a key first. Each provider edits its own settings,
+                        // so switching back and forth keeps what was entered for the other.
+                        if (aiProvider != AI_CLAUDE) {
                             Spacer(Modifier.height(14.dp))
-                            // The server has to be reachable before there is a list to pick from,
-                            // so the address comes first and the models are re-read whenever it or
-                            // this screen changes.
-                            SettingRow(ws.t("ollamaUrl")) {
-                                DtxField(ollamaUrl, { ollamaUrl = it }, mono = true)
+                            val key = when (aiProvider) {
+                                AI_OPENAI -> openaiKey
+                                AI_GEMINI -> geminiKey
+                                else -> ""
                             }
-                            LaunchedEffect(ollamaUrl) {
+                            val url = when (aiProvider) {
+                                AI_OPENAI -> openaiUrl
+                                AI_GEMINI -> geminiUrl
+                                else -> ollamaUrl
+                            }
+                            if (needsApiKey(aiProvider)) {
+                                SettingRow(ws.t("aiApiKey")) {
+                                    DtxField(
+                                        key,
+                                        { v -> if (aiProvider == AI_OPENAI) openaiKey = v else geminiKey = v },
+                                        mono = true,
+                                        mask = true,
+                                    )
+                                }
+                                // said whichever way it stands, because a key found in the
+                                // environment is the difference between "nothing is configured"
+                                // and "it already works"
+                                val fromEnv = apiKeyEnvVar(aiProvider)?.let { name ->
+                                    Platform.env(name)?.let { name }
+                                }
+                                Txt(
+                                    if (key.isNotBlank()) ws.t("aiApiKeyHint")
+                                    else if (fromEnv != null) ws.t("aiApiKeyEnv").replace("{env}", fromEnv)
+                                    else ws.t("aiApiKeyMissing"),
+                                    11.sp,
+                                    Palette.faintText,
+                                )
+                                Spacer(Modifier.height(10.dp))
+                            }
+                            // The server has to be reachable, and paid for, before there is a list
+                            // to pick from — so the address and key come first and the models are
+                            // re-read whenever any of the three changes.
+                            SettingRow(ws.t("aiServer")) {
+                                DtxField(
+                                    url,
+                                    { v ->
+                                        when (aiProvider) {
+                                            AI_OPENAI -> openaiUrl = v
+                                            AI_GEMINI -> geminiUrl = v
+                                            else -> ollamaUrl = v
+                                        }
+                                    },
+                                    mono = true,
+                                )
+                            }
+                            LaunchedEffect(aiProvider, url, key) {
+                                // the draft, not the saved value: the list has to follow what is
+                                // being typed, or it describes the previous server
+                                ws.aiProvider = aiProvider
+                                ws.openaiUrl = openaiUrl
+                                ws.geminiUrl = geminiUrl
                                 ws.ollamaUrl = ollamaUrl
+                                ws.setApiKey(AI_OPENAI, openaiKey, save = false)
+                                ws.setApiKey(AI_GEMINI, geminiKey, save = false)
                                 ws.refreshAiModels()
                             }
-                            val models = ws.ollamaModels
-                            SettingRow(ws.t("ollamaModel")) {
+                            val models = ws.serverModels
+                            val chosen = when (aiProvider) {
+                                AI_OPENAI -> openaiModel
+                                AI_GEMINI -> geminiModel
+                                else -> ollamaModel
+                            }
+                            SettingRow(ws.t("aiModel")) {
                                 if (models.isEmpty()) {
-                                    Txt(ws.t("ollamaNoModels"), 11.sp, Palette.faintText)
+                                    Txt(ws.t("aiNoModels"), 11.sp, Palette.faintText)
                                 } else {
-                                    Segmented(models.map { it to it }, ollamaModel) { ollamaModel = it }
+                                    Picker(
+                                        options = models.map { m -> m to m },
+                                        selected = chosen,
+                                        onSelect = { m ->
+                                            when (aiProvider) {
+                                                AI_OPENAI -> openaiModel = m
+                                                AI_GEMINI -> geminiModel = m
+                                                else -> ollamaModel = m
+                                            }
+                                        },
+                                    ) { label, open -> PickerField(label.ifBlank { ws.t("aiModelAuto") }, open) }
                                 }
                             }
-                            Txt(ws.t("ollamaHint"), 11.sp, Palette.faintText)
+                            Txt(ws.t("aiModelServerHint"), 11.sp, Palette.faintText)
                         }
                     }
                     "keymap" -> Column {
@@ -808,6 +897,23 @@ private fun SettingRow(label: String, control: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
         Txt(label, 12.5.sp, Palette.subText, modifier = Modifier.width(140.dp))
         control()
+    }
+}
+
+/** A Picker's anchor in Settings: the same box a DtxField draws, with the value in it. */
+@Composable
+private fun PickerField(label: String, open: Boolean) {
+    val shape = RoundedCornerShape(Radius.control)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(Palette.raised, shape)
+            .border(1.dp, if (open) Palette.accent else Palette.border, shape)
+            .padding(horizontal = 9.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Txt(label, 12.sp, Palette.textPrimary, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+        Txt(if (open) "▲" else "▼", 9.sp, Palette.textTertiary)
     }
 }
 

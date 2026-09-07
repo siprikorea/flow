@@ -40,12 +40,22 @@ expect object Platform {
     suspend fun askAi(prompt: String, sessionId: String?, ai: AiSetup, onText: (String) -> Unit): AiReply
     // Ends the run in progress. Whatever it had said by then stands.
     fun stopAi()
-    // Drops a conversation the provider is holding. Only Ollama holds one — its transcript lives in
-    // this process, since the server itself remembers nothing between requests.
+    // Drops a conversation the provider is holding. Only the HTTP providers hold one — their
+    // transcripts live in this process, since none of those servers remembers anything between
+    // requests.
     fun forgetAi(sessionId: String?)
-    // What the Ollama server at [url] has pulled, newest first, or empty if it cannot be reached —
-    // which is the same answer the panel gives either way: there is nothing to pick.
-    suspend fun ollamaModels(url: String): List<String>
+    // What [ai]'s server offers, or empty if it cannot be reached or has no key — which is the same
+    // answer the panel gives either way: there is nothing to pick.
+    suspend fun aiModels(ai: AiSetup): List<String>
+
+    // One environment variable, or null if it is not set. The API providers each name one that
+    // their own tools already use, so a key exported for those need not be typed in again.
+    fun env(name: String): String?
+
+    // An API key, kept out of settings.json: that file is rewritten on every preference change and
+    // is meant to be readable. Null when nothing has been stored under [name].
+    fun loadSecret(name: String): String?
+    fun saveSecret(name: String, value: String)
 
     // text in a named encoding, for the built-in String input — commonMain has UTF-8 and nothing
     // else, and which encoding a value is written in is the user's choice
