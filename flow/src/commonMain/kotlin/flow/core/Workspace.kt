@@ -396,11 +396,10 @@ class Workspace(private val scope: CoroutineScope) {
         }
 
     /**
-     * What the assistant in force is called, for anywhere its name is shown.
+     * What an assistant is called, for the name over each answer.
      *
-     * The panel's title and the name over each answer both come from here rather than from a string
-     * in the table: there was one of those reading "Claude", and it went on saying so after the
-     * panel grew three other providers to be.
+     * One place decides it, rather than a string in the table: there was one of those reading
+     * "Claude", and it went on saying so after the panel grew three other providers to be.
      */
     val aiProviderName: String get() = providerName(aiProvider)
 

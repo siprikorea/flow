@@ -43,11 +43,10 @@ class AiSpeakerTest {
     }
 
     /**
-     * The panel's own title comes from here too.
+     * Every provider has a name for the label over its answers.
      *
-     * It was a string in the table reading "Claude", which went on saying so over an Ollama
-     * conversation — the same fault as the answer labels, in the one place left that still had a
-     * name written into it. Every provider has to have a name here or the header goes blank.
+     * The panel's title is just "AI" — which one is answering is already on each reply and on the
+     * model picker — but a provider with no name here would leave those replies unattributed.
      */
     @Test
     fun `every provider has a name to show`() {

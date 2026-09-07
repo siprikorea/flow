@@ -70,9 +70,10 @@ fun AiPanel(ws: Workspace) {
     // what the picker offers, re-read whenever the provider, its address or its key changes
     LaunchedEffect(ws.aiProvider, ws.aiUrl, ws.aiApiKey) { ws.refreshAiModels() }
     Column(Modifier.fillMaxSize()) {
-        // the assistant in force, not a fixed name: this panel is whichever of the four is
-        // selected, and it said "CLAUDE" over an Ollama conversation until it was pointed out
-        PanelHeader(ws.aiProviderName)
+        // The panel, not the assistant in it. Which one is answering is on every reply and on the
+        // picker under the box, so a title that also changed with it was three things saying the
+        // same thing and a header that moved for no reason.
+        PanelHeader(ws.t("tabAi"))
         when {
             !installed -> Notice(ws.t("aiMissingTitle"), ws.t("aiMissingBody"), ws.t("aiMissingAfter")) {
                 Command("npm install -g @anthropic-ai/claude-code")
