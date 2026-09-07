@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import flow.core.Workspace
+import flow.model.AI_CLAUDE
 import flow.model.AI_GEMINI
 import flow.model.AI_OLLAMA
 import flow.model.AI_OPENAI
@@ -43,9 +44,13 @@ class AiPanelProbe {
         val scene = ImageComposeScene(380, 700, density = Density(2f)) {
             ApplyTheme(Theme.DARK)
             val ws = workspace()
+            // two providers in one transcript: the label belongs to the answer, not to the setting
+            ws.aiProvider = AI_OLLAMA
             ws.aiMessages = listOf(
                 AiMessage(true, "sha256 flow 를 만들어줘"),
-                AiMessage(false, "**sha256-hash.flow** 를 저장했습니다.\n\n- `text` → `SHA-256` → `hash`"),
+                AiMessage(false, "**sha256-hash.flow** 를 저장했습니다.\n\n- `text` → `SHA-256` → `hash`", AI_CLAUDE),
+                AiMessage(true, "실행해줘"),
+                AiMessage(false, "실행했습니다. 출력은 `2cf24db8…` 입니다.", AI_OLLAMA),
             )
             Box(Modifier.fillMaxSize().background(Palette.panelBg)) { AiPanel(ws) }
         }

@@ -8,8 +8,15 @@ data class AiReply(
     val error: String? = null,
 )
 
-/** A line of the conversation, as it is shown. */
-data class AiMessage(val fromUser: Boolean, val text: String)
+/**
+ * A line of the conversation, as it is shown.
+ *
+ * [provider] is who said it, kept per message rather than read off the current setting: switching
+ * provider starts a new conversation but leaves what was already said on screen, so an answer has
+ * to stay labelled with whoever actually gave it. Blank on a user's own line, and on an answer from
+ * a session saved before this was recorded.
+ */
+data class AiMessage(val fromUser: Boolean, val text: String, val provider: String = "")
 
 /**
  * Which assistant a turn goes to, and how to reach it.

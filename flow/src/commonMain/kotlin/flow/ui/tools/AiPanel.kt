@@ -30,6 +30,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.Spacer
+import flow.model.AI_PROVIDERS
+import flow.model.AiMessage
 import flow.model.isHttpProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -160,7 +162,7 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
                 val streaming = ws.aiStreaming && index == ws.aiMessages.lastIndex && !message.fromUser
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
                     Txt(
-                        if (message.fromUser) ws.t("aiYou") else ws.t("aiClaude"),
+                        if (message.fromUser) ws.t("aiYou") else speakerName(ws, message),
                         10.sp,
                         if (message.fromUser) Palette.accent else Palette.catPlugin,
                         weight = FontWeight.Bold,
@@ -253,6 +255,19 @@ private fun Composer(ws: Workspace) {
             }
         }
     }
+}
+
+/**
+ * Who gave this answer, as the name over it.
+ *
+ * The message's own provider, not the one selected now — the panel keeps showing a conversation
+ * after the provider is switched, and relabelling what Claude said as OLLAMA is the same error as
+ * the fixed "CLAUDE" this replaces, only harder to notice. An answer from before this was recorded
+ * has none, and falls back to whoever is answering now.
+ */
+private fun speakerName(ws: Workspace, message: AiMessage): String {
+    val provider = message.provider.ifBlank { ws.aiProvider }
+    return (AI_PROVIDERS.find { it.first == provider }?.second ?: provider).uppercase()
 }
 
 /**

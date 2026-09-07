@@ -489,8 +489,9 @@ class Workspace(private val scope: CoroutineScope) {
             aiSession = null
         }
         aiSessionProvider = aiProvider
+        val answering = aiProvider
         aiMessages = aiMessages + AiMessage(fromUser = true, text = question) +
-            AiMessage(fromUser = false, text = "")
+            AiMessage(fromUser = false, text = "", provider = answering)
         aiStreaming = true
         scope.launch {
             val reply = runCatching {
@@ -506,7 +507,7 @@ class Workspace(private val scope: CoroutineScope) {
             // replacing it with the failure throws away the half that worked
             val failure = reply.error?.let { t("aiFailed") + "\n" + aiErrorText(it) }
             val text = listOfNotNull(reply.text.takeIf { it.isNotBlank() }, failure).joinToString("\n\n")
-            aiMessages = aiMessages.dropLast(1) + AiMessage(fromUser = false, text = text)
+            aiMessages = aiMessages.dropLast(1) + AiMessage(fromUser = false, text = text, provider = answering)
             aiStreaming = false
 
             // save_flow only writes — it never opens anything, however new the file — so the tree
