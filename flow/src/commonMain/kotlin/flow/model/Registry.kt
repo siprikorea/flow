@@ -59,6 +59,9 @@ data class ModuleInfo(
     val outputs: List<String>,
     val options: List<OptDef> = emptyList(),
     val version: String = "1.0.0",
+    // what the extension asks to be configured once, rather than on every node — see
+    // ProcessorExtension.settings
+    val settings: List<OptDef> = emptyList(),
 )
 
 // Install result: installed ids and conflicting (already-existing) ids

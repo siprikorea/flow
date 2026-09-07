@@ -41,7 +41,7 @@ import java.time.Duration
 class AiExtension : ProcessorExtension {
     override val id = "flow.ai"
     override val displayName = "AI"
-    override val version = "1.0.0"
+    override val version = "1.1.0"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
 
@@ -54,6 +54,18 @@ class AiExtension : ProcessorExtension {
         // row are different steps rather than the same one twice.
         ExtensionOption("role", OptionType.TEXT, "Answer with the result only, and no explanation."),
         ExtensionOption("timeoutSec", OptionType.NUMBER, "120"),
+    )
+
+    /**
+     * The same two, set once for every AI node instead of on each of them.
+     *
+     * A node's own value wins when it has one; blank means "whatever this is set to", which is
+     * already how the node reads them, so a flow that names neither follows Settings ▸ Extensions,
+     * and one that names neither there follows Settings ▸ AI.
+     */
+    override val settings = listOf(
+        ExtensionOption("provider", OptionType.SELECT, "", listOf("", "claude", "openai", "gemini", "ollama")),
+        ExtensionOption("model", OptionType.TEXT, ""),
     )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {

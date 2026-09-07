@@ -130,6 +130,10 @@ data class Settings(
     // provider's own default — the CLI where it has one worth using, since a CLI that is installed
     // is already signed in and costs nothing to configure.
     val aiTransport: Map<String, String> = emptyMap(),
+    // What each extension's own settings are set to, by extension id — see
+    // ProcessorExtension.settings. Kept by id rather than by name so uninstalling one and putting
+    // it back finds what it was configured with.
+    val extensionSettings: Map<String, Map<String, String>> = emptyMap(),
     // outputs and inputs the user has switched off. Kept as the exception rather than the list of
     // enabled ones, so a newly installed one is usable without having to be turned on first.
     val disabledOutputs: List<String> = emptyList(),

@@ -58,6 +58,19 @@ interface ProcessorExtension {
     val options: List<ExtensionOption>
 
     /**
+     * Settings for the extension as a whole, edited once in Settings ▸ Extensions rather than on
+     * every node — the way an IDE plugin has its own settings page.
+     *
+     * They reach [process] through the same options map, underneath the node's own: a node option
+     * left blank takes the value from here. So an extension that wants a setting a node can
+     * override declares the same name in both, and one that wants a setting a node cannot touch
+     * declares it only here.
+     *
+     * Defaults to none, so an extension written before this existed still compiles and still loads.
+     */
+    val settings: List<ExtensionOption> get() = emptyList()
+
+    /**
      * Input port ids for the given option values, when a module's ports depend on an option
      * (e.g. a "verify" operation needing a signature input that "sign" doesn't). Defaults to the
      * fixed [inputs]. The host uses this to keep a node's actual ports in sync with its options —
@@ -79,6 +92,9 @@ interface ProcessorExtension {
     /**
      * Process the port data. Values on ports are raw bytes:
      * input-port-id → bytes, plus the current option values, producing output-port-id → bytes.
+     *
+     * The options are the node's, over the extension's own [settings]: a node option that is blank
+     * arrives here as whatever Settings ▸ Extensions was set to.
      *
      * Flow evaluates independent nodes at the same time, so this may be called concurrently on the
      * one instance. Everything it needs arrives in the arguments — keep no state between calls.

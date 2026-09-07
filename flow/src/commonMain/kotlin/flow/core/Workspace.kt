@@ -125,6 +125,22 @@ class Workspace(private val scope: CoroutineScope) {
     var openaiKey by mutableStateOf(Platform.loadSecret(AI_KEY_OPENAI).orEmpty())
     var geminiKey by mutableStateOf(Platform.loadSecret(AI_KEY_GEMINI).orEmpty())
     var claudeKey by mutableStateOf(Platform.loadSecret(AI_KEY_CLAUDE).orEmpty())
+    /**
+     * What each installed extension's own settings are set to, by extension id.
+     *
+     * The extension declares which settings it has (ModuleInfo.settings); this is what they are.
+     * Writing it pushes the whole lot to the platform, which is what a run reads — the alternative,
+     * reading a file per node, would charge every run for a setting almost nothing uses.
+     */
+    var extensionSettings by mutableStateOf<Map<String, Map<String, String>>>(emptyMap())
+        private set
+
+    fun setExtensionSetting(extensionId: String, name: String, value: String) {
+        val forExtension = (extensionSettings[extensionId] ?: emptyMap()) + (name to value)
+        extensionSettings = extensionSettings + (extensionId to forExtension)
+        Platform.setExtensionSettings(extensionSettings)
+    }
+
     var showLeft by mutableStateOf(true)
     var leftTab by mutableStateOf("project") // project | modules | ai
     // palette sections left open, by key
@@ -1106,7 +1122,7 @@ class Workspace(private val scope: CoroutineScope) {
         Settings(
             lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
             aiProvider, aiModel, ollamaUrl, ollamaModel, openaiUrl, openaiModel, geminiUrl, geminiModel,
-            claudeUrl, aiTransports,
+            claudeUrl, aiTransports, extensionSettings,
         )
     )
 
@@ -1135,6 +1151,9 @@ class Workspace(private val scope: CoroutineScope) {
             geminiModel = saved.geminiModel
             claudeUrl = saved.claudeUrl.ifBlank { DEFAULT_CLAUDE_URL }
             aiTransports = saved.aiTransport.filterValues { it == AI_VIA_CLI || it == AI_VIA_API }
+            extensionSettings = saved.extensionSettings
+            // the platform is what a run reads them from, and it starts out knowing nothing
+            Platform.setExtensionSettings(extensionSettings)
             // unknown/unparseable bindings fall back to the default for that action
             keymap = DEFAULT_KEYMAP + saved.keymap.mapNotNull { (action, id) ->
                 Shortcut.parse(id)?.let { action to it }

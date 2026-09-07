@@ -74,6 +74,22 @@ internal object ExtensionLoader {
 
     private val processes = LinkedHashMap<File, ExtensionProcess>()
 
+    /**
+     * What Settings ▸ Extensions has been set to, by extension id.
+     *
+     * Held here rather than read off disk per run: it is the app's own state, the Settings screen
+     * is the only thing that writes it, and a run must not pay for a file read per node. Pushed in
+     * by the workspace whenever it changes (Platform.setExtensionSettings).
+     */
+    @Volatile
+    private var extensionSettings: Map<String, Map<String, String>> = emptyMap()
+
+    fun setExtensionSettings(values: Map<String, Map<String, String>>) {
+        extensionSettings = values
+    }
+
+    private fun settingsFor(id: String): Map<String, String> = extensionSettings[id] ?: emptyMap()
+
     private fun processFor(dir: File): ExtensionProcess = synchronized(processes) {
         processes.getOrPut(dir) { ExtensionProcess(dir, jarsIn(dir).toList()) }
     }
@@ -114,7 +130,8 @@ internal object ExtensionLoader {
             val version = Wire.readString(input)
             val inputs = Wire.readStringList(input)
             val outputs = Wire.readStringList(input)
-            ModuleInfo(id, name, inputs, outputs, readOptions(input), version)
+            val options = readOptions(input)
+            ModuleInfo(id, name, inputs, outputs, options, version, readOptions(input))
         }
     }
 
@@ -166,6 +183,7 @@ internal object ExtensionLoader {
             Wire.writeString(o, id)
             Wire.writeByteMap(o, inputs)
             Wire.writeStringMap(o, options)
+            Wire.writeStringMap(o, settingsFor(id))
         }
         return Wire.readByteMap(reply.orThrow())
     }
@@ -257,6 +275,7 @@ internal object ExtensionLoader {
                         Wire.writeString(o, mid)
                         Wire.writeByteMap(o, ins)
                         Wire.writeStringMap(o, params)
+                        Wire.writeStringMap(o, settingsFor(mid))
                     }
                     Wire.readByteMap(reply.orThrow())
                 }

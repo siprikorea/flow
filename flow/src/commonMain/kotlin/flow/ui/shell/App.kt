@@ -57,8 +57,13 @@ import flow.core.Shortcut
 import flow.core.Workspace
 import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
+import flow.model.CATEGORIES
+import flow.model.CATEGORY_OTHER
+import flow.model.KIND_VIEW
+import flow.model.OptDef
+import flow.model.OptType
 import flow.model.RegistryEntry
-import flow.model.byCategory
+import flow.model.categoryOf
 import flow.model.AI_CLAUDE
 import flow.model.AI_GEMINI
 import flow.model.AI_OPENAI
@@ -378,104 +383,250 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
 // Processors: the extensions that do the work in the middle of a flow. Inputs and outputs have
 // their own pages, since what you can do with one of those is different.
 @Composable
-private fun ExtensionsSettings(ws: Workspace) {
-    LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
-            Platform.pickJar()?.let { ws.installJarFlow(it) }
-        }
-
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Txt(ws.t("registrySection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
-            Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
-        }
-
-        val offered = ws.registry.filter { it.kind == KIND_PROCESSOR }
-        val offeredIds = offered.map { it.id }.toSet()
-        // installed from a file rather than the registry: it still has to be removable
-        val strays = ws.installedModules.filterNot { it.id in offeredIds }
-
-        when {
-            ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
-            ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("registryEmpty"), 12.sp, Palette.faintText)
-        }
-        ws.registryError?.takeIf { offered.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
-
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            CategorisedRows(ws, offered)
-            strays.forEach { m ->
-                ExtensionRow(
-                    ws, title = m.name, version = m.version, note = ws.t("fromFile"),
-                    onUninstall = { ws.uninstallModule(m.id) },
-                )
-            }
-        }
-    }
-}
-
-/**
- * The registry's offerings, under a heading per category.
- *
- * The category comes from the manifest — whoever registers an extension picks it — so this only
- * arranges what it is told. A heading appears only if something is in it, and one category is not
- * given a heading at all: with a single group there is nothing to distinguish it from, and a lone
- * "Other" over a list is a label that says nothing.
- */
-@Composable
-private fun CategorisedRows(ws: Workspace, entries: List<RegistryEntry>) {
-    val groups = byCategory(entries)
-    if (groups.size <= 1) {
-        entries.forEach { entry -> ExtensionRow(ws, entry) }
-        return
-    }
-    groups.forEach { (category, inCategory) ->
-        Txt(
-            ws.t("cat_$category").uppercase(),
-            10.sp,
-            Palette.dimText,
-            weight = FontWeight.Bold,
-            letterSpacing = 1.sp,
-            modifier = Modifier.padding(top = 6.dp),
-        )
-        inCategory.forEach { entry -> ExtensionRow(ws, entry) }
-    }
-}
+private fun ExtensionsSettings(ws: Workspace) = ExtensionMarket(ws, KIND_PROCESSOR)
 
 // Views, as a Settings page: the viewers that open a window of their own. Text and hex are the
 // app's own and are not listed here — there is nothing to install or remove about them.
 @Composable
-private fun ViewsSettings(ws: Workspace) {
-    LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
-    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        DialogButton(ws.t("installLocalJar"), Palette.accent, Palette.holeBg, filled = true) {
-            Platform.pickJar()?.let { ws.installJarFlow(it) }
-        }
+private fun ViewsSettings(ws: Workspace) = ExtensionMarket(ws, KIND_VIEW)
 
+/**
+ * The extensions screen: what there is, what is installed, and what each one is set to.
+ *
+ * Laid out the way an IDE lays out its plugins, because the job is the same one and that layout is
+ * the answer to it: a list is for finding something, and everything else — what it does, what it
+ * costs to install, what it can be configured with — belongs to whichever one is being looked at
+ * rather than being crammed into every row. So the list is names and a button, and the pane beside
+ * it is the whole of one extension.
+ *
+ * Marketplace and Installed are the same list twice over, filtered: what can be had, and what is
+ * here. The second is not merely a subset — it is where an extension installed from a file lives,
+ * which no registry knows about.
+ */
+@Composable
+private fun ExtensionMarket(ws: Workspace, kind: String) {
+    LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
+    var tab by remember { mutableStateOf(TAB_MARKETPLACE) }
+    var query by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("") }
+    var selectedId by remember { mutableStateOf<String?>(null) }
+
+    val items = marketItems(ws, kind)
+    val shown = items
+        .filter { if (tab == TAB_INSTALLED) it.installed else it.entry != null }
+        .filter { category.isEmpty() || it.category == category }
+        .filter {
+            query.isBlank() || it.name.contains(query, true) || it.description.contains(query, true) ||
+                it.id.contains(query, true)
+        }
+    // the categories actually present, so a chip never leads to an empty list
+    val categories = CATEGORIES.filter { c -> items.any { it.category == c } }
+    val selected = shown.find { it.id == selectedId } ?: shown.firstOrNull()
+
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Txt(ws.t("viewsSection").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            Segmented(
+                listOf(TAB_MARKETPLACE to ws.t("extMarketplace"), TAB_INSTALLED to ws.t("extInstalled")),
+                tab,
+            ) { tab = it }
+            Box(Modifier.weight(1f)) { DtxField(query, { query = it }) }
             Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
         }
 
-        val offered = ws.registry.filter { it.kind == KIND_VIEW }
-        val offeredIds = offered.map { it.id }.toSet()
-        val strays = ws.installedViews.filterNot { it.id in offeredIds }
-
-        when {
-            ws.registryLoading && offered.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
-            ws.registryError != null && offered.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
-            offered.isEmpty() && strays.isEmpty() -> Txt(ws.t("noViews"), 12.sp, Palette.faintText)
-        }
-
-        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            CategorisedRows(ws, offered)
-            strays.forEach { v ->
-                ExtensionRow(
-                    ws, title = v.name, version = v.version, note = ws.t("fromFile"),
-                    onUninstall = { ws.uninstallModule(v.id) },
-                )
+        if (categories.size > 1) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Chip(ws.t("extAll"), category.isEmpty()) { category = "" }
+                categories.forEach { c -> Chip(ws.t("cat_$c"), category == c) { category = c } }
             }
         }
+
+        when {
+            ws.registryLoading && items.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
+            ws.registryError != null && items.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
+        }
+        ws.registryError?.takeIf { items.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
+
+        Row(Modifier.height(420.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+            Column(
+                Modifier.width(300.dp).fillMaxHeight().verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                if (shown.isEmpty()) {
+                    Txt(
+                        if (tab == TAB_INSTALLED) ws.t("extNoneInstalled") else ws.t("registryEmpty"),
+                        12.sp,
+                        Palette.faintText,
+                    )
+                }
+                shown.forEach { item ->
+                    MarketRow(ws, item, selected = item.id == selected?.id) { selectedId = item.id }
+                }
+            }
+            Box(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
+                if (selected == null) Txt(ws.t("extNoSelection"), 12.sp, Palette.faintText)
+                else ExtensionDetail(ws, selected)
+            }
+        }
+
+        DialogButton(ws.t("installLocalJar"), Palette.buttonBorder, Palette.menuText) {
+            Platform.pickJar()?.let { ws.installJarFlow(it) }
+        }
+    }
+}
+
+private const val TAB_MARKETPLACE = "marketplace"
+private const val TAB_INSTALLED = "installed"
+
+/** One extension, however it got here: offered by the registry, installed, or both. */
+private class MarketItem(
+    val id: String,
+    val name: String,
+    val version: String,
+    val description: String,
+    val category: String,
+    val entry: RegistryEntry?,
+    val installed: Boolean,
+    val settings: List<OptDef>,
+)
+
+/**
+ * Everything of one kind, registry and installed folded together by id.
+ *
+ * An extension can be in either or both, and the row is the same row: the difference is what the
+ * button offers. Installed-only entries are the ones put there from a file, which would otherwise
+ * have nowhere to be listed and no way to be removed.
+ */
+@Composable
+private fun marketItems(ws: Workspace, kind: String): List<MarketItem> {
+    val offered = ws.registry.filter { it.kind == kind }
+    val installedIds = if (kind == KIND_VIEW) ws.installedViews.map { it.id } else ws.installedModules.map { it.id }
+    val fromRegistry = offered.map { entry ->
+        val module = ws.installedModules.find { it.id == entry.id }
+        MarketItem(
+            id = entry.id,
+            name = entry.name.ifBlank { entry.id },
+            // what is on disk, not what is on offer — the two differ exactly when there is an
+            // update, and showing the new number on a row that has not taken it reads as if it had
+            version = ws.installedVersion(entry.id) ?: entry.version,
+            description = entry.description,
+            category = categoryOf(entry),
+            entry = entry,
+            installed = entry.id in installedIds,
+            settings = module?.settings.orEmpty(),
+        )
+    }
+    val known = offered.map { it.id }.toSet()
+    val strays = if (kind == KIND_VIEW) {
+        ws.installedViews.filterNot { it.id in known }
+            .map { MarketItem(it.id, it.name, it.version, it.description, CATEGORY_OTHER, null, true, emptyList()) }
+    } else {
+        ws.installedModules.filterNot { it.id in known }
+            .map { MarketItem(it.id, it.name, it.version, "", CATEGORY_OTHER, null, true, it.settings) }
+    }
+    return fromRegistry + strays
+}
+
+@Composable
+private fun MarketRow(ws: Workspace, item: MarketItem, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(6.dp)
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .background(if (selected) Palette.hoverOverlay else Palette.dropdownBg, shape)
+            .border(1.dp, if (selected) Palette.accent else Palette.border, shape)
+            .plainClick(onClick)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Txt(item.name, 12.5.sp, Palette.textPrimary, weight = FontWeight.Medium, maxLines = 1)
+            Txt("v${item.version}", 10.sp, Palette.dimText, mono = true)
+        }
+        // a tick rather than a button: the row is for finding one, and the pane beside it is where
+        // installing and removing happen
+        if (item.installed) Txt("✓", 12.sp, Palette.success)
+    }
+}
+
+/** One extension in full: what it is, what it does, and what it can be set to. */
+@Composable
+private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
+    val state = item.entry?.let { ws.registryState(it) }
+    val busy = item.id in ws.registryBusy
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Txt(item.name, 15.sp, Palette.textPrimary, weight = FontWeight.SemiBold)
+            Txt("v${item.version}", 11.sp, Palette.dimText, mono = true)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chip(ws.t("cat_${item.category}"), false) {}
+            if (item.entry == null) Chip(ws.t("fromFile"), false) {}
+        }
+        if (item.description.isNotBlank()) Txt(item.description, 12.sp, Palette.subText)
+        item.entry?.let { entry ->
+            val ports = (entry.inputs.joinToString(", ").ifEmpty { "–" }) + "  →  " +
+                (entry.outputs.joinToString(", ").ifEmpty { "–" })
+            Txt(ports, 11.sp, Palette.faintText, mono = true)
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            when {
+                busy -> Txt(ws.t("installing"), 11.sp, Palette.faintText)
+                state == flow.model.RegistryState.UPDATABLE -> {
+                    DialogButton("${ws.t("update")} → ${item.entry!!.version}", Palette.accent, Palette.holeBg, filled = true) {
+                        ws.installFromRegistry(item.entry)
+                    }
+                }
+                state == flow.model.RegistryState.AVAILABLE ->
+                    DialogButton(ws.t("install"), Palette.accent, Palette.holeBg, filled = true) {
+                        ws.installFromRegistry(item.entry!!)
+                    }
+            }
+            if (item.installed) {
+                DialogButton(ws.t("uninstall"), Palette.errorSoft, Palette.errorSoft) {
+                    ws.uninstallModule(item.id)
+                }
+            }
+        }
+
+        // The extension's own settings, the way a plugin has a settings page: declared by the
+        // extension, kept by the app, and handed to it underneath a node's own options — so this
+        // is where a value that every node of it should share is set once.
+        if (item.installed && item.settings.isNotEmpty()) {
+            Spacer(Modifier.height(4.dp))
+            Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
+            Txt(ws.t("extSettings").uppercase(), 10.sp, Palette.dimText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            item.settings.forEach { setting ->
+                val value = ws.extensionSettings[item.id]?.get(setting.name) ?: setting.default
+                SettingRow(setting.name) {
+                    if (setting.type == OptType.SELECT && setting.choices.isNotEmpty()) {
+                        Picker(
+                            options = setting.choices.map { c -> c to c.ifBlank { ws.t("extSettingDefault") } },
+                            selected = value,
+                            onSelect = { ws.setExtensionSetting(item.id, setting.name, it) },
+                        ) { label, open -> PickerField(label, open) }
+                    } else {
+                        DtxField(value, { ws.setExtensionSetting(item.id, setting.name, it) }, mono = true)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** A small filter pill. Also used flat, as a label, where there is nothing to choose. */
+@Composable
+private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(20.dp)
+    Box(
+        Modifier
+            .background(if (selected) Palette.accent else Palette.raised, shape)
+            .border(1.dp, if (selected) Palette.accent else Palette.border, shape)
+            .plainClick(onClick)
+            .padding(horizontal = 10.dp, vertical = 4.dp),
+    ) {
+        Txt(label, 10.5.sp, if (selected) Palette.holeBg else Palette.menuText)
     }
 }
 

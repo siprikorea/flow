@@ -63,6 +63,10 @@ expect object Platform {
     fun decodeText(bytes: ByteArray, charset: String): String
     fun charsetNames(): List<String>
 
+    // What Settings ▸ Extensions was set to, by extension id — handed to a processor underneath the
+    // node's own options. Pushed in when it changes rather than read per run.
+    fun setExtensionSettings(values: Map<String, Map<String, String>>)
+
     fun listInstalledComponents(): List<String>          // id.json under components/<id>/
     fun readInstalledComponent(name: String): String?
     // run a component in its own folder sandbox (bundled dependency modules)

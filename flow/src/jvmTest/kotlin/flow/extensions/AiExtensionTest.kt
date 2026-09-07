@@ -154,6 +154,9 @@ class AiExtensionTest {
                 flow.extension.host.Wire.writeString(o, "flow.ai")
                 flow.extension.host.Wire.writeByteMap(o, mapOf("in" to "hello".encodeToByteArray()))
                 flow.extension.host.Wire.writeStringMap(o, mapOf("provider" to "openai", "model" to "m"))
+                // the extension's own settings, which every PROCESS carries — a sender that omits
+                // them leaves the worker waiting on a pipe that will never say more
+                flow.extension.host.Wire.writeStringMap(o, emptyMap())
             }
             val said = reply.payload.decodeToString()
             assertTrue(!reply.ok, "it answered without a key: $said")
@@ -195,6 +198,51 @@ class AiExtensionTest {
         val answer = out["out"]!!.decodeToString()
         assertTrue(answer.isNotBlank(), "the node produced nothing")
         assertTrue(answer.contains("BANANA", ignoreCase = true), "it did not act on the role: $answer")
+    }
+
+    /**
+     * An extension's own settings reach it, underneath a node's options.
+     *
+     * Declared by the extension, edited once in Settings ▸ Extensions, and merged in by the worker
+     * so that a node option left blank takes the setting's value. Both halves matter and both are
+     * silent when wrong — a setting that never arrives looks like a node that ignored it, and one
+     * that overrides a node looks like a node whose options do nothing — so both are asserted, by
+     * naming a provider that does not exist and reading which name comes back in the complaint.
+     */
+    @Test
+    fun `a blank node option takes the extension's setting, and a filled one does not`() {
+        val jar = java.io.File("../flow-extensions/ai-extension/build/libs/ai-extension.jar")
+            .let { if (it.isFile) it else java.io.File("flow-extensions/ai-extension/build/libs/ai-extension.jar") }
+        assertTrue(jar.isFile, "run :flow-extensions:ai-extension:jar first")
+        val worker = flow.platform.ExtensionProcess(jar.parentFile, listOf(jar))
+        try {
+            // the extension declares them, so the Settings screen has something to show
+            val described = worker.request(flow.extension.host.Wire.DESCRIBE) {}.payload.decodeToString()
+            assertTrue(described.contains("provider"), "the extension does not declare its settings")
+
+            assertTrue(
+                ask(worker, node = "", setting = "from-the-setting").contains("from-the-setting"),
+                "the setting did not reach the extension",
+            )
+            assertTrue(
+                ask(worker, node = "from-the-node", setting = "from-the-setting").contains("from-the-node"),
+                "the setting overrode the node's own option",
+            )
+        } finally {
+            worker.kill()
+        }
+    }
+
+    /** Runs the node with a bad provider from either place, and returns what it complained about. */
+    private fun ask(worker: flow.platform.ExtensionProcess, node: String, setting: String): String {
+        val reply = worker.request(flow.extension.host.Wire.PROCESS) { o ->
+            flow.extension.host.Wire.writeString(o, "flow.ai")
+            flow.extension.host.Wire.writeByteMap(o, mapOf("in" to "x".encodeToByteArray()))
+            flow.extension.host.Wire.writeStringMap(o, mapOf("provider" to node))
+            flow.extension.host.Wire.writeStringMap(o, mapOf("provider" to setting))
+        }
+        assertTrue(!reply.ok, "a provider that does not exist should have been refused")
+        return reply.payload.decodeToString()
     }
 
 }

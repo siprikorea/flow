@@ -80,8 +80,9 @@ public final class ExtensionWorker {
                 String id = Wire.readString(in);
                 Map<String, byte[]> inputs = Wire.readByteMap(in);
                 Map<String, String> options = Wire.readStringMap(in);
+                Map<String, String> settings = Wire.readStringMap(in);
                 return () -> reply(out, writeLock, reqId, o -> {
-                    Map<String, byte[]> r = need(byId, id).process(inputs, options);
+                    Map<String, byte[]> r = need(byId, id).process(inputs, merged(settings, options));
                     if (r == null) throw new IllegalStateException("processor '" + id + "' returned no result");
                     Wire.writeByteMap(o, r);
                 });
@@ -207,6 +208,8 @@ public final class ExtensionWorker {
             Wire.writeStringList(o, e.getInputs());
             Wire.writeStringList(o, e.getOutputs());
             writeOptions(o, e.getOptions());
+            // the extension's own settings, which the host edits once rather than per node
+            writeOptions(o, e.getSettings());
         }
     }
 
@@ -248,6 +251,23 @@ public final class ExtensionWorker {
             Wire.writeString(o, v.getVersion());
             Wire.writeString(o, v.getDescription());
         }
+    }
+
+    /**
+     * The node's options over the extension's settings.
+     *
+     * A blank node option is not an answer, it is the absence of one — every node is created with
+     * its options at their defaults, so "unset" has to look like something, and blank is what it
+     * looks like. That is what makes a setting a default the node can override rather than a value
+     * nothing can reach.
+     */
+    private static Map<String, String> merged(Map<String, String> settings, Map<String, String> options) {
+        Map<String, String> all = new LinkedHashMap<>(settings);
+        for (Map.Entry<String, String> e : options.entrySet()) {
+            if (e.getValue() != null && !e.getValue().isBlank()) all.put(e.getKey(), e.getValue());
+            else all.putIfAbsent(e.getKey(), e.getValue());
+        }
+        return all;
     }
 
     private static void writeOptions(DataOutputStream o, List<ExtensionOption> options) throws IOException {

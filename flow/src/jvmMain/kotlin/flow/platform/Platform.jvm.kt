@@ -206,6 +206,9 @@ actual object Platform {
 
     private val CHARSETS = listOf("UTF-8", "US-ASCII", "ISO-8859-1", "UTF-16", "UTF-16BE", "UTF-16LE", "EUC-KR")
 
+    actual fun setExtensionSettings(values: Map<String, Map<String, String>>) =
+        ExtensionLoader.setExtensionSettings(values)
+
     actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
     actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
     actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)
