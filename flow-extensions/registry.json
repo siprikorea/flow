@@ -1,6 +1,17 @@
 {
   "extensions": [
     {
+      "id": "flow.ai",
+      "name": "AI",
+      "version": "1.0.0",
+      "description": "Send the input to a model with a role to play, and put its answer on the output — chain two to make each one a step.",
+      "file": "ai-extension.jar",
+      "inputs": ["in"],
+      "outputs": ["out"],
+      "kind": "processor",
+      "category": "ai"
+    },
+    {
       "id": "flow.base64",
       "name": "Base64",
       "version": "1.0.0",

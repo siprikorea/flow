@@ -63,6 +63,7 @@ kotlin {
             implementation(compose.desktop.uiTestJUnit4)
             // the shipped extensions are tested against their specs here, where a failure is loud;
             // in the app they are loaded from jars, so this is a compile dependency only
+            implementation(project(":flow-extensions:ai-extension"))
             implementation(project(":flow-extensions:hotp-extension"))
             implementation(project(":flow-extensions:totp-extension"))
             implementation(project(":flow-extensions:jwt-extension"))
