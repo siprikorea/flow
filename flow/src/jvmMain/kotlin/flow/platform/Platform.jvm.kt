@@ -472,14 +472,38 @@ actual object Platform {
     // whatever it was (a run, most visibly) for as long as delete keeps failing. Once the rename
     // lands, nothing can ever see the original name again, so a later delete failure on the
     // renamed copy just leaves an orphaned temp file instead of a request that keeps re-firing.
-    private fun takeFile(file: File): String? {
+    /**
+     * Claims a request file, if it is still about now.
+     *
+     * The claim is the rename: two readers racing for the same request both try it and only one
+     * can win, so a request is acted on once.
+     *
+     * The age check is the other half, and it was missing. These files say "open this", "run this"
+     * — all of them meaning now — and nothing expired them, so one that no one happened to claim
+     * sat on disk until something did. A request written while the app was closing, or by an
+     * external MCP client against an app that quit a moment later, was picked up by the next
+     * launch: a flow that ran by itself, hours after anyone asked for anything, which is what this
+     * looked like from the outside. Past the cutoff it is deleted rather than returned — nobody was
+     * listening when it was asked for, and acting on it later is worse than dropping it.
+     */
+    private fun takeFile(file: File, maxAge: Long = REQUEST_MAX_AGE_MS): String? {
         if (!file.isFile) return null
         val claimed = File(file.parentFile, "${file.name}.claimed-${System.nanoTime()}")
         if (!runCatching { file.renameTo(claimed) }.getOrDefault(false)) return null
-        val text = runCatching { claimed.readText() }.getOrNull()
+        val age = System.currentTimeMillis() - runCatching { claimed.lastModified() }.getOrDefault(0L)
+        val text = if (age in 0..maxAge) runCatching { claimed.readText() }.getOrNull() else null
         runCatching { claimed.delete() }
         return text
     }
+
+    /**
+     * How long a pending request stays worth acting on.
+     *
+     * The app polls for these every 750ms and applies them at the end of every AI turn besides, so
+     * anything still sitting here after this long was written when nothing was listening. Generous
+     * against a machine that stalls; far short of "next time you open Flow".
+     */
+    private const val REQUEST_MAX_AGE_MS = 30_000L
 
     actual fun requestOpenFlow(name: String) {
         runCatching { writeAtomically(openRequestFile, name) }

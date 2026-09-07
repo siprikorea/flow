@@ -68,6 +68,12 @@ internal object FlowPrompt {
         arrive as two separate requests in whatever order they are picked up. set_flow_input on
         its own is for setting a value without running yet, and stop_flow is the Stop button.
 
+        Only when they ask, though. A question — what can you do, how does this work, what is in
+        this flow — is answered in words. It is not permission to demonstrate: start_flow takes
+        over the canvas they are looking at and runs something they did not ask to run, which is
+        alarming rather than helpful. If showing it would genuinely answer the question, offer,
+        and wait to be taken up on it.
+
         Call start_flow once per run the user asked for. It reports that the run started, not
         what it produced — that is by design, not something to call again to check progress;
         calling it again just re-runs the flow on screen.
