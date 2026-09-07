@@ -30,7 +30,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.foundation.layout.Spacer
-import flow.model.AI_PROVIDERS
 import flow.model.AiMessage
 import flow.model.isHttpProvider
 import androidx.compose.ui.Alignment
@@ -71,7 +70,9 @@ fun AiPanel(ws: Workspace) {
     // what the picker offers, re-read whenever the provider, its address or its key changes
     LaunchedEffect(ws.aiProvider, ws.aiUrl, ws.aiApiKey) { ws.refreshAiModels() }
     Column(Modifier.fillMaxSize()) {
-        PanelHeader(ws.t("tabAi"))
+        // the assistant in force, not a fixed name: this panel is whichever of the four is
+        // selected, and it said "CLAUDE" over an Ollama conversation until it was pointed out
+        PanelHeader(ws.aiProviderName)
         when {
             !installed -> Notice(ws.t("aiMissingTitle"), ws.t("aiMissingBody"), ws.t("aiMissingAfter")) {
                 Command("npm install -g @anthropic-ai/claude-code")
@@ -265,10 +266,8 @@ private fun Composer(ws: Workspace) {
  * the fixed "CLAUDE" this replaces, only harder to notice. An answer from before this was recorded
  * has none, and falls back to whoever is answering now.
  */
-private fun speakerName(ws: Workspace, message: AiMessage): String {
-    val provider = message.provider.ifBlank { ws.aiProvider }
-    return (AI_PROVIDERS.find { it.first == provider }?.second ?: provider).uppercase()
-}
+private fun speakerName(ws: Workspace, message: AiMessage): String =
+    ws.providerName(message.provider.ifBlank { ws.aiProvider }).uppercase()
 
 /**
  * Which model answers, under the box the question is typed into.

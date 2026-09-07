@@ -41,7 +41,7 @@ class AiPanelProbe {
     fun `draw a conversation`() {
         val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
         dir.mkdirs()
-        val scene = ImageComposeScene(380, 700, density = Density(2f)) {
+        val scene = ImageComposeScene(380, 1000, density = Density(2f)) {
             ApplyTheme(Theme.DARK)
             val ws = workspace()
             // two providers in one transcript: the label belongs to the answer, not to the setting

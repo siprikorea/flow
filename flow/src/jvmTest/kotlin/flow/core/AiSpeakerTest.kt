@@ -1,6 +1,7 @@
 package flow.core
 
 import flow.model.AI_GEMINI
+import flow.model.AI_PROVIDERS
 import flow.model.AI_OLLAMA
 import flow.model.AiMessage
 import kotlinx.coroutines.CoroutineScope
@@ -39,5 +40,28 @@ class AiSpeakerTest {
     @Test
     fun `a user's own line has no provider on it`() {
         assertEquals("", AiMessage(fromUser = true, text = "hello").provider)
+    }
+
+    /**
+     * The panel's own title comes from here too.
+     *
+     * It was a string in the table reading "Claude", which went on saying so over an Ollama
+     * conversation — the same fault as the answer labels, in the one place left that still had a
+     * name written into it. Every provider has to have a name here or the header goes blank.
+     */
+    @Test
+    fun `every provider has a name to show`() {
+        val ws = workspace()
+        AI_PROVIDERS.forEach { (id, label) ->
+            ws.aiProvider = id
+            assertEquals(label, ws.aiProviderName, "no name for '$id'")
+        }
+    }
+
+    @Test
+    fun `a provider from a newer build shows its id rather than nothing`() {
+        val ws = workspace()
+        ws.aiProvider = "something-else"
+        assertEquals("something-else", ws.aiProviderName)
     }
 }

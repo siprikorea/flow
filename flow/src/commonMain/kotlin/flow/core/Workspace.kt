@@ -395,6 +395,18 @@ class Workspace(private val scope: CoroutineScope) {
             }
         }
 
+    /**
+     * What the assistant in force is called, for anywhere its name is shown.
+     *
+     * The panel's title and the name over each answer both come from here rather than from a string
+     * in the table: there was one of those reading "Claude", and it went on saying so after the
+     * panel grew three other providers to be.
+     */
+    val aiProviderName: String get() = providerName(aiProvider)
+
+    fun providerName(provider: String): String =
+        AI_PROVIDERS.find { it.first == provider }?.second ?: provider
+
     /** Where the provider in force answers. Empty for Claude, which is a command, not an address. */
     val aiUrl: String
         get() = when (aiProvider) {
