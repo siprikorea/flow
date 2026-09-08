@@ -126,6 +126,28 @@ compose.desktop {
             packageName = "Flow"
             packageVersion = flowVersion
 
+            // The runtime jpackage builds contains only the modules named here — everything else
+            // is left out, and a class from a missing one is a NoClassDefFoundError at startup
+            // with no build ever having complained. That shipped: the AI providers use
+            // java.net.http, which is not in the default set, and v1.5.x would not launch at all
+            // from the .dmg while running perfectly from Gradle, where the whole JDK is present.
+            //
+            // :flow:suggestRuntimeModules lists what the app's own code reaches for. The rest are
+            // for the extensions, which run on this same runtime in a worker and are invisible to
+            // that analysis: EC keys, the XML the ASN.1 viewer's DER work leans on, and the
+            // scripting-free crypto providers the key modules ask for by name.
+            modules(
+                "java.instrument",
+                "java.net.http",
+                "jdk.unsupported",
+                "jdk.crypto.ec",
+                "java.naming",
+                "java.security.jgss",
+                "java.xml",
+                "java.management",
+                "jdk.zipfs",
+            )
+
             macOS {
                 iconFile.set(project.file("icons/appicon.icns"))
                 bundleID = "com.siprikorea.flow"
@@ -138,6 +160,62 @@ compose.desktop {
         }
     }
 }
+
+/**
+ * Puts the `java` launcher back into the packaged runtime.
+ *
+ * jpackage builds the bundled runtime with jlink and strips its native commands, so the app image
+ * ships a complete JVM with no way to start one. Everything Flow runs out of process needs exactly
+ * that: every extension runs in a worker (ExtensionProcess), and so does the MCP server the AI
+ * panel serves its tools from — all of them started with java.home/bin/java, which in an installed
+ * app was a path to nothing. The result was an app where no extension worked at all and nothing
+ * said why, while everything ran perfectly from Gradle, where the JDK is whole.
+ *
+ * The launcher is the JDK's own and the runtime beside it is the one it was built from, so it finds
+ * its libjli through the same relative rpath it always does. Copying into the image invalidates the
+ * signature jpackage put on it, hence the ad-hoc re-sign — the same kind jpackage applies itself.
+ */
+val restoreRuntimeLauncher = tasks.register("restoreRuntimeLauncher") {
+    description = "Put bin/java back into the packaged runtime, which jpackage strips"
+    val launcher = javaToolchains.launcherFor { languageVersion = JavaLanguageVersion.of(jdk) }
+        .map { it.executablePath.asFile }
+    val imageDir = layout.buildDirectory.dir("compose/binaries/main/app")
+    doLast {
+        val java = launcher.get()
+        val root = imageDir.get().asFile
+        // The runtime sits at a different depth on each platform — Contents/runtime/Contents/Home
+        // on macOS, lib/runtime elsewhere — so it is found by the one file every runtime has in the
+        // same place: lib/modules, the jimage. Its grandparent is the home bin/ belongs beside.
+        val homes = root.walkTopDown()
+            .filter { it.isFile && it.name == "modules" && it.parentFile.name == "lib" }
+            .map { it.parentFile.parentFile }
+            .distinct()
+            .toList()
+        if (homes.isEmpty()) {
+            logger.warn("no runtime found under $root — bin/java was not restored")
+            return@doLast
+        }
+        homes.forEach { home ->
+            val bin = File(home, "bin").apply { mkdirs() }
+            val target = File(bin, java.name)
+            java.copyTo(target, overwrite = true)
+            target.setExecutable(true)
+            logger.lifecycle("restored ${target.relativeTo(root)}")
+        }
+        // ad-hoc, the way jpackage signs an app image it built: without this the copy leaves the
+        // signature it made no longer matching what is on disk, and macOS refuses to open it
+        root.listFiles { f -> f.name.endsWith(".app") }?.forEach { app ->
+            val signed = ProcessBuilder("codesign", "--force", "--sign", "-", app.absolutePath)
+                .redirectErrorStream(true).start()
+            val said = signed.inputStream.readBytes().decodeToString().trim()
+            if (signed.waitFor() != 0) logger.warn("could not re-sign ${app.name}: $said")
+        }
+    }
+}
+
+// Every packaged form is made from the app image, so the launcher goes back before any of them is
+// built rather than in each one.
+tasks.matching { it.name == "createDistributable" }.configureEach { finalizedBy(restoreRuntimeLauncher) }
 
 // Launcher script for the MCP server. An MCP client starts the server with a plain command and
 // reads the protocol off its stdout, which gradle's own output would corrupt — so this bakes the
