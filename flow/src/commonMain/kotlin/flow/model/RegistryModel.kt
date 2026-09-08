@@ -36,10 +36,12 @@ const val KIND_VIEW = "view"
 // survive being read here, and does — as CATEGORY_OTHER.
 const val CATEGORY_CRYPTO = "crypto"
 const val CATEGORY_AI = "ai"
+// the ones that carry a result out to a person — Slack, Telegram, whatever comes next
+const val CATEGORY_MESSAGING = "messaging"
 const val CATEGORY_OTHER = "other"
 
 /** The order they are shown in, which is also the order they are listed to whoever registers one. */
-val CATEGORIES: List<String> = listOf(CATEGORY_CRYPTO, CATEGORY_AI, CATEGORY_OTHER)
+val CATEGORIES: List<String> = listOf(CATEGORY_CRYPTO, CATEGORY_AI, CATEGORY_MESSAGING, CATEGORY_OTHER)
 
 /** Which section an entry belongs in: its own category, or Other for none and for one from the future. */
 fun categoryOf(entry: RegistryEntry): String =

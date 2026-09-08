@@ -64,6 +64,8 @@ kotlin {
             // the shipped extensions are tested against their specs here, where a failure is loud;
             // in the app they are loaded from jars, so this is a compile dependency only
             implementation(project(":flow-extensions:ai-extension"))
+            implementation(project(":flow-extensions:slack-extension"))
+            implementation(project(":flow-extensions:telegram-extension"))
             implementation(project(":flow-extensions:base64-extension"))
             implementation(project(":flow-extensions:cipher-extension"))
             implementation(project(":flow-extensions:hash-extension"))
