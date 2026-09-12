@@ -96,13 +96,15 @@ fun FlowButton(
 
 // 28x28dp hit box, no default background — for a toolbar/panel action that is only ever an icon.
 // [tint] overrides the default state colours while enabled (e.g. Stop reads danger only while a
-// run is active — CLAUDE.md §5), and is ignored while disabled.
+// run is active — CLAUDE.md §5), and is ignored while disabled. [compact] is the 24dp one, for
+// the title bar, which is exactly one chrome strip tall and has no room for the larger box.
 @Composable
 fun FlowIconButton(
     icon: ImageVector,
     enabled: Boolean = true,
     selected: Boolean = false,
     tint: Color? = null,
+    compact: Boolean = false,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -117,13 +119,13 @@ fun FlowIconButton(
     }
     Box(
         modifier
-            .size(Size.iconButton)
+            .size(if (compact) Size.controlCompact else Size.iconButton)
             .background(bg, RoundedCornerShape(Radius.control))
             .hoverable(hoverSrc)
             .plainClick { if (enabled) onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        LucideIcon(icon, resolvedTint, Size.icon)
+        LucideIcon(icon, resolvedTint, if (compact) Size.iconSmall else Size.icon)
     }
 }
 

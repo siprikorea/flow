@@ -16,9 +16,20 @@ object Space {
 // Fixed control/region sizes. Control heights are only ever 24, 28 or 32 — no other height is a
 // control height in this app.
 object Size {
-    val toolbar = 40.dp
+    /**
+     * The strip of chrome along each window edge: the title bar, the two rails, the status bar.
+     *
+     * One value for all four, because the ground around the content is what a person reads as the
+     * window's border and they are all part of it. At 40 for the title bar and 44 for the rails
+     * that border came out 48 at the top, 52 at the sides and 32 at the bottom — four different
+     * thicknesses that no amount of matching the *gaps* could even out, since the gap was never
+     * the thing being seen.
+     */
+    val chrome = 24.dp
+
+    val toolbar = chrome
     val tabBar = 32.dp
-    val statusBar = 24.dp
+    val statusBar = chrome
 
     val row = 28.dp
     val groupHeader = 24.dp
@@ -32,7 +43,7 @@ object Size {
     val iconLarge = 20.dp
     val iconSmall = 12.dp
 
-    val activityBar = 44.dp
+    val activityBar = chrome
     val panelLeft = 260.dp
     val panelRight = 280.dp
 
@@ -61,6 +72,9 @@ object Radius {
  * same corner. Anything that wants a different gap here is a mistake, not a special case.
  */
 object Frame {
-    val inset = Space.s      // window edge to content, on every side
+    val inset = Space.s      // chrome to content, on every side
     val border = 1.dp
+
+    /** What a person sees as the window's border: the chrome strip plus the gap after it. */
+    val band = Size.chrome + inset
 }

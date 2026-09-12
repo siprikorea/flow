@@ -84,13 +84,13 @@ private val ROW_INDENT = 13.dp // per tree level
 fun LeftRail(ws: Workspace) {
     ActivityRail {
         ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
-            LucideIcon(Lucide.Folder, tint, Size.iconLarge)
+            LucideIcon(Lucide.Folder, tint, Size.icon)
         }
         ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
-            LucideIcon(Lucide.LayoutGrid, tint, Size.iconLarge)
+            LucideIcon(Lucide.LayoutGrid, tint, Size.icon)
         }
         ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
-            LucideIcon(Lucide.Sparkles, tint, Size.iconLarge)
+            LucideIcon(Lucide.Sparkles, tint, Size.icon)
         }
     }
 }

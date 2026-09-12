@@ -58,7 +58,7 @@ fun ActivityButton(
             Box(
                 Modifier
                     .align(if (side == RailSide.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
-                    .width(2.dp).height(24.dp).background(Palette.accent)
+                    .width(2.dp).height(14.dp).background(Palette.accent)
             )
         }
         icon(tint)

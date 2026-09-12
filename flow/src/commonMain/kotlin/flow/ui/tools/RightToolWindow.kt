@@ -17,7 +17,7 @@ import flow.ui.theme.Size
 fun RightRail(ws: Workspace) {
     ActivityRail {
         ActivityButton(RailSide.RIGHT, selected = ws.showProps, onClick = { ws.showProps = !ws.showProps }) { tint ->
-            LucideIcon(Lucide.PanelRight, tint, Size.iconLarge)
+            LucideIcon(Lucide.PanelRight, tint, Size.icon)
         }
     }
 }

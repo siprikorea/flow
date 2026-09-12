@@ -119,6 +119,7 @@ class Scheme(
     // bar and the status bar — a few percent of light across that distance is enough to stop the
     // window reading as a single dead rectangle, and any more would compete with the content.
     val windowTop: Color,
+    val windowMid: Color,
     val windowBottom: Color,
     // The one line drawn around the content and around a tool window. Every panel edge that used
     // to draw its own divider against the window now leaves it to this, which is what makes the
@@ -208,8 +209,9 @@ val DarkScheme = Scheme(
     hoverOverlay = Color(0x0FFFFFFF),
     pressedOverlay = Color(0x1AFFFFFF),
 
-    windowTop = Color(0xFF1B1E26),
-    windowBottom = Color(0xFF0F1116),
+    windowTop = Color(0xFF2A3040),
+    windowMid = Color(0xFF191D26),
+    windowBottom = Color(0xFF0B0D11),
     frameBorder = Color(0xFF303541),
 )
 
@@ -308,8 +310,9 @@ val LightScheme = Scheme(
     hoverOverlay = Color(0x0D000000),
     pressedOverlay = Color(0x14000000),
 
-    windowTop = Color(0xFFE8EBF2),
-    windowBottom = Color(0xFFD4D9E3),
+    windowTop = Color(0xFFF4F6FB),
+    windowMid = Color(0xFFE4E8F0),
+    windowBottom = Color(0xFFC8CEDB),
     frameBorder = Color(0xFFC6CCD6),
 )
 
@@ -408,18 +411,28 @@ object Palette {
     val pressedOverlay get() = scheme.pressedOverlay
 
     val windowTop get() = scheme.windowTop
+    val windowMid get() = scheme.windowMid
     val windowBottom get() = scheme.windowBottom
     val frameBorder get() = scheme.frameBorder
 
     /**
-     * The window's own ground: a diagonal wash from the top-left corner to the bottom-right.
+     * The window's own ground: light falling from the top-left corner down to the bottom-right.
      *
      * Diagonal rather than vertical so that no two corners are quite the same — the frame around
      * the content is the same thickness the whole way round, and the light falling across it is
      * what keeps that from looking like a drawn rectangle.
+     *
+     * Three stops, not two, and the middle one is not the average: most of the change happens in
+     * the first third, where the title bar and the top of the rails are. A two-stop wash spread
+     * evenly over a 900px window moves a couple of percent per strip of ground actually on show —
+     * which is a gradient by measurement and a flat fill to look at. This is meant to be seen.
      */
     val windowGradient: Brush
-        get() = Brush.linearGradient(listOf(scheme.windowTop, scheme.windowBottom))
+        get() = Brush.linearGradient(
+            0.0f to scheme.windowTop,
+            0.38f to scheme.windowMid,
+            1.0f to scheme.windowBottom,
+        )
 
     fun catColor(cat: String) = when (cat) {
         "source" -> catSource

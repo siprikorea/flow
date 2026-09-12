@@ -87,26 +87,38 @@ class WindowFrameTest {
     }
 
     /**
-     * The margin around the content is the same on all four sides.
+     * The border is the same thickness on all four sides — measured from the window's own edge.
      *
-     * Counted from what is beside it on that side — the rail on the left and right, the title bar
-     * above, the status bar below — because that is the gap a person actually sees.
+     * Not from the chrome inwards, which is the mistake this test was written wrong the first
+     * time: the gaps after the rails and the title bar were all 8dp and equal, and the border a
+     * person actually saw was 48 at the top, 52 at the sides and 32 at the bottom, because the
+     * chrome strips themselves are part of what reads as the border. A rail with three icons in it
+     * and forty empty dp below them is not furniture, it is margin. So all four strips are one
+     * size and the band is measured the whole way from the edge.
      */
     @Test
-    fun `the frame is inset by the same margin on all four sides`() {
+    fun `the border is the same thickness on all four sides of the window`() {
         val b = render(showLeft = false)
-        val inset = px(Frame.inset.value)
+        val band = px(Frame.band.value)
 
-        val left = stepsToLine(b, px(Size.activityBar.value), h / 2, 1, 0)
-        val right = stepsToLine(b, w - 1 - px(Size.activityBar.value), h / 2, -1, 0)
-        val top = stepsToLine(b, w / 2, px(Size.toolbar.value), 0, 1)
-        val bottom = stepsToLine(b, w / 2, h - 1 - px(Size.statusBar.value), 0, -1)
+        val left = stepsToLine(b, 0, h / 2, 1, 0)
+        val right = stepsToLine(b, w - 1, h / 2, -1, 0)
+        val top = stepsToLine(b, w / 2, 0, 0, 1)
+        val bottom = stepsToLine(b, w / 2, h - 1, 0, -1)
 
         assertTrue(left >= 0 && right >= 0 && top >= 0 && bottom >= 0, "no frame found: $left/$right/$top/$bottom")
-        assertEquals(inset, left, "left margin")
-        assertEquals(inset, right, "right margin")
-        assertEquals(inset, top, "top margin")
-        assertEquals(inset, bottom, "bottom margin")
+        assertEquals(band, left, "left border")
+        assertEquals(band, right, "right border")
+        assertEquals(band, top, "top border")
+        assertEquals(band, bottom, "bottom border")
+    }
+
+    /** And the chrome that lives in that border is one size, which is what makes the above hold. */
+    @Test
+    fun `the title bar, the rails and the status bar are the same size`() {
+        assertEquals(Size.chrome, Size.toolbar, "the title bar is not one chrome strip")
+        assertEquals(Size.chrome, Size.activityBar, "the rails are not one chrome strip")
+        assertEquals(Size.chrome, Size.statusBar, "the status bar is not one chrome strip")
     }
 
     /**
@@ -119,11 +131,11 @@ class WindowFrameTest {
     @Test
     fun `all four corners are rounded, and rounded the same`() {
         val b = render(showLeft = false)
-        val inset = px(Frame.inset.value)
-        val x0 = px(Size.activityBar.value) + inset
-        val x1 = w - 1 - px(Size.activityBar.value) - inset
-        val y0 = px(Size.toolbar.value) + inset
-        val y1 = h - 1 - px(Size.statusBar.value) - inset
+        val band = px(Frame.band.value)
+        val x0 = band
+        val x1 = w - 1 - band
+        val y0 = band
+        val y1 = h - 1 - band
 
         val corners = listOf(
             "top-left" to stepsToLine(b, x0, y0, 1, 1),
@@ -149,19 +161,9 @@ class WindowFrameTest {
     fun `a tool window has the frame's own corner`() {
         val folded = render(showLeft = false)
         val open = render(showLeft = true)
-        val inset = px(Frame.inset.value)
-        val frameCorner = stepsToLine(
-            folded,
-            px(Size.activityBar.value) + inset,
-            px(Size.toolbar.value) + inset,
-            1, 1,
-        )
-        val cardCorner = stepsToLine(
-            open,
-            px(Size.activityBar.value) + inset,
-            px(Size.toolbar.value) + inset,
-            1, 1,
-        )
+        val band = px(Frame.band.value)
+        val frameCorner = stepsToLine(folded, band, band, 1, 1)
+        val cardCorner = stepsToLine(open, band, band, 1, 1)
         assertTrue(frameCorner > 1, "the frame has no rounded corner to compare against")
         assertEquals(frameCorner, cardCorner, "the tool window's corner is not the frame's corner")
     }
@@ -175,10 +177,12 @@ class WindowFrameTest {
     fun `the window's ground changes from one corner to the other`() {
         listOf(Theme.DARK, Theme.LIGHT).forEach { theme ->
             val b = render(showLeft = false, theme = theme)
-            val topLeft = b.getColor(2, px(Size.toolbar.value) + 4)
-            val bottomRight = b.getColor(w - 3, h - 1 - px(Size.statusBar.value) - 4)
+            val topLeft = b.getColor(2, px(Frame.band.value) - 4)
+            val bottomRight = b.getColor(w - 3, h - 1 - px(Frame.band.value) + 4)
             val drop = ((topLeft shr 16) and 0xFF) - ((bottomRight shr 16) and 0xFF)
-            assertTrue(drop > 4, "$theme: the ground is flat (top ${"%06X".format(topLeft and 0xFFFFFF)}, " +
+            // 4 would pass for a wash nobody can see; this is about what the eye picks up on a
+            // strip of ground a few pixels wide
+            assertTrue(drop > 20, "$theme: the ground is too flat to read (top ${"%06X".format(topLeft and 0xFFFFFF)}, " +
                 "bottom ${"%06X".format(bottomRight and 0xFFFFFF)})")
         }
     }
