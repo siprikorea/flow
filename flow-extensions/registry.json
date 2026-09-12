@@ -63,13 +63,14 @@
     {
       "id": "flow.cipher",
       "name": "Cipher",
-      "version": "1.0.0",
-      "description": "Symmetric and RSA encryption/decryption — AES, DES, DESede, Blowfish, RSA.",
+      "version": "1.1.0",
+      "description": "Symmetric and RSA encryption/decryption — AES, DES, DESede, Blowfish, RSA; GCM with additional authenticated data.",
       "file": "cipher-extension.jar",
       "inputs": [
         "in",
         "key",
-        "iv"
+        "iv",
+        "aad"
       ],
       "outputs": [
         "out"

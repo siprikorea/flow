@@ -82,11 +82,24 @@ internal class ToolFailure(
          * value is read, and none is quoted.
          */
         fun fromCrypto(e: Throwable, operation: String): ToolFailure = when (e) {
+            // GCM's own failure, and the only one here that means something specific: the
+            // ciphertext, the tag, the AAD or the key is not what it was encrypted with. Which of
+            // them it was is exactly what an authenticated mode refuses to say, so neither does this.
+            is javax.crypto.AEADBadTagException -> ToolFailure(
+                code = DECRYPT_FAILED,
+                hint = "The authentication tag does not match. Something differs from when this was " +
+                    "encrypted: the key, the nonce, the 'aad', the 'tagLength' — or the ciphertext " +
+                    "itself has been altered, which is what GCM is for. Check all of them; the mode " +
+                    "will not say which.",
+                message = "$operation failed: the ciphertext did not authenticate",
+                cause = e,
+            )
             is javax.crypto.BadPaddingException -> ToolFailure(
                 code = DECRYPT_FAILED,
                 hint = "The key, the IV or the padding does not match the one used to encrypt. " +
                     "Check all three: the same key bytes, the same IV, and a padding the ciphertext " +
-                    "was made with. For GCM this also means the ciphertext or its tag was altered.",
+                    "was made with. For GCM it also means the same 'aad' and the same 'tagLength' — " +
+                    "or that the ciphertext or its tag was altered, which is what GCM is for.",
                 message = "$operation failed: the input could not be unpadded",
                 cause = e,
             )
@@ -121,6 +134,14 @@ internal class ToolFailure(
                     "three against each other — RSA takes PKCS1Padding or an OAEP padding, block " +
                     "ciphers take PKCS5Padding or NoPadding.",
                 message = e.message ?: "no such algorithm",
+                cause = e,
+            )
+            // the module read its arguments and refused them; its own words are the hint, because
+            // it is the only thing that knows which argument and why
+            is IllegalArgumentException -> ToolFailure(
+                code = INVALID_OPTION,
+                hint = e.message ?: "The module refused one of these arguments.",
+                message = e.message ?: "$operation refused an argument",
                 cause = e,
             )
             else -> ToolFailure(

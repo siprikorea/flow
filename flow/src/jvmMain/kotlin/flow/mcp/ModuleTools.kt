@@ -243,11 +243,35 @@ internal object ModuleTools {
     /**
      * The exception the module actually threw.
      *
-     * It crossed a process boundary as a message and comes back wrapped, so the type that would
-     * have told ToolFailure what kind of failure it is has been lost. What survives is the class
-     * name in the text, which is enough to put it back.
+     * It crossed a process boundary, so what arrives is an ExtensionFailure carrying the original
+     * message and the original class name. Rebuilding the exception from the name is what lets
+     * ToolFailure classify it as precisely as it would have in-process — a GCM tag mismatch as a
+     * failed decryption rather than as something this server broke.
+     *
+     * The fallback reads the class name out of the message, for a failure that came from
+     * somewhere that did not say what kind it was.
      */
     private fun unwrap(e: Throwable): Throwable {
+        val failure = generateSequence(e) { it.cause }
+            .filterIsInstance<flow.platform.ExtensionFailure>().firstOrNull()
+        if (failure != null && failure.type.isNotEmpty()) {
+            val message = failure.message.orEmpty()
+            return when (failure.type) {
+                "javax.crypto.AEADBadTagException" -> javax.crypto.AEADBadTagException(message)
+                "javax.crypto.BadPaddingException" -> javax.crypto.BadPaddingException(message)
+                "javax.crypto.IllegalBlockSizeException" -> javax.crypto.IllegalBlockSizeException(message)
+                "java.security.InvalidKeyException" -> java.security.InvalidKeyException(message)
+                "java.security.InvalidAlgorithmParameterException" ->
+                    java.security.InvalidAlgorithmParameterException(message)
+                "java.security.NoSuchAlgorithmException" -> java.security.NoSuchAlgorithmException(message)
+                "javax.crypto.NoSuchPaddingException" -> javax.crypto.NoSuchPaddingException(message)
+                // a module refusing what it was given: the caller's own argument, and the message is
+                // the module's own words about which one
+                "java.lang.IllegalArgumentException", "java.lang.IllegalStateException" ->
+                    IllegalArgumentException(message)
+                else -> failure
+            }
+        }
         val said = e.message.orEmpty()
         return when {
             said.contains("BadPaddingException") -> javax.crypto.BadPaddingException(said.substringAfterLast(": "))

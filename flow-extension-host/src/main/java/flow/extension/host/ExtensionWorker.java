@@ -184,7 +184,12 @@ public final class ExtensionWorker {
             buf.reset();
             String m = t.getMessage();
             try {
-                Wire.writeString(new DataOutputStream(buf), m != null ? m : t.getClass().getSimpleName());
+                DataOutputStream e = new DataOutputStream(buf);
+                Wire.writeString(e, m != null ? m : t.getClass().getSimpleName());
+                // and what kind of failure it was. The type is what tells a caller whether to fix
+                // an argument or give up, and it is the one thing a message cannot be relied on to
+                // carry: "Tag mismatch" is the whole of what a GCM failure says for itself.
+                Wire.writeString(e, t.getClass().getName());
             } catch (IOException ignored) {
                 return;
             }

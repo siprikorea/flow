@@ -166,7 +166,7 @@ internal object ExtensionLoader {
 
     // a worker's failure is this call's failure, carrying whatever the extension said
     private fun ExtensionProcess.Reply.orThrow(): DataInputStream {
-        if (!ok) error(errorText(payload))
+        if (!ok) throw failure(payload)
         return DataInputStream(ByteArrayInputStream(payload))
     }
 
@@ -179,13 +179,13 @@ internal object ExtensionLoader {
      * the canvas, the CLI and the MCP client that way. A payload whose length does not describe
      * itself is read as it stands, so an unframed message from anywhere else still arrives whole.
      */
-    private fun errorText(payload: ByteArray): String {
-        if (payload.size >= 4) {
-            val declared = ((payload[0].toInt() and 0xFF) shl 24) or ((payload[1].toInt() and 0xFF) shl 16) or
-                ((payload[2].toInt() and 0xFF) shl 8) or (payload[3].toInt() and 0xFF)
-            if (declared == payload.size - 4) return String(payload, 4, declared, Charsets.UTF_8)
-        }
-        return payload.decodeToString()
+    private fun failure(payload: ByteArray): ExtensionFailure {
+        val input = DataInputStream(ByteArrayInputStream(payload))
+        val message = runCatching { Wire.readString(input) }.getOrNull()
+            // an unframed payload is read as it stands, so a message from anywhere else arrives whole
+            ?: return ExtensionFailure(payload.decodeToString(), "")
+        val type = runCatching { Wire.readString(input) }.getOrDefault("")
+        return ExtensionFailure(message, type)
     }
 
     // id -> what was loaded, from the one install root.

@@ -27,7 +27,8 @@ import javax.crypto.spec.SecretKeySpec
 class CipherExtension : ProcessorExtension {
     override val id = "flow.cipher"
     override val displayName = "Cipher"
-    override val inputs = listOf("in", "key", "iv")
+    override val version = "1.1.0"
+    override val inputs = listOf("in", "key", "iv", "aad")
     override val outputs = listOf("out")
 
     private val symmetricPaddings = listOf("PKCS5Padding", "NoPadding")
@@ -38,6 +39,7 @@ class CipherExtension : ProcessorExtension {
         ExtensionOption("algorithm", OptionType.SELECT, "AES", listOf("AES", "DES", "DESede", "Blowfish", "RSA")),
         ExtensionOption("mode", OptionType.SELECT, "CBC", listOf("ECB", "CBC", "CFB", "OFB", "CTR", "GCM")),
         ExtensionOption("padding", OptionType.SELECT, symmetricPaddings.first(), symmetricPaddings),
+        ExtensionOption("tagLength", OptionType.SELECT, "128", listOf("128", "120", "112", "104", "96")),
     )
 
     /**
@@ -49,7 +51,7 @@ class CipherExtension : ProcessorExtension {
      * demanded one would make it look like they were. ECB ignores it either way, and RSA does not
      * have the port at all (see inputsFor).
      */
-    override fun optionalInputsFor(values: Map<String, String>) = listOf("iv")
+    override fun optionalInputsFor(values: Map<String, String>) = listOf("iv", "aad")
 
     override val portDescriptions = mapOf(
         "_module" to "Encrypt or decrypt with AES, DES, DESede, Blowfish or RSA. Use it for the " +
@@ -64,6 +66,11 @@ class CipherExtension : ProcessorExtension {
         "iv" to "The initialisation vector, 16 bytes for AES (12 for GCM), as 'hex:' or 'b64:'. " +
             "Optional: leave it out and encrypt generates a random one and prepends it to the " +
             "output, while decrypt reads it back off the front. ECB does not use one; RSA has none.",
+        "aad" to "Additional authenticated data, for GCM only: bytes that are not encrypted but are " +
+            "covered by the tag, so decryption fails if they differ. Use it to bind a ciphertext to " +
+            "its context — a message id, a filename, a version — and the same bytes must be given " +
+            "again to decrypt. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes. " +
+            "Optional, and it is not stored anywhere: whoever decrypts has to know it.",
         "out" to "The ciphertext, or the recovered plaintext.",
     )
 
@@ -73,34 +80,54 @@ class CipherExtension : ProcessorExtension {
             "not for producing it. RSA is asymmetric and only covers data smaller than the key " +
             "(245 bytes for a 2048-bit key under PKCS#1) — encrypt a symmetric key with it, not bulk data.",
         "mode" to "How blocks are chained. CBC is the usual choice; GCM also authenticates, so a " +
-            "tampered ciphertext fails to decrypt rather than producing rubbish; ECB leaks which " +
-            "blocks are equal and is for compatibility only; CFB/OFB/CTR turn the block cipher into " +
-            "a stream. Not used by RSA.",
+            "tampered ciphertext fails to decrypt rather than producing rubbish, and it can cover " +
+            "unencrypted context through the 'aad' port; ECB leaks which blocks are equal and is " +
+            "for compatibility only; CFB/OFB/CTR turn the block cipher into a stream. Not used by RSA.",
+        "tagLength" to "GCM only: how many bits of authentication tag, appended to the ciphertext. " +
+            "128 unless something you must interoperate with says otherwise — a shorter tag is easier " +
+            "to forge, and 96 is the shortest anything should accept. Decryption must use the same " +
+            "length the ciphertext was made with.",
         "padding" to "RSA takes PKCS1Padding or an OAEP padding (prefer OAEPWithSHA-256AndMGF1Padding " +
             "for anything new); block ciphers take PKCS5Padding, or NoPadding when the input is " +
-            "already a whole number of blocks. The two sets are not interchangeable and a mismatch " +
-            "is refused before anything runs.",
+            "already a whole number of blocks; GCM takes NoPadding and nothing else, since it does " +
+            "not pad. The sets are not interchangeable and a mismatch is refused before anything runs.",
     )
 
     private val random = SecureRandom()
     private val gcmNonceSize = 12
-    private val gcmTagBits = 128
+    private val gcmPaddings = listOf("NoPadding")
 
     private fun isRsa(values: Map<String, String>) = (values["algorithm"] ?: "AES") == "RSA"
 
-    // RSA has no IV, no mode, and its own padding list
-    override fun inputsFor(options: Map<String, String>): List<String> =
-        if (isRsa(options)) listOf("in", "key") else inputs
+    private fun isGcm(values: Map<String, String>) = !isRsa(values) && (values["mode"] ?: "CBC") == "GCM"
+
+    // RSA has no IV, no mode and no AAD; only GCM authenticates, so only GCM has somewhere to put it
+    override fun inputsFor(options: Map<String, String>): List<String> = when {
+        isRsa(options) -> listOf("in", "key")
+        isGcm(options) -> listOf("in", "key", "iv", "aad")
+        else -> listOf("in", "key", "iv")
+    }
 
     override fun optionsFor(values: Map<String, String>): List<ExtensionOption> {
-        if (!isRsa(values)) return options
-        return options.mapNotNull { opt ->
-            when (opt.name) {
-                "mode" -> null
-                "padding" -> ExtensionOption("padding", OptionType.SELECT, rsaPaddings.first(), rsaPaddings)
-                else -> opt
+        if (isRsa(values)) {
+            return options.mapNotNull { opt ->
+                when (opt.name) {
+                    "mode", "tagLength" -> null
+                    "padding" -> ExtensionOption("padding", OptionType.SELECT, rsaPaddings.first(), rsaPaddings)
+                    else -> opt
+                }
             }
         }
+        if (isGcm(values)) {
+            // GCM does not pad, and the JCE has no such transformation: "AES/GCM/PKCS5Padding" is a
+            // NoSuchAlgorithmException before anything is encrypted. Offering the choice made GCM
+            // look available while it was unusable at the default — pick GCM and it simply threw.
+            return options.map { opt ->
+                if (opt.name == "padding") ExtensionOption("padding", OptionType.SELECT, "NoPadding", gcmPaddings)
+                else opt
+            }
+        }
+        return options.filterNot { it.name == "tagLength" }
     }
 
     // a padding left over from another algorithm would only produce a confusing
@@ -119,14 +146,38 @@ class CipherExtension : ProcessorExtension {
      */
     private fun paddingFor(values: Map<String, String>): String {
         val algorithm = values["algorithm"] ?: "AES"
-        val allowed = if (isRsa(values)) rsaPaddings else symmetricPaddings
+        val allowed = when {
+            isRsa(values) -> rsaPaddings
+            isGcm(values) -> gcmPaddings
+            else -> symmetricPaddings
+        }
         val given = values["padding"]?.takeIf { it.isNotEmpty() } ?: return allowed.first()
+        val what = if (isGcm(values)) "$algorithm in GCM" else algorithm
         require(given in allowed) {
-            "'$given' is not a padding $algorithm can use. $algorithm takes " +
-                allowed.joinToString(" or ") + ". RSA uses PKCS1Padding or an OAEP padding; block " +
-                "ciphers use PKCS5Padding or NoPadding."
+            "'$given' is not a padding $what can use. $what takes " +
+                allowed.joinToString(" or ") + ". RSA uses PKCS1Padding or an OAEP padding; GCM does " +
+                "not pad at all; other block cipher modes use PKCS5Padding or NoPadding."
         }
         return given
+    }
+
+    /**
+     * How much tag, in bits.
+     *
+     * The JCE accepts 128, 120, 112, 104 and 96 and rejects anything else with a message about
+     * lengths rather than about this option, so it is checked here where the option's name can be
+     * said. Decryption has to use the same length the ciphertext was made with — a shorter one
+     * reads part of the tag as ciphertext and fails as a bad tag, which is the right answer for
+     * the wrong reason.
+     */
+    private fun tagBitsFor(values: Map<String, String>): Int {
+        val given = values["tagLength"]?.takeIf { it.isNotEmpty() } ?: return 128
+        val bits = given.toIntOrNull()
+        require(bits != null && bits in listOf(128, 120, 112, 104, 96)) {
+            "'$given' is not a GCM tag length. It takes 128, 120, 112, 104 or 96 bits, and 128 " +
+                "unless something you must interoperate with says otherwise."
+        }
+        return bits
     }
 
     /** the key, whichever algorithm — never echoed back, logged, or put in an error message. */
@@ -158,18 +209,26 @@ class CipherExtension : ProcessorExtension {
                 cipher.doFinal(data)
             }
             "GCM" -> {
+                val tagBits = tagBitsFor(options)
+                // Covered by the tag but not encrypted, and never stored: whoever decrypts has to
+                // know it. Empty and absent are the same thing here, so a node with the port
+                // unconnected and one given no bytes produce the same ciphertext.
+                val aad = inputs["aad"]?.takeIf { it.isNotEmpty() }
                 if (encrypt) {
                     val nonce = explicitIv ?: ByteArray(gcmNonceSize).also { random.nextBytes(it) }
-                    cipher.init(Cipher.ENCRYPT_MODE, keySpec, GCMParameterSpec(gcmTagBits, nonce))
+                    cipher.init(Cipher.ENCRYPT_MODE, keySpec, GCMParameterSpec(tagBits, nonce))
+                    aad?.let { cipher.updateAAD(it) }
                     val ct = cipher.doFinal(data)
                     if (explicitIv != null) ct else nonce + ct
                 } else if (explicitIv != null) {
-                    cipher.init(Cipher.DECRYPT_MODE, keySpec, GCMParameterSpec(gcmTagBits, explicitIv))
+                    cipher.init(Cipher.DECRYPT_MODE, keySpec, GCMParameterSpec(tagBits, explicitIv))
+                    aad?.let { cipher.updateAAD(it) }
                     cipher.doFinal(data)
                 } else {
                     require(data.size > gcmNonceSize) { "ciphertext too short to contain a GCM nonce" }
                     val nonce = data.copyOfRange(0, gcmNonceSize)
-                    cipher.init(Cipher.DECRYPT_MODE, keySpec, GCMParameterSpec(gcmTagBits, nonce))
+                    cipher.init(Cipher.DECRYPT_MODE, keySpec, GCMParameterSpec(tagBits, nonce))
+                    aad?.let { cipher.updateAAD(it) }
                     cipher.doFinal(data, gcmNonceSize, data.size - gcmNonceSize)
                 }
             }

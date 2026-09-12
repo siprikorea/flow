@@ -88,6 +88,39 @@ class ToolErrorTest {
     }
 
     /**
+     * A GCM tag mismatch is a failed decryption, not an internal error.
+     *
+     * It used to be reported as INTERNAL — "Not a failure this server knows how to narrow" — for
+     * the one failure the mode exists to produce. A caller reading that cannot tell a tampered
+     * ciphertext from a broken server.
+     */
+    @Test
+    fun `a tag mismatch is the one GCM failure, and does not pretend to know which cause`() {
+        val f = ToolFailure.fromCrypto(javax.crypto.AEADBadTagException("Tag mismatch"), "decrypt")
+        assertEquals(ToolFailure.DECRYPT_FAILED, f.code)
+        listOf("key", "aad", "tagLength", "altered").forEach {
+            assertTrue(f.hint.contains(it, ignoreCase = true), "the hint does not mention $it: ${f.hint}")
+        }
+    }
+
+    /**
+     * A module that refused an argument gets to say so in its own words.
+     *
+     * It is the only thing that knows which argument and why — "'in' is not a number, so it cannot
+     * be compared as one" is worth more than any sentence this server could write about it, and
+     * INVALID_OPTION tells a caller it is theirs to fix.
+     */
+    @Test
+    fun `an argument the module refused is the caller's to fix, in the module's own words`() {
+        val f = ToolFailure.fromCrypto(
+            IllegalArgumentException("'in' is not a number, so it cannot be compared as one"),
+            "Branch",
+        )
+        assertEquals(ToolFailure.INVALID_OPTION, f.code)
+        assertTrue(f.hint.contains("is not a number"), f.hint)
+    }
+
+    /**
      * The rule that matters most, and the one a later change is most likely to break: whatever a
      * failure says, it never says what was in a port.
      */
@@ -96,6 +129,7 @@ class ToolErrorTest {
         val secret = "S3CRET-KEY-MATERIAL"
         val causes = listOf(
             javax.crypto.BadPaddingException(secret),
+            javax.crypto.AEADBadTagException(secret),
             java.security.InvalidKeyException(secret),
             java.security.InvalidAlgorithmParameterException(secret),
             javax.crypto.IllegalBlockSizeException(secret),

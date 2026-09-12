@@ -167,6 +167,32 @@ class ModuleToolsTest {
     }
 
     /**
+     * The kind of failure survives the process the module ran in.
+     *
+     * An extension runs in a worker, so its exception reaches this server as text — and "Tag
+     * mismatch" is the whole of what GCM says for itself. Without the type crossing with it, the
+     * one failure an authenticated mode exists to report arrived as INTERNAL, indistinguishable
+     * from something this server broke. This runs a real worker, which is the only way to tell.
+     */
+    @Test
+    fun `a failure from inside a worker keeps the kind of failure it was`() {
+        if (installed("flow.cipher") == null) return
+        val key = "hex:000102030405060708090a0b0c0d0e0f"
+        val encrypted = call("flow_cipher", """{"in":"secret","key":"$key","mode":"GCM","aad":"invoice-7"}""")
+        val ciphertext = encrypted["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content
+            .substringAfter("out: ").trim()
+        // the same ciphertext under a different context: valid bytes, wrong place
+        val refused = call(
+            "flow_cipher",
+            """{"in":"$ciphertext","key":"$key","mode":"GCM","operation":"decrypt","aad":"invoice-8"}""",
+        )
+        assertEquals(true, refused["isError"]!!.jsonPrimitive.boolean)
+        val detail = refused["structuredContent"]!!.jsonObject
+        assertEquals(ToolFailure.DECRYPT_FAILED, detail["code"]!!.jsonPrimitive.content)
+        assertTrue(detail["hint"]!!.jsonPrimitive.content.contains("aad"), "${detail["hint"]}")
+    }
+
+    /**
      * Nothing on a port is not an empty value on it.
      *
      * A branch puts the value on one side and nothing on the other, and in a flow that is what
