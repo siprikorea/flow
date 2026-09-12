@@ -103,10 +103,14 @@ internal object ModuleTools {
      * without knowing which it got.
      */
     fun call(module: ModuleInfo, args: JsonObject): String {
-        val options = module.options.associate { option ->
-            option.name to (args.text(option.name) ?: option.default)
-        }
-        rejectUnknownChoices(module, options)
+        // Two passes, because one option can decide another's choices and its default: cipher's
+        // padding is PKCS5Padding for a block cipher and PKCS1Padding for RSA. Filling defaults
+        // from the static list would hand an RSA call a padding RSA cannot use — and then refuse
+        // it for a combination the caller never asked for.
+        val given = module.options.mapNotNull { option -> args.text(option.name)?.let { option.name to it } }.toMap()
+        val applicable = Platform.moduleOptionsFor(module.id, given) ?: module.options
+        val options = applicable.associate { option -> option.name to (given[option.name] ?: option.default) }
+        rejectUnknownChoices(applicable, options)
 
         // the ports that exist for *these* options, not the defaults the schema was built from —
         // cipher drops iv for RSA, signature adds one for verify
@@ -144,8 +148,8 @@ internal object ModuleTools {
      * and a value outside it is nearly always a stale schema or a hallucinated name — worth saying
      * plainly, with the real choices, instead of whatever the module makes of it.
      */
-    private fun rejectUnknownChoices(module: ModuleInfo, options: Map<String, String>) {
-        module.options.forEach { option ->
+    private fun rejectUnknownChoices(applicable: List<OptDef>, options: Map<String, String>) {
+        applicable.forEach { option ->
             if (option.choices.isEmpty()) return@forEach
             val value = options[option.name].orEmpty()
             if (value.isNotEmpty() && value !in option.choices) {

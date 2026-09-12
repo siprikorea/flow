@@ -27,10 +27,17 @@ class ProcessorExtensionsTest {
         ServiceLoader.load(ProcessorExtension::class.java).firstOrNull { it.id == id }
             ?: error("$id is not registered")
 
-    /** Runs one, with its declared defaults underneath the options given. */
+    /**
+     * Runs one, filling what was not given from the defaults that apply.
+     *
+     * "That apply" is the whole subtlety: one option can decide another's choices and default, so
+     * cipher's padding defaults to PKCS5Padding for a block cipher and PKCS1Padding for RSA.
+     * Filling from the static list instead would hand an RSA call a padding RSA cannot use. This
+     * mirrors what ModuleTools does for an MCP call, which is what a correct caller does.
+     */
     private fun run(id: String, vararg inputs: Pair<String, ByteArray?>, options: Map<String, String> = emptyMap()): Map<String, ByteArray?> {
         val e = ext(id)
-        val values = e.options.associate { it.name to it.default } + options
+        val values = e.optionsFor(options).associate { it.name to (options[it.name] ?: it.default) }
         return e.process(inputs.toMap(), values)
     }
 
@@ -189,6 +196,85 @@ class ProcessorExtensionsTest {
             "flow.cipher",
             "in" to encrypted, "key" to key, "iv" to iv,
             options = mapOf("operation" to "decrypt", "algorithm" to "AES", "mode" to "CBC"),
+        )["out"]!!
+        assertContentEquals(plain, decrypted)
+    }
+
+    /**
+     * RSA both ways, with each padding it offers.
+     *
+     * PKCS#1 v1.5 is what older systems expect; OAEP-SHA256 is what anything new should use. Both
+     * have to survive a round trip or the padding choice is decoration — and the enum offering a
+     * padding that does not work is exactly what sends a caller down a dead end.
+     */
+    @Test
+    fun `RSA encrypts and decrypts under PKCS1 and under OAEP-SHA256`() {
+        val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+        val plain = "a symmetric key, or something else short".encodeToByteArray()
+
+        listOf("PKCS1Padding", "OAEPWithSHA-256AndMGF1Padding", "OAEPWithSHA-1AndMGF1Padding").forEach { padding ->
+            val encrypted = run(
+                "flow.cipher",
+                "in" to plain, "key" to pair.public.encoded,
+                options = mapOf("operation" to "encrypt", "algorithm" to "RSA", "padding" to padding),
+            )["out"]!!
+            assertTrue(!encrypted.contentEquals(plain), "$padding: the output is the input")
+
+            val decrypted = run(
+                "flow.cipher",
+                "in" to encrypted, "key" to pair.private.encoded,
+                options = mapOf("operation" to "decrypt", "algorithm" to "RSA", "padding" to padding),
+            )["out"]!!
+            assertContentEquals(plain, decrypted, "$padding did not survive a round trip")
+        }
+    }
+
+    /**
+     * A padding from the other family is refused rather than quietly swapped.
+     *
+     * It used to fall back to the algorithm's first padding, so asking for AES with OAEP encrypted
+     * with PKCS5Padding and said nothing — the caller ends up believing they used OAEP. Doing
+     * something other than what was asked is worse than refusing.
+     */
+    @Test
+    fun `a padding the algorithm cannot use is refused, not substituted`() {
+        val aesWithRsaPadding = runCatching {
+            run(
+                "flow.cipher",
+                "in" to "x".encodeToByteArray(), "key" to ByteArray(16),
+                options = mapOf("algorithm" to "AES", "mode" to "CBC", "padding" to "OAEPWithSHA-256AndMGF1Padding"),
+            )
+        }.exceptionOrNull()
+        assertTrue(aesWithRsaPadding != null, "AES accepted an OAEP padding")
+        assertTrue(
+            aesWithRsaPadding.message!!.contains("PKCS5Padding"),
+            "the message does not say what AES takes: ${aesWithRsaPadding.message}",
+        )
+
+        val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+        val rsaWithBlockPadding = runCatching {
+            run(
+                "flow.cipher",
+                "in" to "x".encodeToByteArray(), "key" to pair.public.encoded,
+                options = mapOf("algorithm" to "RSA", "padding" to "PKCS5Padding"),
+            )
+        }.exceptionOrNull()
+        assertTrue(rsaWithBlockPadding != null, "RSA accepted a block-cipher padding")
+        assertTrue(rsaWithBlockPadding.message!!.contains("PKCS1Padding"), "${rsaWithBlockPadding.message}")
+    }
+
+    /** Naming only the algorithm still works: the default padding is the one that algorithm uses. */
+    @Test
+    fun `RSA with no padding named uses one RSA can actually use`() {
+        val pair = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair()
+        val plain = "short".encodeToByteArray()
+        val encrypted = run(
+            "flow.cipher", "in" to plain, "key" to pair.public.encoded,
+            options = mapOf("operation" to "encrypt", "algorithm" to "RSA"),
+        )["out"]!!
+        val decrypted = run(
+            "flow.cipher", "in" to encrypted, "key" to pair.private.encoded,
+            options = mapOf("operation" to "decrypt", "algorithm" to "RSA"),
         )["out"]!!
         assertContentEquals(plain, decrypted)
     }

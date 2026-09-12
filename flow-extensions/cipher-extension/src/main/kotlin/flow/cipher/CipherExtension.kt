@@ -105,9 +105,28 @@ class CipherExtension : ProcessorExtension {
 
     // a padding left over from another algorithm would only produce a confusing
     // NoSuchAlgorithmException, so fall back to the one this algorithm starts with
+    /**
+     * The padding, refusing a combination this algorithm cannot use.
+     *
+     * This used to fall back to the algorithm's first padding when given one from the other family
+     * — so asking for AES with OAEP quietly encrypted with PKCS5Padding instead. Silently doing
+     * something other than what was asked is the worst of the three options here: the caller
+     * believes they used OAEP, and nothing ever says otherwise. Refusing says it once, before
+     * anything is encrypted.
+     *
+     * A padding that was not given at all still defaults, which is what makes a call that names
+     * only `algorithm: RSA` work.
+     */
     private fun paddingFor(values: Map<String, String>): String {
+        val algorithm = values["algorithm"] ?: "AES"
         val allowed = if (isRsa(values)) rsaPaddings else symmetricPaddings
-        return values["padding"]?.takeIf { it in allowed } ?: allowed.first()
+        val given = values["padding"]?.takeIf { it.isNotEmpty() } ?: return allowed.first()
+        require(given in allowed) {
+            "'$given' is not a padding $algorithm can use. $algorithm takes " +
+                allowed.joinToString(" or ") + ". RSA uses PKCS1Padding or an OAEP padding; block " +
+                "ciphers use PKCS5Padding or NoPadding."
+        }
+        return given
     }
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
