@@ -166,8 +166,26 @@ internal object ExtensionLoader {
 
     // a worker's failure is this call's failure, carrying whatever the extension said
     private fun ExtensionProcess.Reply.orThrow(): DataInputStream {
-        if (!ok) error(payload.decodeToString())
+        if (!ok) error(errorText(payload))
         return DataInputStream(ByteArrayInputStream(payload))
+    }
+
+    /**
+     * What the extension said, without the framing it was written with.
+     *
+     * The worker writes its message with Wire.writeString — a four-byte length, then the text —
+     * and reading the payload as raw bytes glued that length onto the front of every error a
+     * module produced: three NULs and a stray character before "'in' is not a number". It reached
+     * the canvas, the CLI and the MCP client that way. A payload whose length does not describe
+     * itself is read as it stands, so an unframed message from anywhere else still arrives whole.
+     */
+    private fun errorText(payload: ByteArray): String {
+        if (payload.size >= 4) {
+            val declared = ((payload[0].toInt() and 0xFF) shl 24) or ((payload[1].toInt() and 0xFF) shl 16) or
+                ((payload[2].toInt() and 0xFF) shl 8) or (payload[3].toInt() and 0xFF)
+            if (declared == payload.size - 4) return String(payload, 4, declared, Charsets.UTF_8)
+        }
+        return payload.decodeToString()
     }
 
     // id -> what was loaded, from the one install root.
@@ -287,10 +305,12 @@ internal object ExtensionLoader {
 
         // the component's bundled jars get their own worker, same as an installed extension
         val proc = processFor(dir)
-        val sandboxIds = runCatching { describe(proc).map { it.id }.toSet() }.getOrDefault(emptySet())
+        val sandboxed = runCatching { describe(proc) }.getOrDefault(emptyList())
+        val sandboxIds = sandboxed.map { it.id }.toSet()
         val engine = FlowEngine(
             loadFlow = { ref -> readComponent(ref)?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() } },
             moduleIds = sandboxIds,
+            optionalInputsOf = { id -> sandboxed.find { it.id == id }?.optionalInputs?.toSet() },
             moduleProcess = { mid, ins, params ->
                 runInterruptible(Dispatchers.Default) {
                     val reply = proc.request(Wire.PROCESS) { o ->

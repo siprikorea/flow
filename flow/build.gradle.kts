@@ -67,6 +67,7 @@ kotlin {
             implementation(project(":flow-extensions:slack-extension"))
             implementation(project(":flow-extensions:telegram-extension"))
             implementation(project(":flow-extensions:base64-extension"))
+            implementation(project(":flow-extensions:branch-extension"))
             implementation(project(":flow-extensions:cipher-extension"))
             implementation(project(":flow-extensions:hash-extension"))
             implementation(project(":flow-extensions:keyfactory-extension"))

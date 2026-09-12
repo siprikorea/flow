@@ -29,11 +29,15 @@ internal fun loadFlow(ref: String): FlowFile? {
     return runCatching { runnerJson.decodeFromString<FlowFile>(raw) }.getOrNull()
 }
 
-internal fun engine(): FlowEngine = FlowEngine(
-    loadFlow = ::loadFlow,
-    moduleIds = Platform.installedModuleInfos().map { it.id }.toSet(),
-    moduleProcess = { id, inputs, options -> Platform.moduleProcess(id, inputs, options) },
-)
+internal fun engine(): FlowEngine {
+    val installed = Platform.installedModuleInfos()
+    return FlowEngine(
+        loadFlow = ::loadFlow,
+        moduleIds = installed.map { it.id }.toSet(),
+        moduleProcess = { id, inputs, options -> Platform.moduleProcess(id, inputs, options) },
+        optionalInputsOf = { id -> installed.find { it.id == id }?.optionalInputs?.toSet() },
+    )
+}
 
 // true when [ref] resolves only to an installed component (which runs in its own sandbox)
 internal fun isInstalledComponent(ref: String): Boolean {

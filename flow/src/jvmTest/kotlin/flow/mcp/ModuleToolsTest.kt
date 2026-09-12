@@ -146,6 +146,41 @@ class ModuleToolsTest {
 
     /* ───────── calling one for real ───────── */
 
+    /**
+     * What a module said, not what the wire wrapped it in.
+     *
+     * The worker frames its error with a four-byte length, and the host used to hand the whole
+     * payload over as text — so every failure a module produced reached the canvas, the CLI and
+     * this server with three NULs and a stray character in front of it. Invisible in a terminal,
+     * and the first thing a model reads.
+     */
+    @Test
+    fun `a failing module's message arrives without the wire's framing on it`() {
+        if (installed("flow.branch") == null) return
+        val result = call("flow_branch", """{"in":"many","test":"greaterThan","value":"9"}""")
+        val text = result["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content
+        assertTrue(text.contains("is not a number"), text)
+        assertTrue(
+            text.none { it.isISOControl() && it != '\n' && it != '\r' && it != '\t' },
+            "the message carries control characters from the wire: ${text.take(60).map { it.code }}",
+        )
+    }
+
+    /**
+     * Nothing on a port is not an empty value on it.
+     *
+     * A branch puts the value on one side and nothing on the other, and in a flow that is what
+     * stops the side not taken. Reported as "" both ways, a caller cannot tell which way it went.
+     */
+    @Test
+    fun `a port carrying nothing says so, rather than looking empty`() {
+        if (installed("flow.branch") == null) return
+        val result = call("flow_branch", """{"in":"report.pdf","test":"endsWith","value":".pdf"}""")
+        val text = result["content"]!!.jsonArray[0].jsonObject["text"]!!.jsonPrimitive.content
+        assertEquals("then: report.pdf\nelse: (nothing)", text)
+    }
+
+
     private fun installed(id: String): ModuleInfo? = Platform.installedModuleInfos().find { it.id == id }
 
     private fun call(name: String, arguments: String): JsonObject {

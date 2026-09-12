@@ -29,6 +29,11 @@ class FlowEngine(
     // topological order. The canvas animation follows this so a node that really is working (a
     // sleep, a big file) is shown working, instead of the whole run waiting for the total.
     private val onNodeSettled: (String, String?) -> Unit = { _, _ -> },
+    // Which of a module's input ports are allowed to arrive with nothing on them. Merge says both
+    // of its sides are; most modules say none. This is what lets a branch work: the side that was
+    // not taken carries nothing, and a node whose input needs something is skipped rather than run
+    // on emptiness. Returning null means "no idea" — an unknown module is run as it always was.
+    private val optionalInputsOf: (String) -> Set<String>? = { null },
     // How many components deep this engine already is. A sub-component is evaluated by its own
     // engine one level down, and past [MAX_COMPONENT_DEPTH] the nesting is refused — a component
     // that names itself would otherwise recurse until the process dies.
@@ -85,6 +90,7 @@ class FlowEngine(
                     onNodeSettled(nid, null) // never ran; the branch already stopped upstream
                     return@async
                 }
+                val connected = flow.edges.filter { it.to.node == nid }.map { it.to.port }.toSet()
                 val inVals: Map<String, ByteArray?> = lock.withLock {
                     node.inputs.associate { port ->
                         val e = flow.edges.firstOrNull { it.to.node == nid && it.to.port == port.name }
@@ -93,6 +99,23 @@ class FlowEngine(
                         port.name to if (from in shared) value?.copyOf() else value
                     }
                 }
+                // Nothing arrived on a port that needs something, so this node is not part of the
+                // run: a branch sends its value down one side and nothing down the other, and
+                // everything on the other side is skipped. Running them instead would be wrong in
+                // both directions — a pure module would compute a result from emptiness, and one
+                // with an effect would send a message about a branch that was never taken.
+                val nothingToDo = node.type in moduleIds && optionalInputsOf(node.type)?.let { optional ->
+                    node.inputs.any { it.name in connected && inVals[it.name] == null && it.name !in optional }
+                } == true
+                if (nothingToDo) {
+                    lock.withLock {
+                        blocked += nid
+                        node.outputs.forEach { p -> outVals[nid to p.name] = null }
+                    }
+                    onNodeSettled(nid, null) // skipped, not failed: an untaken branch is not an error
+                    return@async
+                }
+
                 // a module throwing (bad key/IV size, etc.) is attributed to this node, not swallowed silently
                 val outcome = runCatching { evalNode(node, inVals, inputs) }
                 val error = outcome.exceptionOrNull()?.let { it.message ?: it::class.simpleName ?: "error" }
@@ -155,7 +178,10 @@ class FlowEngine(
                 // Its own engine, one level down: errors, and the per-node callback the canvas
                 // follows, belong to the flow being run. Sharing them let a sub-flow wipe the
                 // parent's errors and report node ids the parent has never heard of.
-                val subEngine = FlowEngine(loadFlow, moduleIds, moduleProcess, depth = depth + 1)
+                val subEngine = FlowEngine(
+                    loadFlow, moduleIds, moduleProcess,
+                    optionalInputsOf = optionalInputsOf, depth = depth + 1,
+                )
                 // component input ports (node.inputs) = the sub-component's cin labels
                 val subInputs = node.inputs.associate { it.name to (inVals[it.name] ?: ByteArray(0)) }
                 val subOut = subEngine.run(sub, subInputs)

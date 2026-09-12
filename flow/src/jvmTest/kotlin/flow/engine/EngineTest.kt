@@ -38,6 +38,63 @@ class EngineTest {
         assertTrue(errors.isEmpty(), "expected no errors, got $errors")
     }
 
+    /**
+     * The side a branch did not take does not run.
+     *
+     * Producing nothing and never running look the same from the outputs, and they are not the
+     * same thing at all: a node with a consequence — the Slack node telling someone the build
+     * failed — must not fire on the branch that says it did not. test.effect records that it ran,
+     * which is the only way to tell the two apart.
+     */
+    @Test
+    fun `a branch runs one side and skips the other entirely`() {
+        Fixtures.effects.clear()
+        val (out, errors) = run("branch.flow", "Text" to "yes")
+        assertEquals("YES", out.text("Taken"))
+        assertNull(out.text("Dead"), "the untaken side produced a value")
+        assertEquals(emptyList(), Fixtures.effects, "a node on the untaken side ran anyway")
+        // skipped is not failed: nothing here is wrong, so nothing is reported as wrong
+        assertTrue(errors.isEmpty(), "an untaken branch was reported as an error: $errors")
+    }
+
+    /**
+     * One dead input is enough to stop a node, even when its other input is live.
+     *
+     * This is the shape that makes a branch usable in the middle of a flow: encrypt-then-notify,
+     * where the key comes from elsewhere and only the value comes down the branch. Running on the
+     * half that arrived would encrypt nothing, or post an empty message.
+     */
+    @Test
+    fun `a node fed by both a live input and an untaken one does not run`() {
+        val (out, errors) = run("branch.flow", "Text" to "yes")
+        assertNull(out.text("Both"))
+        assertTrue(errors.isEmpty(), "$errors")
+    }
+
+    /**
+     * Unless the node says that input is one it can do without.
+     *
+     * Merge exists to join two branches, and joining one branch with a branch that did not happen
+     * is exactly what it is for. Skipping it would make a branch impossible to rejoin.
+     */
+    @Test
+    fun `a node whose missing input is an optional one still runs`() {
+        val (out, errors) = run("branch.flow", "Text" to "yes")
+        assertEquals("yes", out.text("Either"))
+        assertTrue(errors.isEmpty(), "$errors")
+    }
+
+    @Test
+    fun `the other side of the branch is the one that runs when the test fails`() {
+        Fixtures.effects.clear()
+        val (out, errors) = run("branch.flow", "Text" to "no")
+        assertNull(out.text("Taken"))
+        assertEquals("no", out.text("Dead"))
+        assertEquals(listOf("no"), Fixtures.effects)
+        assertEquals("nono", out.text("Both"), "a node fed by two live inputs did not run")
+        assertTrue(errors.isEmpty(), "$errors")
+    }
+
     @Test
     fun `a module that is not installed fails instead of passing its input through`() {
         val (out, errors) = run("missing-module.flow", "Text" to "hello")

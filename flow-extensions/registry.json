@@ -235,6 +235,23 @@
       "category": "ai"
     },
     {
+      "id": "flow.branch",
+      "name": "Branch",
+      "version": "1.0.0",
+      "kind": "processor",
+      "category": "other",
+      "description": "Send the value one way or the other: the side not taken carries nothing, so what hangs off it does not run.",
+      "file": "branch-extension.jar",
+      "inputs": [
+        "in",
+        "compare"
+      ],
+      "outputs": [
+        "then",
+        "else"
+      ]
+    },
+    {
       "id": "flow.merge",
       "name": "Merge",
       "version": "1.0.1",

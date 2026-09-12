@@ -694,14 +694,16 @@ class EditorState(
                 // Engine.evalNode's cin lookup, which tries id before falling back to label
                 n.id to data
             }
+            val installed = runCatching { Platform.installedModuleInfos() }.getOrDefault(emptyList())
             val engine = FlowEngine(
                 loadFlow = { name ->
                     (Platform.readFlow(name) ?: Platform.readInstalledComponent(name))
                         ?.let { runCatching { json.decodeFromString<FlowFile>(it) }.getOrNull() }
                 },
-                moduleIds = runCatching { Platform.installedModuleInfos().map { it.id }.toSet() }.getOrDefault(emptySet()),
+                moduleIds = installed.map { it.id }.toSet(),
                 // let a module's exception propagate — the engine attributes it to the failing node
                 moduleProcess = { id, ins, params -> Platform.moduleProcess(id, ins, params) },
+                optionalInputsOf = { id -> installed.find { it.id == id }?.optionalInputs?.toSet() },
                 onNodeSettled = { nid, err -> settled.update { it + (nid to err) } },
             )
             // key by cout node id (not label) so two outputs never share a value

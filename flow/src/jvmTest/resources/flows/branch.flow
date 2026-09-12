@@ -1,0 +1,303 @@
+{
+  "version": 1,
+  "nodes": [
+    {
+      "id": "in",
+      "type": "cin",
+      "label": "Text",
+      "x": 60,
+      "y": 300,
+      "w": 180,
+      "h": 100,
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "b",
+      "type": "test.branch",
+      "label": "Branch",
+      "x": 320,
+      "y": 300,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "then",
+        "else"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "u",
+      "type": "test.upper",
+      "label": "Upper",
+      "x": 600,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "eff",
+      "type": "test.effect",
+      "label": "Effect",
+      "x": 600,
+      "y": 200,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "t",
+      "type": "test.two",
+      "label": "Two",
+      "x": 600,
+      "y": 380,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "left",
+        "right"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "ei",
+      "type": "test.either",
+      "label": "Either",
+      "x": 600,
+      "y": 540,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "left",
+        "right"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outT",
+      "type": "cout",
+      "label": "Taken",
+      "x": 880,
+      "y": 60,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outD",
+      "type": "cout",
+      "label": "Dead",
+      "x": 880,
+      "y": 200,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outB",
+      "type": "cout",
+      "label": "Both",
+      "x": 880,
+      "y": 380,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    },
+    {
+      "id": "outE",
+      "type": "cout",
+      "label": "Either",
+      "x": 880,
+      "y": 540,
+      "w": 180,
+      "h": 100,
+      "inputs": [
+        "in"
+      ],
+      "outputs": [],
+      "params": {},
+      "status": "idle"
+    }
+  ],
+  "edges": [
+    {
+      "id": "e1",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "b",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e2",
+      "from": {
+        "node": "b",
+        "port": "then"
+      },
+      "to": {
+        "node": "u",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e3",
+      "from": {
+        "node": "b",
+        "port": "else"
+      },
+      "to": {
+        "node": "eff",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e4",
+      "from": {
+        "node": "b",
+        "port": "else"
+      },
+      "to": {
+        "node": "t",
+        "port": "left"
+      },
+      "active": false
+    },
+    {
+      "id": "e5",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "t",
+        "port": "right"
+      },
+      "active": false
+    },
+    {
+      "id": "e6",
+      "from": {
+        "node": "b",
+        "port": "else"
+      },
+      "to": {
+        "node": "ei",
+        "port": "left"
+      },
+      "active": false
+    },
+    {
+      "id": "e7",
+      "from": {
+        "node": "in",
+        "port": "out"
+      },
+      "to": {
+        "node": "ei",
+        "port": "right"
+      },
+      "active": false
+    },
+    {
+      "id": "e8",
+      "from": {
+        "node": "u",
+        "port": "out"
+      },
+      "to": {
+        "node": "outT",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e9",
+      "from": {
+        "node": "eff",
+        "port": "out"
+      },
+      "to": {
+        "node": "outD",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e10",
+      "from": {
+        "node": "t",
+        "port": "out"
+      },
+      "to": {
+        "node": "outB",
+        "port": "in"
+      },
+      "active": false
+    },
+    {
+      "id": "e11",
+      "from": {
+        "node": "ei",
+        "port": "out"
+      },
+      "to": {
+        "node": "outE",
+        "port": "in"
+      },
+      "active": false
+    }
+  ],
+  "seq": 20
+}

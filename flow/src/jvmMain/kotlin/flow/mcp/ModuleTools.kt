@@ -153,7 +153,12 @@ internal object ModuleTools {
             .getOrElse { throw ToolFailure.fromCrypto(unwrap(it), module.name) }
 
         if (out.isEmpty()) return "(no output)"
-        return out.entries.joinToString("\n") { (port, bytes) -> "$port: ${encode(bytes)}" }
+        // A port with nothing on it is not a port with an empty value: a branch puts the value on
+        // one side and nothing on the other, and in a flow that stops everything downstream of the
+        // side not taken. Printing both as "" would hide which way it went.
+        return out.entries.joinToString("\n") { (port, bytes) ->
+            "$port: " + if (bytes == null) "(nothing)" else encode(bytes)
+        }
     }
 
     /**
