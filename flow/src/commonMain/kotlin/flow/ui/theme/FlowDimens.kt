@@ -25,12 +25,17 @@ object Size {
      * thicknesses that no amount of matching the *gaps* could even out, since the gap was never
      * the thing being seen.
      *
-     * 32 rather than the status bar's old 24: a strip has to hold a 28dp control and a 20dp icon
-     * with a margin around them, and at 24 everything in it was flush against both edges — the run
-     * button filled the title bar top to bottom, and the rail icons sat right on the window's edge.
-     * Uniform and cramped is not what was asked for; this is uniform with room.
+     * 40, and the strip is the whole band: there is no separate gap between the chrome and the
+     * content any more. With a 32dp strip and an 8dp gap after it the numbers were right and the
+     * picture was still wrong — the rail icons were centred in the 32, which put them 7dp from the
+     * window's edge and 16dp from the sheet, visibly hard against the outside. What a person reads
+     * as the border is the whole 40, so that is what the chrome has to be centred in, and the only
+     * way to be sure of that is for the strip and the band to be the same thing.
+     *
+     * The air between the chrome and the sheet comes from the content instead: a 28dp control
+     * centred in 40 leaves 6dp at each end, on every side of the window.
      */
-    val chrome = 32.dp
+    val chrome = 40.dp
 
     val toolbar = chrome
     val tabBar = 32.dp
@@ -77,9 +82,10 @@ object Radius {
  * same corner. Anything that wants a different gap here is a mistake, not a special case.
  */
 object Frame {
-    val inset = Space.s      // chrome to content, on every side
+    /** Between two sheets — a tool window and the content beside it. Not used at the window edge. */
+    val inset = Space.s
     val border = 1.dp
 
-    /** What a person sees as the window's border: the chrome strip plus the gap after it. */
-    val band = Size.chrome + inset
+    /** What a person sees as the window's border, and what the chrome in it is centred in. */
+    val band = Size.chrome
 }

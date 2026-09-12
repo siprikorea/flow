@@ -137,19 +137,14 @@ fun App(
             Row(Modifier.fillMaxWidth().weight(1f)) {
                 LeftRail(ws) // always visible; the panel beside it folds via ws.showLeft
                 if (ws.showLeft) {
-                    LeftToolCard(ws, Modifier.padding(start = Frame.inset, top = Frame.inset, bottom = Frame.inset))
+                    LeftToolCard(ws)
                     // the margin between the card and the frame *is* the drag handle: a seam in
-                    // the window's own ground, with no line down it until the pointer is on it
+                    // the window's own ground, with no line down it
                     ResizeDivider(Color.Transparent, Frame.inset) {
                         ws.leftWidth = (ws.leftWidth + it).coerceIn(160f, 500f)
                     }
-                } else {
-                    Spacer(Modifier.width(Frame.inset))
                 }
-                WindowSurface(
-                    Modifier.weight(1f).fillMaxHeight().padding(vertical = Frame.inset),
-                    fill = Palette.canvasBg,
-                ) {
+                WindowSurface(Modifier.weight(1f).fillMaxHeight(), fill = Palette.canvasBg) {
                     Row(Modifier.fillMaxSize()) {
                         Column(Modifier.weight(1f).fillMaxHeight()) {
                             EditorTabs(ws)
@@ -167,7 +162,6 @@ fun App(
                         if (ws.showProps && active != null) PropsPanel(active)
                     }
                 }
-                Spacer(Modifier.width(Frame.inset))
                 RightRail(ws)
             }
             StatusBar(ws)
