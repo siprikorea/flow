@@ -110,9 +110,9 @@
     },
     {
       "id": "flow.json",
-      "name": "JSON Format",
-      "version": "1.0.1",
-      "description": "Re-format JSON with an indent; optionally sort keys. Reports where invalid JSON stops making sense.",
+      "name": "JSON",
+      "version": "1.1.0",
+      "description": "Take one field out of a JSON document with a path, or re-format the whole thing.",
       "file": "json-extension.jar",
       "inputs": [
         "in"

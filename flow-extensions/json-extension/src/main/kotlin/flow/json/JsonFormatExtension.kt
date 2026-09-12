@@ -5,7 +5,16 @@ import flow.extension.ProcessorExtension
 import flow.extension.OptionType
 
 /**
- * Re-formats JSON: parses "in" and writes it back out indented.
+ * Reads JSON: re-formats a document, or takes one field out of it.
+ *
+ * The second is what makes JSON usable in a flow at all. Almost everything that answers in JSON —
+ * an MCP tool, an HTTP service, a JWT payload — answers with a document wrapped around the one
+ * value the next node wants, and without a way to reach into it the only options are to hash the
+ * whole document or to cut it up by byte offset and hope the shape never changes.
+ *
+ * A path that finds nothing is an error rather than an empty output, and this is the whole point:
+ * a renamed field that silently produces nothing is a flow that keeps running and signs, posts or
+ * encrypts emptiness. The failure says how far the path got and what was actually there.
  *
  * The parser is written here rather than pulled in, so the module stays a single jar with nothing
  * to collide with. It is only asked to recognise well-formed JSON — anything it cannot read is
@@ -13,24 +22,37 @@ import flow.extension.OptionType
  */
 class JsonFormatExtension : ProcessorExtension {
     override val id = "flow.json"
-    override val displayName = "JSON Format"
-    override val version = "1.0.1"
+    override val displayName = "JSON"
+    override val version = "1.1.0"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(
+        // empty means the whole document, which is what this module did before it could extract
+        ExtensionOption("path", OptionType.TEXT, ""),
         ExtensionOption("indent", OptionType.SELECT, "2", listOf("2", "4", "tab")),
         // sorting makes two documents comparable; off by default, since order can carry meaning
         ExtensionOption("sortKeys", OptionType.SELECT, "false", listOf("false", "true")),
     )
 
     override val portDescriptions = mapOf(
-        "_module" to "Re-format JSON with an indent, optionally sorting keys. Use it to make output readable or to put two documents into a comparable shape. It reformats only — it does not extract fields or change values.",
-        "in" to "The JSON text.",
-        "out" to "The same document, re-indented. If it does not parse, the error says where it stopped making sense.",
+        "_module" to "Read JSON: take one field out of a document with 'path', or leave 'path' empty " +
+            "to re-format the whole thing. Extracting is what makes a JSON answer usable by the next " +
+            "node — a token out of a login response, one field out of an MCP tool's result — because " +
+            "a string comes out as its text, ready to be hashed, signed or posted. It never changes " +
+            "a value: numbers keep exactly the digits they were written with.",
+        "in" to "The JSON text, as UTF-8.",
+        "out" to "The value at 'path', or the whole document re-indented when no path is given. A " +
+            "string comes out as its own text with no quotes around it; an object or array comes out " +
+            "as JSON. A path that finds nothing is an error, not an empty result.",
     )
 
     override val optionDescriptions = mapOf(
-        "indent" to "Spaces per level, or a tab.",
+        "path" to "Which field to take, as 'user.name', 'items[0].id', or 'headers[\"content-type\"]' " +
+            "for a key with a dot or a bracket in it. Empty means the whole document. Nothing there is " +
+            "an error that says how far the path got and what it found instead, so a renamed field " +
+            "stops the flow rather than quietly emptying it.",
+        "indent" to "Spaces per level, or a tab. Applies to the document, and to an object or array " +
+            "taken out of it — a single string or number is not indented at all.",
         "sortKeys" to "Sort object keys, so two documents that differ only in key order come out identical.",
     )
 
@@ -43,8 +65,14 @@ class JsonFormatExtension : ProcessorExtension {
             else -> "  "
         }
         val sort = options["sortKeys"] == "true"
-        val value = JsonReader(text).readDocument()
-        return mapOf("out" to render(value, indent, sort, 0).encodeToByteArray())
+        val document = JsonReader(text).readDocument()
+        val path = options["path"].orEmpty().trim()
+        val value = if (path.isEmpty()) document else JsonPath(path).select(document)
+        // A string is handed on as its own text: quoting it would make the next node hash the
+        // quotes too, which is the mistake this module exists to spare a flow. Everything else is
+        // JSON, which for a number or a boolean is the same characters either way.
+        val out = if (path.isNotEmpty() && value is String) value else render(value, indent, sort, 0)
+        return mapOf("out" to out.encodeToByteArray())
     }
 
     private fun render(value: Any?, indent: String, sort: Boolean, depth: Int): String {
@@ -83,6 +111,112 @@ class JsonFormatExtension : ProcessorExtension {
             }
         }
         return out.append('"').toString()
+    }
+}
+
+/**
+ * One path into a document: `user.name`, `items[0].id`, `headers["content-type"]`.
+ *
+ * A deliberate subset — no wildcards, no filters, no recursive descent. What a flow needs is to
+ * reach a known field in a known shape, and the small grammar means a path that is wrong is wrong
+ * in a way that can be explained: it names the step it got to and what was there instead.
+ */
+internal class JsonPath(private val path: String) {
+
+    fun select(document: Any?): Any? {
+        var here: Any? = document
+        var reached = ""
+        steps().forEach { step ->
+            here = step.of(here, reached, path)
+            reached = if (reached.isEmpty()) step.shown else reached + step.shown
+        }
+        return here
+    }
+
+    /** The path, cut into the steps it is made of. Anything the grammar does not allow fails here. */
+    private fun steps(): List<Step> {
+        val steps = ArrayList<Step>()
+        var i = 0
+        while (i < path.length) {
+            when {
+                path[i] == '.' -> {
+                    if (steps.isEmpty()) fail("a path does not start with '.'")
+                    i++
+                    val name = path.substring(i).takeWhile { it != '.' && it != '[' }
+                    if (name.isEmpty()) fail("there is nothing after the '.'")
+                    steps += Step.Key(name)
+                    i += name.length
+                }
+                path[i] == '[' -> {
+                    val close = path.indexOf(']', i).takeIf { it > 0 } ?: fail("a '[' is never closed")
+                    val inside = path.substring(i + 1, close).trim()
+                    steps += when {
+                        inside.length >= 2 && inside.first() == '"' && inside.last() == '"' ->
+                            Step.Key(inside.substring(1, inside.length - 1))
+                        inside.toIntOrNull() != null && inside.toInt() >= 0 -> Step.Index(inside.toInt())
+                        else -> fail("'[$inside]' is neither an index nor a quoted key")
+                    }
+                    i = close + 1
+                }
+                else -> {
+                    if (steps.isNotEmpty()) fail("expected '.' or '[' at '${path.substring(i)}'")
+                    val name = path.takeWhile { it != '.' && it != '[' }
+                    steps += Step.Key(name)
+                    i += name.length
+                }
+            }
+        }
+        if (steps.isEmpty()) fail("the path is empty")
+        return steps
+    }
+
+    private fun fail(what: String): Nothing =
+        throw IllegalArgumentException("'$path' is not a usable path: $what")
+
+    private sealed class Step(val shown: String) {
+
+        abstract fun of(value: Any?, reached: String, path: String): Any?
+
+        protected fun stop(reached: String, path: String, what: String): Nothing =
+            throw IllegalArgumentException(
+                "'$path' found nothing: " + (if (reached.isEmpty()) "the document" else "'$reached'") + " $what",
+            )
+
+        class Key(private val name: String) : Step(if (name.any { it == '.' || it == '[' }) """["$name"]""" else ".$name") {
+            override fun of(value: Any?, reached: String, path: String): Any? {
+                val map = value as? Map<*, *> ?: stop(reached, path, "is ${describe(value)}, so it has no '$name'")
+                if (!map.containsKey(name)) {
+                    // the keys are the shape of the document, not its contents, and they are what a
+                    // caller needs to fix the path — a renamed field is the usual reason to be here
+                    val had = map.keys.take(8).joinToString(", ")
+                    val more = if (map.size > 8) ", and ${map.size - 8} more" else ""
+                    stop(reached, path, "has no '$name'" + if (map.isEmpty()) " (it is empty)" else " — it has $had$more")
+                }
+                return map[name]
+            }
+        }
+
+        class Index(private val at: Int) : Step("[$at]") {
+            override fun of(value: Any?, reached: String, path: String): Any? {
+                val list = value as? List<*> ?: stop(reached, path, "is ${describe(value)}, so it has no [$at]")
+                if (at >= list.size) {
+                    stop(reached, path, if (list.isEmpty()) "is an empty array" else "has ${list.size} items, so there is no [$at]")
+                }
+                return list[at]
+            }
+        }
+
+        companion object {
+            /** What something is, without saying what it holds — a path error is not a place to print values. */
+            fun describe(value: Any?): String = when (value) {
+                null -> "null"
+                is Map<*, *> -> "an object"
+                is List<*> -> "an array"
+                is String -> "a string"
+                is Boolean -> "a boolean"
+                else -> "a number"
+            }
+        }
     }
 }
 
