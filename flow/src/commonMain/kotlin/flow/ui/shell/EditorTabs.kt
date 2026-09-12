@@ -66,7 +66,7 @@ fun EditorTabs(ws: Workspace) {
                 }
             }
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.frameBorder))
     }
 }
 

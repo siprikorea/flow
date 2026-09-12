@@ -75,7 +75,7 @@ fun PropsPanel(state: EditorState) {
     }
 
     Row {
-        ResizeDivider(Palette.panelBorder) {
+        ResizeDivider(Palette.frameBorder) {
             // divider is on the panel's left edge, so dragging right shrinks it
             state.ws.propsWidth = (state.ws.propsWidth - it).coerceIn(200f, 560f)
         }

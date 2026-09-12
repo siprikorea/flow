@@ -154,7 +154,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
     val totalSize = if (fileBacked) totalFileSize else bytes.size.toLong()
 
     Column(
-        Modifier.fillMaxSize().background(Palette.appBg).padding(20.dp),
+        Modifier.fillMaxSize().background(Palette.windowGradient).padding(20.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {

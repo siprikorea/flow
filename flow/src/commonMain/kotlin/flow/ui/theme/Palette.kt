@@ -5,6 +5,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -111,6 +112,18 @@ class Scheme(
     // Generic state washes: hover/pressed on any flat row or icon button.
     val hoverOverlay: Color,
     val pressedOverlay: Color,
+
+    // --- The window itself ---
+    // The ground the whole program sits on, as a gradient corner to corner rather than one flat
+    // fill. It is only ever seen as the margin around the content and behind the rails, the title
+    // bar and the status bar — a few percent of light across that distance is enough to stop the
+    // window reading as a single dead rectangle, and any more would compete with the content.
+    val windowTop: Color,
+    val windowBottom: Color,
+    // The one line drawn around the content and around a tool window. Every panel edge that used
+    // to draw its own divider against the window now leaves it to this, which is what makes the
+    // border the same weight on all four sides and continuous through the corners.
+    val frameBorder: Color,
 )
 
 val DarkScheme = Scheme(
@@ -194,6 +207,10 @@ val DarkScheme = Scheme(
     catOutput = Color(0xFF3FA6C9),
     hoverOverlay = Color(0x0FFFFFFF),
     pressedOverlay = Color(0x1AFFFFFF),
+
+    windowTop = Color(0xFF1B1E26),
+    windowBottom = Color(0xFF0F1116),
+    frameBorder = Color(0xFF303541),
 )
 
 /**
@@ -290,6 +307,10 @@ val LightScheme = Scheme(
     catOutput = Color(0xFF2A7E9B),
     hoverOverlay = Color(0x0D000000),
     pressedOverlay = Color(0x14000000),
+
+    windowTop = Color(0xFFE8EBF2),
+    windowBottom = Color(0xFFD4D9E3),
+    frameBorder = Color(0xFFC6CCD6),
 )
 
 /**
@@ -385,6 +406,20 @@ object Palette {
     val catOutput get() = scheme.catOutput
     val hoverOverlay get() = scheme.hoverOverlay
     val pressedOverlay get() = scheme.pressedOverlay
+
+    val windowTop get() = scheme.windowTop
+    val windowBottom get() = scheme.windowBottom
+    val frameBorder get() = scheme.frameBorder
+
+    /**
+     * The window's own ground: a diagonal wash from the top-left corner to the bottom-right.
+     *
+     * Diagonal rather than vertical so that no two corners are quite the same — the frame around
+     * the content is the same thickness the whole way round, and the light falling across it is
+     * what keeps that from looking like a drawn rectangle.
+     */
+    val windowGradient: Brush
+        get() = Brush.linearGradient(listOf(scheme.windowTop, scheme.windowBottom))
 
     fun catColor(cat: String) = when (cat) {
         "source" -> catSource

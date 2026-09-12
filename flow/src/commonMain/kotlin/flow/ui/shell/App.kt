@@ -35,6 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.input.key.Key
@@ -85,17 +86,22 @@ import com.composables.icons.lucide.LogOut
 import com.composables.icons.lucide.Lucide
 import flow.ui.common.DtxField
 import flow.ui.common.LucideIcon
+import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
+import flow.ui.common.WindowSurface
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.ApplyTheme
 import flow.ui.theme.Palette
+import flow.ui.theme.Frame
 import flow.ui.theme.Radius
 import flow.ui.theme.Size
 import flow.ui.theme.Theme
-import flow.ui.tools.LeftToolWindow
+import flow.ui.props.PropsPanel
+import flow.ui.tools.LeftRail
+import flow.ui.tools.LeftToolCard
 import flow.ui.tools.ProjectContextMenu
-import flow.ui.tools.RightToolWindow
+import flow.ui.tools.RightRail
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlin.math.roundToInt
@@ -119,22 +125,50 @@ fun App(
             }
         }
     }
-    Box(Modifier.fillMaxSize().background(Palette.appBg)) {
+    // The window: a gradient ground, and on it one content frame with the same margin on all four
+    // sides. The title bar above it and the status bar below it are part of the window rather than
+    // part of the frame — they have no fill and no rule of their own — so the only border in the
+    // program is the frame's, unbroken around all four corners. A tool window opened from the left
+    // rail is a second sheet of exactly the same kind, laid beside the frame with that same margin
+    // between them.
+    Box(Modifier.fillMaxSize().background(Palette.windowGradient)) {
         Column(Modifier.fillMaxSize()) {
             MenuBar(ws, leadingInset, onTitleDoubleClick, onTitleBarPress)
             Row(Modifier.fillMaxWidth().weight(1f)) {
-                LeftToolWindow(ws) // activity bar always visible; panel folds via ws.showLeft
-                Column(Modifier.weight(1f).fillMaxHeight()) {
-                    EditorTabs(ws)
-                    Box(
-                        Modifier.weight(1f).fillMaxWidth()
-                            .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = editorDropTarget),
-                    ) {
+                LeftRail(ws) // always visible; the panel beside it folds via ws.showLeft
+                if (ws.showLeft) {
+                    LeftToolCard(ws, Modifier.padding(start = Frame.inset, top = Frame.inset, bottom = Frame.inset))
+                    // the margin between the card and the frame *is* the drag handle: a seam in
+                    // the window's own ground, with no line down it until the pointer is on it
+                    ResizeDivider(Color.Transparent, Frame.inset) {
+                        ws.leftWidth = (ws.leftWidth + it).coerceIn(160f, 500f)
+                    }
+                } else {
+                    Spacer(Modifier.width(Frame.inset))
+                }
+                WindowSurface(
+                    Modifier.weight(1f).fillMaxHeight().padding(vertical = Frame.inset),
+                    fill = Palette.canvasBg,
+                ) {
+                    Row(Modifier.fillMaxSize()) {
+                        Column(Modifier.weight(1f).fillMaxHeight()) {
+                            EditorTabs(ws)
+                            Box(
+                                Modifier.weight(1f).fillMaxWidth()
+                                    .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = editorDropTarget),
+                            ) {
+                                val active = ws.active
+                                if (active != null) CanvasView(active, Modifier.fillMaxSize()) else EmptyEditor(ws)
+                            }
+                        }
+                        // docked inside the frame, not hung off the rail — one sheet, one border,
+                        // a hairline where two regions of it meet
                         val active = ws.active
-                        if (active != null) CanvasView(active, Modifier.fillMaxSize()) else EmptyEditor(ws)
+                        if (ws.showProps && active != null) PropsPanel(active)
                     }
                 }
-                RightToolWindow(ws) // props panel + the settings/properties rail
+                Spacer(Modifier.width(Frame.inset))
+                RightRail(ws)
             }
             StatusBar(ws)
         }
@@ -847,7 +881,7 @@ fun SettingsScreen(ws: Workspace) {
 
     Box(Modifier.fillMaxSize()) {
     Column(
-        Modifier.fillMaxSize().background(Palette.appBg)
+        Modifier.fillMaxSize().background(Palette.windowGradient)
             .focusRequester(recorder)
             .focusable()
             .onPreviewKeyEvent { ev ->

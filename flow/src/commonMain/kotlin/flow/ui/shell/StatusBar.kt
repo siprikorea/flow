@@ -19,16 +19,18 @@ import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
+import flow.ui.theme.Space
 import flow.ui.theme.Size
 import kotlin.math.roundToInt
 
 @Composable
 fun StatusBar(ws: Workspace) {
     val active = ws.active
+    // No fill and no rule above it: the status bar sits on the window's ground, below the content
+    // frame, so the frame's border stays the only line on that edge.
     Column {
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
         Row(
-            Modifier.fillMaxWidth().height(Size.statusBar).background(Palette.panelBg).padding(horizontal = 12.dp),
+            Modifier.fillMaxWidth().height(Size.statusBar).padding(horizontal = Space.m),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {

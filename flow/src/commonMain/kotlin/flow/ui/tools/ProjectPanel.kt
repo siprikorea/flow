@@ -65,6 +65,7 @@ import flow.ui.common.ActivityButton
 import flow.ui.common.ActivityRail
 import flow.ui.common.KindBadge
 import flow.ui.common.LucideIcon
+import flow.ui.common.WindowSurface
 import flow.ui.common.RailSide
 import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
@@ -80,38 +81,40 @@ private val ROW_INDENT = 13.dp // per tree level
 
 // Left side: the activity rail + the panel it opens. Pressing an open one collapses it.
 @Composable
-fun LeftToolWindow(ws: Workspace) {
-    Row {
-        ActivityRail {
-            ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
-                LucideIcon(Lucide.Folder, tint, Size.iconLarge)
-            }
-            ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
-                LucideIcon(Lucide.LayoutGrid, tint, Size.iconLarge)
-            }
-            ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
-                LucideIcon(Lucide.Sparkles, tint, Size.iconLarge)
-            }
+fun LeftRail(ws: Workspace) {
+    ActivityRail {
+        ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
+            LucideIcon(Lucide.Folder, tint, Size.iconLarge)
         }
-        Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
-        if (ws.showLeft) {
-            Column(
-                Modifier
-                    .width(ws.leftWidth.dp)
-                    .fillMaxHeight()
-                    .background(Palette.panelBg),
-            ) {
-                when (ws.leftTab) {
-                    "modules" -> {
-                        PanelHeader(ws.t("tabModules"))
-                        ModulePalette(ws)
-                    }
-                    "ai" -> AiPanel(ws)
-                    else -> ProjectPanel(ws)
+        ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
+            LucideIcon(Lucide.LayoutGrid, tint, Size.iconLarge)
+        }
+        ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
+            LucideIcon(Lucide.Sparkles, tint, Size.iconLarge)
+        }
+    }
+}
+
+/**
+ * The tool window the rail has selected, as a card of its own.
+ *
+ * Docked panels used to be another column butted against the editor, separated by a hairline; a
+ * card sitting on the window's ground says the same thing with the shape instead — this is a
+ * different surface, brought out for as long as you want it, and the content frame beside it is
+ * unchanged underneath. It is the same [WindowSurface] the frame is, so the two agree on radius,
+ * border and weight without either knowing about the other.
+ */
+@Composable
+fun LeftToolCard(ws: Workspace, modifier: Modifier = Modifier) {
+    WindowSurface(modifier.width(ws.leftWidth.dp).fillMaxHeight()) {
+        Column(Modifier.fillMaxSize()) {
+            when (ws.leftTab) {
+                "modules" -> {
+                    PanelHeader(ws.t("tabModules"))
+                    ModulePalette(ws)
                 }
-            }
-            ResizeDivider(Palette.panelBorder) {
-                ws.leftWidth = (ws.leftWidth + it).coerceIn(160f, 500f)
+                "ai" -> AiPanel(ws)
+                else -> ProjectPanel(ws)
             }
         }
     }

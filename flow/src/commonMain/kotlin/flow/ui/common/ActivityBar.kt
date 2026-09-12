@@ -21,10 +21,14 @@ import flow.ui.theme.Size
 enum class RailSide { LEFT, RIGHT }
 
 // Vertical icon rail on one window edge; each button toggles the panel it stands for.
+//
+// No background of its own: the rail is part of the window, not part of the content, and letting
+// the window's gradient run behind it is what leaves the content frame as the only bordered thing
+// on that edge — a rail with its own fill and its own divider reads as a third panel.
 @Composable
 fun ActivityRail(content: @Composable ColumnScope.() -> Unit) {
     Column(
-        Modifier.width(Size.activityBar).fillMaxHeight().background(Palette.tabBarBg),
+        Modifier.width(Size.activityBar).fillMaxHeight(),
         horizontalAlignment = Alignment.CenterHorizontally,
         content = content,
     )

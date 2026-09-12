@@ -47,4 +47,20 @@ object Radius {
     val control = 4.dp
     val surface = 6.dp
     val dialog = 8.dp
+
+    // The content frame and any tool window shown as its own card. Larger than a dialog's, because
+    // it is a much larger rectangle: the same radius on a full-height panel barely reads as round.
+    val window = 10.dp
+}
+
+/**
+ * The frame the whole program sits in.
+ *
+ * One inset, used on all four sides and between the content and any tool window beside it, so the
+ * margin around everything is the same thickness in every direction and the corners are all the
+ * same corner. Anything that wants a different gap here is a mistake, not a special case.
+ */
+object Frame {
+    val inset = Space.s      // window edge to content, on every side
+    val border = 1.dp
 }

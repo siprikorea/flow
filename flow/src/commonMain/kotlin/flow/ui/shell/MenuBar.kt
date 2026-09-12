@@ -50,7 +50,7 @@ fun MenuBar(
     val active = ws.active
     Column {
         Row(
-            Modifier.fillMaxWidth().height(Size.toolbar).background(Palette.panelBg)
+            Modifier.fillMaxWidth().height(Size.toolbar)
                 // double-click on the title strip toggles fullscreen (like a native title bar)
                 .then(
                     if (onTitleDoubleClick != null) Modifier.pointerInput(Unit) {
@@ -87,6 +87,6 @@ fun MenuBar(
             Box(Modifier.width(1.dp).height(20.dp).background(Palette.borderSubtle))
             FlowIconButton(Lucide.Settings, onClick = { ws.showSettings = !ws.showSettings })
         }
-        Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
+
     }
 }
