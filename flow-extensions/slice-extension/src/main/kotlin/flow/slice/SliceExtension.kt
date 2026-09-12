@@ -16,11 +16,24 @@ import flow.extension.OptionType
 class SliceExtension : ProcessorExtension {
     override val id = "flow.slice"
     override val displayName = "Slice"
+    override val version = "1.0.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out", "rest")
     override val options = listOf(
         ExtensionOption("offset", OptionType.NUMBER, "0"),
         ExtensionOption("length", OptionType.NUMBER, ""),
+    )
+
+    override val portDescriptions = mapOf(
+        "_module" to "Take a range of bytes out of the input and hand back the rest separately. Use it to split a fixed-size header from a body, or an IV from a ciphertext.",
+        "in" to "The bytes to cut. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes.",
+        "out" to "The bytes from 'offset', 'length' of them.",
+        "rest" to "Everything else, in order — what came before the slice and what came after.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "offset" to "Where the slice starts, in bytes from the beginning.",
+        "length" to "How many bytes to take. Left empty, everything from the offset to the end.",
     )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {

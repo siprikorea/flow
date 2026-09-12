@@ -10,6 +10,7 @@ import javax.crypto.spec.SecretKeySpec
 class MacExtension : ProcessorExtension {
     override val id = "flow.mac"
     override val displayName = "MAC"
+    override val version = "1.0.1"
     override val inputs = listOf("in", "key")
     override val outputs = listOf("out")
     override val options = listOf(
@@ -26,6 +27,17 @@ class MacExtension : ProcessorExtension {
 
     /** the HMAC secret — never echoed back, logged, or put in an error message. */
     override val sensitiveInputs = listOf("key")
+
+    override val portDescriptions = mapOf(
+        "_module" to "Compute a keyed message authentication code, proving the input came from someone holding the key and was not altered. Use it to authenticate a message; use Hash when there is no key, and Signature when the verifier must not be able to forge.",
+        "in" to "The bytes to authenticate. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes.",
+        "key" to "The shared secret, as raw bytes: 'hex:', 'b64:', or text taken as UTF-8. Any length; HMAC folds it to the hash's block size.",
+        "out" to "The code as lowercase hex.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "algo" to "HmacSHA256 unless something else requires otherwise. The SHA-1 and MD5 variants are for old protocols; SHA3 variants where a different family is wanted.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val data = inputs["in"] ?: return mapOf("out" to null)

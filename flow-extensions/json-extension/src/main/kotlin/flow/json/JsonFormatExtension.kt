@@ -14,13 +14,24 @@ import flow.extension.OptionType
 class JsonFormatExtension : ProcessorExtension {
     override val id = "flow.json"
     override val displayName = "JSON Format"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(
         ExtensionOption("indent", OptionType.SELECT, "2", listOf("2", "4", "tab")),
         // sorting makes two documents comparable; off by default, since order can carry meaning
         ExtensionOption("sortKeys", OptionType.SELECT, "false", listOf("false", "true")),
+    )
+
+    override val portDescriptions = mapOf(
+        "_module" to "Re-format JSON with an indent, optionally sorting keys. Use it to make output readable or to put two documents into a comparable shape. It reformats only — it does not extract fields or change values.",
+        "in" to "The JSON text.",
+        "out" to "The same document, re-indented. If it does not parse, the error says where it stopped making sense.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "indent" to "Spaces per level, or a tab.",
+        "sortKeys" to "Sort object keys, so two documents that differ only in key order come out identical.",
     )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {

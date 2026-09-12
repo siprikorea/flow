@@ -13,7 +13,7 @@ import flow.extension.ProcessorExtension
 class TotpExtension : ProcessorExtension {
     override val id = "flow.totp"
     override val displayName = "TOTP"
-    override val version = "1.1.0"
+    override val version = "1.1.1"
     override val inputs = listOf("secret")
     override val outputs = listOf("out")
     override val options = Otp.options() + listOf(
@@ -22,6 +22,18 @@ class TotpExtension : ProcessorExtension {
 
     /** the shared secret — never echoed back, logged, or put in an error message. */
     override val sensitiveInputs = listOf("secret")
+
+    override val portDescriptions = mapOf(
+        "_module" to "A time-based one-time password (RFC 6238) — the code an authenticator app shows. Use it to check or produce that code; it reads the clock, so the two sides must agree on the time.",
+        "secret" to "The shared secret. Raw bytes as 'hex:'/'b64:', or the base32 string an authenticator app shows.",
+        "out" to "The code for the current time step, zero-padded to the chosen number of digits.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "algorithm" to "HmacSHA1 is what nearly every authenticator uses. The others only work if the other side agrees.",
+        "digits" to "How many digits the code has. 6 is near-universal.",
+        "timeStep" to "Seconds per code. 30 is the near-universal choice.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val secret = Otp.secretBytes(inputs["secret"] ?: ByteArray(0))

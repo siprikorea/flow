@@ -7,6 +7,7 @@ import flow.extension.ProcessorExtension
 class MergeExtension : ProcessorExtension {
     override val id = "flow.merge"
     override val displayName = "Merge"
+    override val version = "1.0.1"
     override val inputs = listOf("a", "b")
     override val outputs = listOf("out")
     override val options = listOf(ExtensionOption("sep", default = ""))
@@ -24,7 +25,7 @@ class MergeExtension : ProcessorExtension {
         "_module" to "Join two values into one, in port order, with an optional separator. Use it to " +
             "put two branches of a flow back together; it does not parse or re-encode either side.",
         "a" to "The first value. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes. Optional.",
-        "b" to "The second value, same encodings. Optional — with only one side, that side comes out as-is.",
+        "b" to "The second value; text as UTF-8, or 'hex:'/'b64:' for bytes. Optional — with only one side, that side comes out as-is.",
         "out" to "The two joined, with 'sep' between them.",
     )
 

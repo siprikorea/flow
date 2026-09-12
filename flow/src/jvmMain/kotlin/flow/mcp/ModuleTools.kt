@@ -87,7 +87,12 @@ internal object ModuleTools {
                 putJsonObject(option.name) { describeOption(option, module) }
             }
         }
-        val required = module.inputs - module.optionalInputs.toSet()
+        // Required is what the *default* options actually need, not everything the module declares:
+        // signature declares a 'signature' port but only verify uses one, and the default operation
+        // is sign. Listing it as required tells a caller to invent a value for a port that will be
+        // ignored. Every declared port stays in properties, so switching to verify can still fill it.
+        val forDefaults = Platform.moduleInputsFor(module.id, module.options.associate { it.name to it.default })
+        val required = (forDefaults ?: module.inputs) - module.optionalInputs.toSet()
         if (required.isNotEmpty()) putJsonArray("required") { required.forEach { add(it) } }
     }
 

@@ -16,7 +16,7 @@ import javax.imageio.ImageIO
 class QrExtension : ProcessorExtension {
     override val id = "flow.qr"
     override val displayName = "QR Code"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(
@@ -27,6 +27,18 @@ class QrExtension : ProcessorExtension {
         // the light border a scanner needs to find the symbol's edges; four modules is the minimum
         // the spec allows and anything less makes a code that will not read against a dark page
         ExtensionOption("quietZone", OptionType.NUMBER, "4"),
+    )
+
+    override val portDescriptions = mapOf(
+        "_module" to "Encode the input as a QR code image. Use it to hand something to a phone — a TOTP secret, a URL. The output is a PNG, meant for the Image view or a file.",
+        "in" to "The text to encode. Longer text needs a denser code.",
+        "out" to "A PNG image.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "correction" to "How much of the code can be damaged and still read: L about 7 percent, up to H about 30. Higher correction makes the code denser for the same text.",
+        "moduleSize" to "Pixels per QR module — how large the image comes out.",
+        "quietZone" to "Modules of blank margin. The standard says 4; less and some scanners fail.",
     )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {

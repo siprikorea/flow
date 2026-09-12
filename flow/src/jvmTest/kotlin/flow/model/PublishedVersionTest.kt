@@ -43,7 +43,9 @@ class PublishedVersionTest {
     }
 
     private fun published(): List<RegistryEntry> {
-        val raw = javaClass.getResourceAsStream("/extensions-registry.json")!!.readBytes().decodeToString()
+        // the file CI publishes verbatim as extensions.json, read directly — a fixture copy of it
+        // is one more thing to keep in step, and the copy that used to be here had fallen behind
+        val raw = File(extensionRoot(), "registry.json").readText()
         return json.decodeFromString<RegistryIndex>(raw).extensions
     }
 

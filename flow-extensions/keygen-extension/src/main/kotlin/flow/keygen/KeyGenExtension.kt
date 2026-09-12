@@ -13,6 +13,7 @@ import javax.crypto.KeyGenerator
 class KeyGenExtension : ProcessorExtension {
     override val id = "flow.keygen"
     override val displayName = "Key Generator"
+    override val version = "1.0.1"
     override val inputs = emptyList<String>()
     override val outputs = listOf("out")
     override val options = listOf(
@@ -25,6 +26,16 @@ class KeyGenExtension : ProcessorExtension {
         ),
         // blank = provider default size for the chosen algorithm (e.g. 128 for AES)
         ExtensionOption("keySize", OptionType.NUMBER, ""),
+    )
+
+    override val portDescriptions = mapOf(
+        "_module" to "Generate a fresh symmetric key. Use it to make a key for Cipher or MAC. It has no input — a key derived from a passphrase comes from Key Factory instead, and a key pair from Key Pair Generator.",
+        "out" to "The key as raw bytes.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "algorithm" to "The algorithm the key is for; the generator picks a legal length for it. AES for anything new.",
+        "keySize" to "Bits, not bytes. 128, 192 or 256 for AES. Left empty, the provider's default for that algorithm.",
     )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {

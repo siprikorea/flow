@@ -25,6 +25,7 @@ import javax.crypto.spec.PBEKeySpec
 class KeyFactoryExtension : ProcessorExtension {
     override val id = "flow.keyfactory"
     override val displayName = "Key Factory"
+    override val version = "1.0.1"
     override val inputs = listOf("password", "salt", "key") // full set; see inputsFor
     override val outputs = listOf("out")
     override val options = listOf(
@@ -70,6 +71,21 @@ class KeyFactoryExtension : ProcessorExtension {
     // encoding) propagate — the host surfaces the exception message as visible output
     /** the passphrase, and an encoded key — never echoed back, logged, or put in an error message. */
     override val sensitiveInputs = listOf("password", "key")
+
+    override val portDescriptions = mapOf(
+        "_module" to "Turn a passphrase into a key (PBKDF2), or rebuild a key object from encoded bytes. Use PBKDF2 whenever a human-chosen secret has to become a key — hashing a password with Hash is not a substitute, because a digest is fast and PBKDF2 is deliberately slow.",
+        "password" to "The passphrase, as text or 'hex:'/'b64:' bytes. Used only by the PBKDF2 algorithms.",
+        "salt" to "The salt, 16 bytes or more, 'hex:'/'b64:' or text. Different per password, and stored alongside the result — it is not secret.",
+        "key" to "An encoded key to rebuild, when the algorithm is not PBKDF2: X.509 for a public key, PKCS#8 for a private one. Give the encoding as 'hex:' or 'b64:' bytes — these are binary, so text is almost never what is meant.",
+        "out" to "The derived or rebuilt key as raw bytes.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "algorithm" to "A PBKDF2 variant to derive from a passphrase; a named key algorithm (RSA, EC, Ed25519 and so on) to rebuild an encoded key.",
+        "keyType" to "For rebuilding: whether the bytes are a private (PKCS#8) or public (X.509) key. Ignored by PBKDF2.",
+        "iterations" to "PBKDF2 work factor. Higher is slower for everyone, including an attacker; 600000 is a current figure for SHA-256, and the default here is deliberately conservative rather than fast.",
+        "keySize" to "Bits of derived key. 256 for an AES-256 key.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val algorithm = algorithmOf(options)

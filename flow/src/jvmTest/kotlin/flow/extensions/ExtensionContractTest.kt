@@ -137,4 +137,50 @@ class ExtensionContractTest {
             )
         }
     }
+    /**
+     * Every module and every port says what it is for.
+     *
+     * The client choosing between these is increasingly a model, and a model picks a tool by
+     * reading its description and nothing else — an empty one is a tool that gets called for the
+     * wrong reasons or not at all. Ports matter as much: "key" does not say 16, 24 or 32 bytes,
+     * and a caller that guesses wrong gets a failure it could have avoided.
+     */
+    @Test
+    fun `every extension describes itself and each of its ports`() {
+        val undescribed = all.filter { it.portDescriptions["_module"].isNullOrBlank() }
+        assertTrue(undescribed.isEmpty(), "no description of what it does: ${undescribed.map { it.id }}")
+
+        all.forEach { e ->
+            val ports = (e.inputs + e.outputs).filter { e.portDescriptions[it].isNullOrBlank() }
+            assertTrue(ports.isEmpty(), "${e.id} does not describe: $ports")
+        }
+    }
+
+    /**
+     * A port that takes bytes says how to give them.
+     *
+     * The encoding is the thing a caller cannot guess and gets wrong silently — text where hex was
+     * meant produces a result rather than an error.
+     */
+    @Test
+    fun `an input port says what encoding it expects`() {
+        val vague = all.flatMap { e ->
+            e.inputs.mapNotNull { port ->
+                val said = e.portDescriptions[port].orEmpty()
+                val saysEncoding = listOf("hex:", "b64:", "text", "base32", "JSON", "decimal", "base64")
+                    .any { said.contains(it, ignoreCase = true) }
+                if (saysEncoding) null else "${e.id}.$port"
+            }
+        }
+        assertTrue(vague.isEmpty(), "these input ports do not say what they take: $vague")
+    }
+
+    @Test
+    fun `every option says what it is for`() {
+        val undescribed = all.flatMap { e ->
+            e.options.filter { e.optionDescriptions[it.name].isNullOrBlank() }.map { "${e.id}.${it.name}" }
+        }
+        assertTrue(undescribed.isEmpty(), "these options are undescribed: $undescribed")
+    }
+
 }

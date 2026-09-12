@@ -14,6 +14,7 @@ import java.util.Base64
 class Base64Extension : ProcessorExtension {
     override val id = "flow.base64"
     override val displayName = "Base64"
+    override val version = "1.0.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(
@@ -27,6 +28,18 @@ class Base64Extension : ProcessorExtension {
     // padding is an encoder setting; the decoder takes either form
     override fun optionsFor(values: Map<String, String>): List<ExtensionOption> =
         if (isDecode(values)) options.filterNot { it.name == "padding" } else options
+
+    override val portDescriptions = mapOf(
+        "_module" to "Encode bytes as base64 text, or decode base64 back to bytes. Use it to carry binary through something that only takes text. It is an encoding, not encryption — it hides nothing.",
+        "in" to "On encode, the bytes to encode (Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes.). On decode, the base64 text.",
+        "out" to "The base64 text, or the decoded bytes.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "mode" to "encode turns bytes into base64; decode turns base64 back into bytes.",
+        "variant" to "standard uses + and /; url uses - and _, which survive being put in a URL or a filename. JWTs and most web APIs use url.",
+        "padding" to "Whether to write the trailing '=' that rounds the output to a multiple of four. Most decoders accept either; some strict ones do not.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val data = inputs["in"] ?: return mapOf("out" to null)

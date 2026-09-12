@@ -28,7 +28,7 @@ import java.time.Duration
 class TelegramExtension : ProcessorExtension {
     override val id = "flow.telegram"
     override val displayName = "Telegram"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
 
@@ -52,6 +52,20 @@ class TelegramExtension : ProcessorExtension {
     )
 
     override val secretSettings = listOf("botToken")
+
+    override val portDescriptions = mapOf(
+        "_module" to "Send the input to a Telegram chat through a bot. Use it as the last step of a flow, to reach a phone. The message id comes back out, so a second one can reply to the first.",
+        "in" to "The message text. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes.",
+        "out" to "The message's id, for replying to it.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "chatId" to "Which chat: a numeric id, or '@channelname' for a public channel. Left empty, the one set in Settings ▸ Extensions.",
+        "parseMode" to "How the text is rendered. Empty means plain text, which is the safe choice — Telegram refuses the whole message if the markup does not parse.",
+        "replyTo" to "The id of a message to reply to. Left empty, this is a new message.",
+        "silent" to "Deliver without a notification sound: for something worth recording and not worth interrupting for.",
+        "timeoutSec" to "How long to wait for Telegram to answer.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val text = inputs["in"]?.decodeToString().orEmpty()

@@ -21,7 +21,7 @@ import javax.crypto.spec.SecretKeySpec
 class JwtExtension : ProcessorExtension {
     override val id = "flow.jwt"
     override val displayName = "JWT"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val inputs = listOf("jwt", "secret")
     override val outputs = listOf("header", "payload", "signature")
     override val options = listOf(
@@ -30,6 +30,19 @@ class JwtExtension : ProcessorExtension {
 
     /** the signing secret — never echoed back, logged, or put in an error message. */
     override val sensitiveInputs = listOf("secret")
+
+    override val portDescriptions = mapOf(
+        "_module" to "Verify a JWT's HMAC signature and split out its three parts. Use it to check a token and read its claims. It only handles the HMAC family — an RS256/ES256 token needs Signature instead — and it always verifies, so it will not decode a token you have no secret for.",
+        "jwt" to "The token, as the three dot-separated base64url parts.",
+        "secret" to "The HMAC secret the token was signed with. Text or 'hex:'/'b64:'.",
+        "header" to "The decoded header JSON.",
+        "payload" to "The decoded payload JSON — the claims.",
+        "signature" to "The raw signature bytes.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "expect" to "The algorithm the token must declare. Refusing anything else is what stops a token from talking you into verifying it a weaker way; 'any' accepts whatever the header says and should be a deliberate choice.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val token = (inputs["jwt"] ?: ByteArray(0)).decodeToString().trim()

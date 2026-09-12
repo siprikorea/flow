@@ -41,7 +41,7 @@ import java.time.Duration
 class AiExtension : ProcessorExtension {
     override val id = "flow.ai"
     override val displayName = "AI"
-    override val version = "1.2.1"
+    override val version = "1.2.2"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
 
@@ -101,6 +101,19 @@ class AiExtension : ProcessorExtension {
         if (models.isEmpty()) return shown
         return shown.map { if (it.name == "model") it.copy(choices = listOf("") + models) else it }
     }
+
+    override val portDescriptions = mapOf(
+        "_module" to "Send the input to a language model with a role to play, and put its answer on the output. Use it for a step no fixed module can do — summarising, classifying, rewriting, drafting — and chain two of them to make two steps. It is not deterministic: the same input can give a different answer each run, so do not put it where an exact value is needed.",
+        "in" to "The text to work on. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes.",
+        "out" to "The model's answer as text, ready to be the next node's input.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "provider" to "Which assistant answers. Left empty, whichever one the app is configured to use, so a flow built on one machine still runs on another.",
+        "model" to "The model name. Left empty, the one configured for that provider in Settings.",
+        "role" to "What to do with the input. This is the whole behaviour of the node, and what makes two of these in a row two different steps.",
+        "timeoutSec" to "How long to wait for an answer before giving up. A local model on a slow machine can need minutes.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val input = inputs["in"]?.decodeToString().orEmpty()

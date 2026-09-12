@@ -33,7 +33,7 @@ import java.time.Duration
 class SlackExtension : ProcessorExtension {
     override val id = "flow.slack"
     override val displayName = "Slack"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
 
@@ -55,6 +55,18 @@ class SlackExtension : ProcessorExtension {
 
     /** Both credentials. Named rather than flagged on the option — see ProcessorExtension. */
     override val secretSettings = listOf("botToken", "webhookUrl")
+
+    override val portDescriptions = mapOf(
+        "_module" to "Post the input to a Slack channel. Use it as the last step of a flow, to tell a person what happened. The message id comes back out, so a second one can reply underneath the first instead of posting again.",
+        "in" to "The message text. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes.",
+        "out" to "The message's id (its 'ts'), for replying in thread.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "channel" to "Which channel: '#builds' or a channel id. Left empty, the one set in Settings ▸ Extensions.",
+        "threadTs" to "The id of a message to reply under — the output of another Slack node. Left empty, this is a new message.",
+        "timeoutSec" to "How long to wait for Slack to answer.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val text = inputs["in"]?.decodeToString().orEmpty()

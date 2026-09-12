@@ -84,20 +84,40 @@ class RegistryKindTest {
         )
     }
 
+    /**
+     * Every entry names a jar this build produces, and every jar has an entry.
+     *
+     * This is the release's own check, run here instead of ten minutes into CI: the workflow
+     * compares the manifest's file names against the built jars and fails the deploy when they
+     * disagree. An entry naming a jar that is not published is a row whose Install button 404s.
+     */
     @Test
-    fun `an entry's jar is named after the entry`() {
-        // not required by anything, but it is what makes the one-to-one above visible at a glance
-        val index = json.decodeFromString<RegistryIndex>(manifest())
-        index.extensions.forEach { e ->
-            assertEquals(
-                "extensions/${e.id}.flowext", e.file,
-                "${e.id} is published as ${e.file}",
-            )
-        }
+    fun `every entry names a jar this build produces, and every jar has an entry`() {
+        val built = java.io.File(EXTENSIONS).listFiles().orEmpty()
+            .flatMap { java.io.File(it, "build/libs").listFiles().orEmpty().toList() }
+            .filter { it.extension == "jar" }
+            .map { it.name }
+            .sorted()
+        assertTrue(built.size >= 20, "only ${built.size} jars were built to check against")
+        val listed = json.decodeFromString<RegistryIndex>(manifest()).extensions.map { it.file }.sorted()
+        assertEquals(built, listed, "the manifest and the built jars disagree")
     }
 
-    private fun manifest(): String =
-        javaClass.getResourceAsStream("/extensions-registry.json")!!.readBytes().decodeToString()
+    /**
+     * The manifest itself, not a copy of it.
+     *
+     * CI publishes this file verbatim as `extensions.json`, which is what every installed app
+     * downloads. A fixture beside the test would be a second copy to keep in step — and the one
+     * that used to be here had gone stale enough to be missing two extensions entirely, which is
+     * exactly the drift these tests exist to catch.
+     */
+    private fun manifest(): String = java.io.File("$EXTENSIONS/registry.json").readText()
+
+    private companion object {
+        /** From wherever the test happens to be run: Gradle starts it in the module directory. */
+        val EXTENSIONS: String =
+            if (java.io.File("../flow-extensions").isDirectory) "../flow-extensions" else "flow-extensions"
+    }
     /* ───────── categories ───────── */
 
     @Test

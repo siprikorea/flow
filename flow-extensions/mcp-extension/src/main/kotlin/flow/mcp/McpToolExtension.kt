@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 class McpToolExtension : ProcessorExtension {
     override val id = "flow.mcp"
     override val displayName = "MCP Tool"
+    override val version = "1.0.1"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(
@@ -41,6 +42,20 @@ class McpToolExtension : ProcessorExtension {
         val listing = toolOf(values).isEmpty()
         return options.filter { if (it.name == "argument" || it.name == "arguments") !listing else true }
     }
+
+    override val portDescriptions = mapOf(
+        "_module" to "Call a tool on an external MCP server from inside a flow. Use it to reach something Flow has no module for. It starts the server as a child process on every run, so it is as fast as that server is.",
+        "in" to "The value passed as the argument named by 'argument'. Text is taken as UTF-8; prefix with 'hex:' or 'b64:' for bytes, though most MCP tools want text.",
+        "out" to "The tool's text content, or the server's tool list when 'tool' is empty.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "command" to "The command line that starts the server over stdio, e.g. 'npx -y @modelcontextprotocol/server-everything'.",
+        "tool" to "Which tool to call. Left empty, the module lists what the server offers instead, which is the quickest way to find out.",
+        "argument" to "The name of the argument the 'in' port feeds.",
+        "arguments" to "Any further arguments, as a JSON object.",
+        "timeoutSec" to "How long to wait for the server to answer before giving up.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val command = options["command"].orEmpty().trim()

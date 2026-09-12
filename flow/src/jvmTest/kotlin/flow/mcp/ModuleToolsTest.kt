@@ -126,6 +126,24 @@ class ModuleToolsTest {
         }
     }
 
+    /**
+     * A port that the default options do not use is not required.
+     *
+     * Signature declares a 'signature' port, but only verify reads one and the default operation is
+     * sign. Marking it required tells a caller to invent a value for a port that will be ignored —
+     * and a model does exactly that rather than leaving a required field out.
+     */
+    @Test
+    fun `a port the default options do not use is not required`() {
+        val signature = listTools().find { it["name"]!!.jsonPrimitive.content == "flow_signature" }
+        assertTrue(signature != null, "flow.signature is not installed, so this cannot be checked")
+        val schema = signature!!["inputSchema"]!!.jsonObject
+        val required = schema["required"]!!.jsonArray.map { it.jsonPrimitive.content }
+        assertEquals(listOf("in", "key"), required, "signing was told to supply a signature")
+        // but it is still offerable, because verify needs it
+        assertTrue((schema["properties"] as JsonObject).containsKey("signature"))
+    }
+
     /* ───────── calling one for real ───────── */
 
     private fun installed(id: String): ModuleInfo? = Platform.installedModuleInfos().find { it.id == id }

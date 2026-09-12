@@ -19,6 +19,7 @@ import java.security.KeyStore
 class KeyStoreExtension : ProcessorExtension {
     override val id = "flow.keystore"
     override val displayName = "Key Store"
+    override val version = "1.0.1"
     override val inputs = listOf("store", "password")
     override val outputs = listOf("privateKey", "certificate", "publicKey")
     override val options = listOf(
@@ -29,6 +30,21 @@ class KeyStoreExtension : ProcessorExtension {
 
     /** the store password — never echoed back, logged, or put in an error message. */
     override val sensitiveInputs = listOf("password")
+
+    override val portDescriptions = mapOf(
+        "_module" to "Open a PKCS#12 or JKS keystore and take out what is in it. Use it when keys arrive as a .p12/.pfx/.jks rather than as raw bytes. It only reads; it does not create or modify a store.",
+        "store" to "The keystore file's bytes — 'b64:' or 'hex:'.",
+        "password" to "The password that opens the store, as text.",
+        "privateKey" to "The private key for the chosen alias, PKCS#8 encoded.",
+        "certificate" to "The certificate for that alias, DER encoded.",
+        "publicKey" to "The certificate's public key, X.509 encoded.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "type" to "PKCS12 for .p12/.pfx, which is the portable format; JKS only for old Java-specific stores.",
+        "alias" to "Which entry to take. Left empty, the first one in the store.",
+        "keyPassword" to "The password on the key entry itself, when it differs from the store's.",
+    )
 
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val storeBytes = inputs["store"] ?: return outputs.associateWith { null }
