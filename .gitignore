@@ -18,3 +18,7 @@ bin/
 
 # oh-my-claudecode session state, written wherever a tool happens to run
 .omc/
+
+# per-machine Claude Code settings and local hooks (the release skill is shared, these are not)
+.claude/settings.local.json
+.claude/hooks/
