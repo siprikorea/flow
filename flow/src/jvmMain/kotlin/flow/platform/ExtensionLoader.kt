@@ -131,7 +131,11 @@ internal object ExtensionLoader {
             val inputs = Wire.readStringList(input)
             val outputs = Wire.readStringList(input)
             val options = readOptions(input)
-            ModuleInfo(id, name, inputs, outputs, options, version, readOptions(input))
+            val settings = readOptions(input)
+            ModuleInfo(
+                id, name, inputs, outputs, options, version, settings,
+                Wire.readStringList(input), Wire.readStringMap(input), Wire.readStringMap(input),
+            )
         }
     }
 

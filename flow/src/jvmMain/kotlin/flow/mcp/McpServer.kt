@@ -141,11 +141,11 @@ object McpServer {
      */
     class ToolSpec(val name: String, val description: String, val schema: JsonObject)
 
-    fun toolSpecs(): List<ToolSpec> = tools().map { ToolSpec(it.name, it.description, it.schema) }
+    fun toolSpecs(): List<ToolSpec> = allTools().map { ToolSpec(it.name, it.description, it.schema) }
 
     /** Runs one, returning what it said — including, as text, why it could not. */
     fun invoke(name: String, args: JsonObject): String {
-        val tool = tools().find { it.name == name } ?: return "unknown tool: $name"
+        val tool = allTools().find { it.name == name } ?: return "unknown tool: $name"
         return runCatching { tool.call(args) }
             .getOrElse { e -> e.message ?: e::class.simpleName ?: "the tool failed" }
     }
@@ -268,8 +268,25 @@ object McpServer {
         ),
     )
 
+    /**
+     * The flow tools, plus one per installed processor.
+     *
+     * Rebuilt per request like the rest, so a processor installed while the server runs is callable
+     * without a restart — and so a client that lists tools twice sees what is actually there.
+     */
+    private fun allTools(): List<Tool> = tools() + moduleTools()
+
+    private fun moduleTools(): List<Tool> = Platform.installedModuleInfos().map { module ->
+        Tool(
+            name = ModuleTools.toolName(module.id),
+            description = ModuleTools.description(module),
+            schema = ModuleTools.schema(module),
+            call = { args -> ModuleTools.call(module, args) },
+        )
+    }
+
     private fun toolList(): JsonArray = buildJsonArray {
-        tools().forEach { tool ->
+        allTools().forEach { tool ->
             addJsonObject {
                 put("name", tool.name)
                 put("description", tool.description)
@@ -282,7 +299,7 @@ object McpServer {
         val name = params["name"]?.jsonPrimitive?.content
             ?: return toolError(ToolFailure(ToolFailure.MISSING_PORT, "Name the tool to call in 'name'."))
         val args = params["arguments"] as? JsonObject ?: JsonObject(emptyMap())
-        val tool = tools().find { it.name == name }
+        val tool = allTools().find { it.name == name }
             ?: return toolError(
                 ToolFailure(
                     ToolFailure.NOT_FOUND,

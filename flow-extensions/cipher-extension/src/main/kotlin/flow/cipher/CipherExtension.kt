@@ -40,6 +40,48 @@ class CipherExtension : ProcessorExtension {
         ExtensionOption("padding", OptionType.SELECT, symmetricPaddings.first(), symmetricPaddings),
     )
 
+    /**
+     * `iv` may always be left out.
+     *
+     * Not because it is unused — for CBC and friends it is essential — but because leaving it out
+     * means something well defined: encrypt generates one and prepends it, decrypt reads it back
+     * off the front. So a caller that has no IV to give is not making a mistake, and a schema that
+     * demanded one would make it look like they were. ECB ignores it either way, and RSA does not
+     * have the port at all (see inputsFor).
+     */
+    override fun optionalInputsFor(values: Map<String, String>) = listOf("iv")
+
+    override val portDescriptions = mapOf(
+        "_module" to "Encrypt or decrypt with AES, DES, DESede, Blowfish or RSA. Use it for the " +
+            "actual encryption step of a flow; for deriving a key from a passphrase use Key Factory " +
+            "first, and for hashing use Hash — this does not do either.",
+        "in" to "The plaintext to encrypt, or the ciphertext to decrypt. Text is taken as UTF-8; " +
+            "prefix with 'hex:' or 'b64:' for bytes. On decrypt this is almost always 'hex:' or 'b64:'.",
+        "key" to "The key, as raw bytes: 'hex:' or 'b64:', or text taken as UTF-8. AES needs 16, 24 " +
+            "or 32 bytes, DES 8, DESede 24. RSA takes an encoded key instead — X.509/certificate/PEM " +
+            "to encrypt, PKCS#8 DER or PEM to decrypt — which is what Key Pair Generator and Key " +
+            "Store produce. Derive a key from a passphrase with Key Factory rather than passing one here.",
+        "iv" to "The initialisation vector, 16 bytes for AES (12 for GCM), as 'hex:' or 'b64:'. " +
+            "Optional: leave it out and encrypt generates a random one and prepends it to the " +
+            "output, while decrypt reads it back off the front. ECB does not use one; RSA has none.",
+        "out" to "The ciphertext, or the recovered plaintext.",
+    )
+
+    override val optionDescriptions = mapOf(
+        "operation" to "encrypt turns 'in' into ciphertext; decrypt turns it back.",
+        "algorithm" to "AES for anything new. DES, DESede and Blowfish are for reading old data, " +
+            "not for producing it. RSA is asymmetric and only covers data smaller than the key " +
+            "(245 bytes for a 2048-bit key under PKCS#1) — encrypt a symmetric key with it, not bulk data.",
+        "mode" to "How blocks are chained. CBC is the usual choice; GCM also authenticates, so a " +
+            "tampered ciphertext fails to decrypt rather than producing rubbish; ECB leaks which " +
+            "blocks are equal and is for compatibility only; CFB/OFB/CTR turn the block cipher into " +
+            "a stream. Not used by RSA.",
+        "padding" to "RSA takes PKCS1Padding or an OAEP padding (prefer OAEPWithSHA-256AndMGF1Padding " +
+            "for anything new); block ciphers take PKCS5Padding, or NoPadding when the input is " +
+            "already a whole number of blocks. The two sets are not interchangeable and a mismatch " +
+            "is refused before anything runs.",
+    )
+
     private val random = SecureRandom()
     private val gcmNonceSize = 12
     private val gcmTagBits = 128

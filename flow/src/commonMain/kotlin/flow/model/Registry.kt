@@ -66,6 +66,11 @@ data class ModuleInfo(
     // what the extension asks to be configured once, rather than on every node — see
     // ProcessorExtension.settings
     val settings: List<OptDef> = emptyList(),
+    // what a generated tool schema needs beyond the names: which inputs may be left out, and one
+    // line saying what each port and option is for
+    val optionalInputs: List<String> = emptyList(),
+    val portDescriptions: Map<String, String> = emptyMap(),
+    val optionDescriptions: Map<String, String> = emptyMap(),
 )
 
 // Install result: installed ids and conflicting (already-existing) ids
