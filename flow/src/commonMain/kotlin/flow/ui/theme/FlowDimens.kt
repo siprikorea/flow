@@ -24,8 +24,13 @@ object Size {
      * that border came out 48 at the top, 52 at the sides and 32 at the bottom — four different
      * thicknesses that no amount of matching the *gaps* could even out, since the gap was never
      * the thing being seen.
+     *
+     * 32 rather than the status bar's old 24: a strip has to hold a 28dp control and a 20dp icon
+     * with a margin around them, and at 24 everything in it was flush against both edges — the run
+     * button filled the title bar top to bottom, and the rail icons sat right on the window's edge.
+     * Uniform and cramped is not what was asked for; this is uniform with room.
      */
-    val chrome = 24.dp
+    val chrome = 32.dp
 
     val toolbar = chrome
     val tabBar = 32.dp

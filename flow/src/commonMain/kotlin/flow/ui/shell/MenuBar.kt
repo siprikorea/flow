@@ -31,6 +31,7 @@ import flow.ui.common.FlowButton
 import flow.ui.common.FlowButtonVariant
 import flow.ui.common.FlowIconButton
 import flow.ui.common.Txt
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
 import flow.ui.theme.Size
 
@@ -67,12 +68,12 @@ fun MenuBar(
                         }
                     } else Modifier
                 )
-                .padding(start = 8.dp + leadingInset, end = 8.dp), // left: room for native traffic lights
+                .padding(start = 10.dp + leadingInset, end = 8.dp), // left: room for native traffic lights
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            AppLogo(16.dp)
-            Txt("Flow", 12.sp, Palette.textPrimary, weight = FontWeight.Bold)
+            AppLogo(Size.iconLarge)
+            Txt("Flow", FlowType.bodyStrong, Palette.textPrimary)
 
             Spacer(Modifier.weight(1f))
 
@@ -80,20 +81,14 @@ fun MenuBar(
             // bar. Stop is a borderless Ghost icon, active only while a run is in progress — and
             // only then does it read as danger (§5: red only appears while actually running).
             val running = active?.running == true
-            // compact throughout: the bar is one chrome strip tall, the same as the rails and the
-            // status bar, so nothing in it may be taller than that strip
-            FlowButton(
-                ws.t("start"), FlowButtonVariant.Primary, enabled = active != null && !running,
-                icon = Lucide.Play, compact = true,
-            ) {
+            // 28dp controls in a 32dp strip: 2dp of air top and bottom, which is what makes them
+            // read as sitting in the bar rather than filling it
+            FlowButton(ws.t("start"), FlowButtonVariant.Primary, enabled = active != null && !running, icon = Lucide.Play) {
                 active?.startRun()
             }
-            FlowIconButton(
-                Lucide.Square, enabled = running, compact = true,
-                tint = if (running) Palette.danger else null, onClick = { active?.stopRun() },
-            )
-            Box(Modifier.width(1.dp).height(14.dp).background(Palette.borderSubtle))
-            FlowIconButton(Lucide.Settings, compact = true, onClick = { ws.showSettings = !ws.showSettings })
+            FlowIconButton(Lucide.Square, enabled = running, tint = if (running) Palette.danger else null, onClick = { active?.stopRun() })
+            Box(Modifier.width(1.dp).height(16.dp).background(Palette.borderSubtle))
+            FlowIconButton(Lucide.Settings, onClick = { ws.showSettings = !ws.showSettings })
         }
 
     }

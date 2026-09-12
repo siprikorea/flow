@@ -8,13 +8,16 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import flow.ui.theme.Palette
+import flow.ui.theme.Radius
 import flow.ui.theme.Size
 
 // window edge the rail sits on (where its selection bar is drawn)
@@ -34,8 +37,17 @@ fun ActivityRail(content: @Composable ColumnScope.() -> Unit) {
     )
 }
 
-// One selection language for the whole rail: a 2dp accent bar on the rail's edge + an accent
-// icon — no filled box behind the selected icon (CLAUDE.md §5: "파란 라운드 박스 배경 금지").
+/**
+ * One button on a rail: an icon, centred, in a square the size of the strip.
+ *
+ * The hover is a rounded box behind the icon rather than a band across the rail — the same shape
+ * an icon button has anywhere else in the program, and the same shape the IDEs next door use. A
+ * full-width wash made the rail look like a list of rows, which it is not: these are buttons, and
+ * a button should be the size of the thing you are aiming at.
+ *
+ * Selection stays an accent icon plus a 2dp bar on the window's edge, not a filled box — a blue
+ * box behind a selected icon is the one thing this app's own guide rules out.
+ */
 @Composable
 fun ActivityButton(
     side: RailSide,
@@ -49,18 +61,27 @@ fun ActivityButton(
         hovered -> Palette.textPrimary
         else -> Palette.textSecondary
     }
-    val bg = if (!selected && hovered) Palette.hoverOverlay else Color.Transparent
     Box(
-        Modifier.fillMaxWidth().height(Size.activityBar).background(bg).hoverable(hoverSrc).plainClick(onClick),
+        Modifier.fillMaxWidth().height(Size.chrome).hoverable(hoverSrc).plainClick(onClick),
         contentAlignment = Alignment.Center,
     ) {
         if (selected) {
             Box(
                 Modifier
                     .align(if (side == RailSide.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
-                    .width(2.dp).height(14.dp).background(Palette.accent)
+                    .width(2.dp).height(16.dp).background(Palette.accent)
             )
         }
-        icon(tint)
+        Box(
+            Modifier
+                .size(Size.iconButton)
+                .background(
+                    if (hovered) Palette.hoverOverlay else Color.Transparent,
+                    RoundedCornerShape(Radius.surface),
+                ),
+            contentAlignment = Alignment.Center,
+        ) {
+            icon(tint)
+        }
     }
 }

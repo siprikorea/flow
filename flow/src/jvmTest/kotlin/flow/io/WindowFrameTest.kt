@@ -73,6 +73,31 @@ class WindowFrameTest {
             abs(b - (want.blue * 255).roundToInt()) <= 6
     }
 
+    /**
+     * How far from an edge the frame's line is, insisting on a line and not a pixel.
+     *
+     * A single matching pixel is not enough: text is antialiased, and a letter in the status bar
+     * blended against the ground lands on the border's own colour often enough that the first
+     * version of this measured the border as 30px instead of 80. So each candidate is checked
+     * across the perpendicular — a border runs the width of the sheet, a letter does not.
+     */
+    private fun stepsToEdge(b: Bitmap, from: Int, dir: Int, vertical: Boolean, limit: Int = 400): Int {
+        val across = if (vertical) listOf(w * 35 / 100, w / 2, w * 65 / 100) else listOf(h * 35 / 100, h / 2, h * 65 / 100)
+        var i = 0
+        while (i < limit) {
+            val at = from + dir * i
+            if (at !in 0 until (if (vertical) h else w)) return -1
+            val onTheLine = across.all { other ->
+                val px = if (vertical) other else at
+                val py = if (vertical) at else other
+                isFrameLine(b.getColor(px, py))
+            }
+            if (onTheLine) return i
+            i++
+        }
+        return -1
+    }
+
     /** How many steps from [x],[y] towards ([dx],[dy]) before the frame's line is reached. */
     private fun stepsToLine(b: Bitmap, x: Int, y: Int, dx: Int, dy: Int, limit: Int = 400): Int {
         var i = 0
@@ -101,10 +126,10 @@ class WindowFrameTest {
         val b = render(showLeft = false)
         val band = px(Frame.band.value)
 
-        val left = stepsToLine(b, 0, h / 2, 1, 0)
-        val right = stepsToLine(b, w - 1, h / 2, -1, 0)
-        val top = stepsToLine(b, w / 2, 0, 0, 1)
-        val bottom = stepsToLine(b, w / 2, h - 1, 0, -1)
+        val left = stepsToEdge(b, 0, 1, vertical = false)
+        val right = stepsToEdge(b, w - 1, -1, vertical = false)
+        val top = stepsToEdge(b, 0, 1, vertical = true)
+        val bottom = stepsToEdge(b, h - 1, -1, vertical = true)
 
         assertTrue(left >= 0 && right >= 0 && top >= 0 && bottom >= 0, "no frame found: $left/$right/$top/$bottom")
         assertEquals(band, left, "left border")

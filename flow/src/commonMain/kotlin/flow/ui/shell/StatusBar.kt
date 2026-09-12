@@ -34,8 +34,14 @@ fun StatusBar(ws: Workspace) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            // caption/tertiary throughout — left is the operating hint, right is the numbers
-            Txt(ws.t("statusHint"), FlowType.caption, Palette.textTertiary)
+            // caption/tertiary throughout — left is the operating hint, right is the numbers.
+            // The hint is the part that gives way: it is the same sentence every time and can be
+            // read short, while the counts and the zoom are the only changing numbers on screen
+            // and were being pushed off the end of the bar by it.
+            Txt(
+                ws.t("statusHint"), FlowType.caption, Palette.textTertiary,
+                modifier = Modifier.weight(1f, fill = false), maxLines = 1,
+            )
             Spacer(Modifier.weight(1f))
             Txt(
                 "${active?.nodes?.size ?: 0} ${ws.t("modules")} · ${active?.edges?.size ?: 0} ${ws.t("connections")}",

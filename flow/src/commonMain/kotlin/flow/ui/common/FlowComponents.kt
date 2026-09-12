@@ -120,12 +120,12 @@ fun FlowIconButton(
     Box(
         modifier
             .size(if (compact) Size.controlCompact else Size.iconButton)
-            .background(bg, RoundedCornerShape(Radius.control))
+            .background(bg, RoundedCornerShape(Radius.surface))
             .hoverable(hoverSrc)
             .plainClick { if (enabled) onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        LucideIcon(icon, resolvedTint, if (compact) Size.iconSmall else Size.icon)
+        LucideIcon(icon, resolvedTint, if (compact) Size.icon else Size.iconLarge)
     }
 }
 

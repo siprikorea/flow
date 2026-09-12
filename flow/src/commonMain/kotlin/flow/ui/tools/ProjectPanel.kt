@@ -84,13 +84,13 @@ private val ROW_INDENT = 13.dp // per tree level
 fun LeftRail(ws: Workspace) {
     ActivityRail {
         ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
-            LucideIcon(Lucide.Folder, tint, Size.icon)
+            LucideIcon(Lucide.Folder, tint, Size.iconLarge)
         }
         ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
-            LucideIcon(Lucide.LayoutGrid, tint, Size.icon)
+            LucideIcon(Lucide.LayoutGrid, tint, Size.iconLarge)
         }
         ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
-            LucideIcon(Lucide.Sparkles, tint, Size.icon)
+            LucideIcon(Lucide.Sparkles, tint, Size.iconLarge)
         }
     }
 }
@@ -183,7 +183,7 @@ private fun HeaderIcon(onClick: () -> Unit, icon: @Composable (Color) -> Unit) {
         Modifier
             .size(Size.iconButton)
             .hoverable(hoverSrc)
-            .background(if (hovered) Palette.hoverOverlay else Color.Transparent, RoundedCornerShape(Radius.control))
+            .background(if (hovered) Palette.hoverOverlay else Color.Transparent, RoundedCornerShape(Radius.surface))
             .plainClick(onClick),
         contentAlignment = Alignment.Center,
     ) {

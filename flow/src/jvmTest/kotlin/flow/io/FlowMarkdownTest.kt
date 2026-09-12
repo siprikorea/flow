@@ -90,10 +90,12 @@ class FlowMarkdownTest {
             }
             // The parse itself is not on the composition — append() suspends — so the last chunks
             // are still in flight when the last frame is drawn. Draw until two frames running are
-            // the same and take that; a second is far longer than parsing this takes and the loop
-            // leaves as soon as it has settled.
+            // the same and take that; the loop leaves as soon as it has settled, and the ceiling
+            // is generous because this shares a machine with the rest of the suite — at one second
+            // it went off occasionally under load, and an unsettled frame here reads as "the reply
+            // drew nothing".
             var last = frame()
-            repeat(40) {
+            repeat(120) {
                 Thread.sleep(25)
                 val next = frame()
                 if (next.contentEquals(last)) return last
