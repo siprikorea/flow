@@ -297,6 +297,16 @@ internal fun validateFlow(flow: FlowFile): List<String> {
             problems += "'${n.id}' stores outputs [${outs.joinToString(", ")}] but ${n.type} with these " +
                 "options has [${ports.outs.joinToString(", ")}]"
         }
+        // A saved flow describes the work, never the values: the editor strips port data on save,
+        // so a file that still carries some was written by an older version or edited by hand. It
+        // matters because a value in a file is a value in version control, in a backup and in
+        // whatever the file is shared through — and the ports that would carry one here are keys
+        // and plaintexts. Which port, and how much; never what.
+        (n.inputs + n.outputs).filter { it.data.isNotEmpty() }.forEach { port ->
+            problems += "'${n.id}.${port.name}' has ${port.data.size} bytes of value saved in the " +
+                "file — a flow describes the work, not the values. Clear the port and save again; " +
+                "if it is a secret, treat it as one that has been written to disk."
+        }
     }
 
     flow.edges.forEach { e ->

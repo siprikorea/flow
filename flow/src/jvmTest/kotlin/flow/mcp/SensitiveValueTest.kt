@@ -136,4 +136,49 @@ class SensitiveValueTest {
         assertTrue(!whole.contains("00112233445566778899aabb"), "the response repeated the key:\n$whole")
         assertTrue(!whole.contains("secret text"), "the response repeated the plaintext:\n$whole")
     }
+    /**
+     * A file that already carries a value is reported, not passed over.
+     *
+     * Saving strips port data, so a file with some in it was written by an older build or edited
+     * by hand — and nothing would ever have said so. The ports that carry values here are keys and
+     * plaintexts, and a value in a file is a value in version control and in every copy of it.
+     */
+    @Test
+    fun `validating a flow reports a value left in the file, without repeating it`() {
+        val secret = "hunter2-the-actual-key"
+        val flow = FlowFile(
+            nodes = listOf(
+                Node(
+                    id = "cin_1", type = "cin", label = "key", x = 0f, y = 0f, w = 120f, h = 60f,
+                    inputs = emptyList(), outputs = listOf(Port("out", secret.encodeToByteArray())),
+                    params = emptyMap(), status = "idle",
+                ),
+            ),
+            edges = emptyList(), seq = 1,
+        )
+        val problems = validateFlow(flow)
+        val said = problems.filter { it.contains("cin_1.out") }
+        assertTrue(said.isNotEmpty(), "a saved value went unreported: $problems")
+        assertTrue(said.single().contains("${secret.length} bytes"), said.single())
+        assertTrue(
+            problems.none { it.contains("hunter2") },
+            "the report repeated the value it was warning about: $problems",
+        )
+    }
+
+    @Test
+    fun `a flow with nothing left in its ports is not reported`() {
+        val flow = FlowFile(
+            nodes = listOf(
+                Node(
+                    id = "cin_1", type = "cin", label = "key", x = 0f, y = 0f, w = 120f, h = 60f,
+                    inputs = emptyList(), outputs = listOf(Port("out", ByteArray(0))),
+                    params = emptyMap(), status = "idle",
+                ),
+            ),
+            edges = emptyList(), seq = 1,
+        )
+        assertTrue(validateFlow(flow).none { it.contains("bytes of value") }, "${validateFlow(flow)}")
+    }
+
 }
