@@ -86,6 +86,16 @@ object McpServer {
         }
     }
 
+    /**
+     * One request, answered as the loop would answer it.
+     *
+     * The seam a test drives this server through: everything that decides what a client sees —
+     * dispatch, the tool's own refusals, how a failure is shaped — is on this side of stdio, and
+     * driving the real pipe to reach it would test the pipe.
+     */
+    internal fun handleForTest(line: String): String? =
+        handle(line)?.let { json.encodeToString(JsonObject.serializer(), it) }
+
     // null = the message was a notification, which takes no reply
     private fun handle(line: String): JsonObject? {
         val request = runCatching { json.parseToJsonElement(line).jsonObject }.getOrNull()
@@ -269,11 +279,36 @@ object McpServer {
     }
 
     private fun callTool(params: JsonObject): JsonObject {
-        val name = params["name"]?.jsonPrimitive?.content ?: return toolError("missing tool name")
+        val name = params["name"]?.jsonPrimitive?.content
+            ?: return toolError(ToolFailure(ToolFailure.MISSING_PORT, "Name the tool to call in 'name'."))
         val args = params["arguments"] as? JsonObject ?: JsonObject(emptyMap())
-        val tool = tools().find { it.name == name } ?: return toolError("unknown tool: $name")
-        return runCatching { toolText(tool.call(args)) }
-            .getOrElse { e -> toolError(e.message ?: e::class.simpleName ?: "error") }
+        val tool = tools().find { it.name == name }
+            ?: return toolError(
+                ToolFailure(
+                    ToolFailure.NOT_FOUND,
+                    "No tool by that name. Call tools/list to see what this server has.",
+                    message = "unknown tool: $name",
+                ),
+            )
+        return runCatching { toolText(tool.call(args)) }.getOrElse { e -> toolError(failureOf(e)) }
+    }
+
+    /**
+     * Whatever was thrown, as something a caller can act on.
+     *
+     * A ToolFailure already is one. Everything else is narrowed as far as its type honestly allows
+     * — the JCE's exceptions say a good deal by their type alone — and what cannot be narrowed is
+     * reported as itself rather than dressed up as a diagnosis.
+     */
+    private fun failureOf(e: Throwable): ToolFailure = when {
+        e is ToolFailure -> e
+        e is IllegalArgumentException || e is IllegalStateException -> ToolFailure(
+            code = ToolFailure.INVALID_OPTION,
+            hint = "The call was refused before anything ran. The message says which argument.",
+            message = e.message ?: "the call was refused",
+            cause = e,
+        )
+        else -> ToolFailure.fromCrypto(e, "the tool")
     }
 
     /* ───────── authoring: list / read / write ───────── */
@@ -726,15 +761,31 @@ object McpServer {
         put("isError", false)
     }
 
-    private fun toolError(message: String): JsonObject = buildJsonObject {
-        putJsonArray("content") {
-            addJsonObject {
-                put("type", "text")
-                put("text", message)
+    /**
+     * A failure, as both prose and fields.
+     *
+     * MCP carries a tool result as text, so the structure goes in the text as JSON: a client that
+     * only shows the string still shows something readable, and one that parses it can branch on
+     * `code` and read `hint` without guessing at wording. `structuredContent` carries the same
+     * object for clients that read it, so neither kind has to parse the other's format.
+     */
+    private fun toolError(failure: ToolFailure): JsonObject {
+        val detail = failure.toJson()
+        return buildJsonObject {
+            putJsonArray("content") {
+                addJsonObject {
+                    put("type", "text")
+                    put("text", prettyJson.encodeToString(JsonObject.serializer(), detail))
+                }
             }
+            put("structuredContent", detail)
+            put("isError", true)
         }
-        put("isError", true)
     }
+
+    /** The old shape, for the places that still hand up a bare sentence. */
+    private fun toolError(message: String): JsonObject =
+        toolError(ToolFailure(ToolFailure.INTERNAL, "The message is the tool's own.", message = message))
 
     /* ───────── JSON-RPC envelopes ───────── */
 
