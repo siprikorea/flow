@@ -27,6 +27,9 @@ class KeyStoreExtension : ProcessorExtension {
         ExtensionOption("keyPassword", OptionType.TEXT, ""),
     )
 
+    /** the store password — never echoed back, logged, or put in an error message. */
+    override val sensitiveInputs = listOf("password")
+
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val storeBytes = inputs["store"] ?: return outputs.associateWith { null }
         val password = (inputs["password"]?.decodeToString() ?: "").toCharArray()

@@ -82,6 +82,46 @@ interface ProcessorExtension {
     fun settingsFor(values: Map<String, String>): List<ExtensionOption> = settings
 
     /**
+     * Inputs that may be left out, for the given option values.
+     *
+     * [inputsFor] says which ports exist; this says which of them a caller need not supply. The two
+     * are different questions and both matter to a caller reading a schema: cipher's `iv` exists
+     * for AES and is still optional, because leaving it out means "generate one and prepend it".
+     *
+     * Everything not named here is required. That is the safe default — a caller told a port is
+     * optional when it is not gets a failure it cannot see coming.
+     */
+    fun optionalInputsFor(values: Map<String, String>): List<String> = emptyList()
+
+    /**
+     * One line per port: what it expects, in what encoding, and at what length.
+     *
+     * Written for something reading a generated schema rather than looking at the canvas, so it
+     * says the things a name cannot — "AES key, 16/24/32 bytes; `hex:` or `b64:` prefix for
+     * binary, otherwise UTF-8" rather than "key".
+     *
+     * A map keyed by port name rather than a field on the port, because ports are plain strings in
+     * this contract and adding a parameter to anything here breaks every jar already built.
+     */
+    val portDescriptions: Map<String, String> get() = emptyMap()
+
+    /** The same for options, and for what each choice of a SELECT is for. */
+    val optionDescriptions: Map<String, String> get() = emptyMap()
+
+    /**
+     * Inputs that carry a secret: a key, a password, a token.
+     *
+     * Naming them lets the host keep them out of the places a value should never reach — a log, a
+     * transcript, an error message, anything echoed back to a caller. It changes nothing about how
+     * the module reads them.
+     *
+     * This is about the *port*, not the value: `key` on a cipher is sensitive whether or not the
+     * key that arrives on it happens to be secret, because a port is what the host can reason
+     * about before anything runs.
+     */
+    val sensitiveInputs: List<String> get() = emptyList()
+
+    /**
      * Which of the [settings] hold a key: shown as dots, and kept where keys are kept rather than
      * in the settings file, which is written on every preference change and is meant to be read.
      *

@@ -43,6 +43,9 @@ class SignatureExtension : ProcessorExtension {
         else -> error("cannot determine key algorithm for '$signatureAlgorithm'")
     }
 
+    /** the signing or verifying key — never echoed back, logged, or put in an error message. */
+    override val sensitiveInputs = listOf("key")
+
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val data = inputs["in"] ?: return mapOf("out" to null)
         val key = inputs["key"] ?: return mapOf("out" to null)

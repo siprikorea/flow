@@ -20,6 +20,9 @@ class TotpExtension : ProcessorExtension {
         ExtensionOption("timeStep", OptionType.NUMBER, "30"),
     )
 
+    /** the shared secret — never echoed back, logged, or put in an error message. */
+    override val sensitiveInputs = listOf("secret")
+
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val secret = Otp.secretBytes(inputs["secret"] ?: ByteArray(0))
         val step = options["timeStep"]?.trim()?.toLongOrNull()?.coerceIn(1, 600) ?: 30

@@ -13,6 +13,9 @@ class HotpExtension : ProcessorExtension {
     override val outputs = listOf("out")
     override val options = Otp.options()
 
+    /** the shared secret — never echoed back, logged, or put in an error message. */
+    override val sensitiveInputs = listOf("secret")
+
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val secret = Otp.secretBytes(inputs["secret"] ?: ByteArray(0))
         val text = (inputs["counter"] ?: ByteArray(0)).decodeToString().trim()

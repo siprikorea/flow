@@ -28,6 +28,9 @@ class JwtExtension : ProcessorExtension {
         ExtensionOption("expect", OptionType.SELECT, "HS256", listOf("HS256", "HS384", "HS512", "any")),
     )
 
+    /** the signing secret — never echoed back, logged, or put in an error message. */
+    override val sensitiveInputs = listOf("secret")
+
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val token = (inputs["jwt"] ?: ByteArray(0)).decodeToString().trim()
         require(token.isNotEmpty()) { "no JWT on 'jwt'" }

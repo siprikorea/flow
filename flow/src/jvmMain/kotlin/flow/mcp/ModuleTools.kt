@@ -70,7 +70,17 @@ internal object ModuleTools {
             module.inputs.forEach { port ->
                 putJsonObject(port) {
                     put("type", "string")
-                    put("description", module.portDescriptions[port] ?: "the '$port' input, as text or 'hex:'/'b64:' bytes")
+                    val said = module.portDescriptions[port] ?: "the '$port' input, as text or 'hex:'/'b64:' bytes"
+                    val secret = port in module.sensitiveInputs
+                    put(
+                        "description",
+                        if (secret) {
+                            "$said Holds a secret: pass '\${ENV:NAME}' to have the value read from " +
+                                "that environment variable instead of putting it in this call."
+                        } else {
+                            said
+                        },
+                    )
                 }
             }
             module.options.forEach { option ->
@@ -130,7 +140,7 @@ internal object ModuleTools {
                 }
                 null
             } else {
-                decode(given, port)
+                decode(resolveEnv(given, port), port)
             }
         }
 
@@ -162,6 +172,28 @@ internal object ModuleTools {
             }
         }
     }
+
+    /**
+     * `${ENV:NAME}` — the value of an environment variable, read here and never seen by the caller.
+     *
+     * The point of it for a model-driven client: a flow that needs a key can name the key without
+     * the key ever being in the conversation, the tool call, or whatever the client keeps. The
+     * whole argument must be the reference; a half-substituted string would make it unclear
+     * whether what follows is a secret or not.
+     */
+    private fun resolveEnv(value: String, port: String): String {
+        val match = ENV_REFERENCE.matchEntire(value.trim()) ?: return value
+        val name = match.groupValues[1]
+        return System.getenv(name) ?: throw ToolFailure(
+            code = ToolFailure.MISSING_PORT,
+            port = port,
+            hint = "The environment variable '$name' is not set where this server runs. Set it, or " +
+                "give the value directly.",
+            message = "'$port' referenced an environment variable that is not set",
+        )
+    }
+
+    private val ENV_REFERENCE = Regex("""\$\{ENV:([A-Za-z_][A-Za-z0-9_]*)}""")
 
     /** `hex:`/`b64:` for bytes, anything else as UTF-8 — the convention every port description states. */
     private fun decode(value: String, port: String): ByteArray = when {

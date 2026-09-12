@@ -71,6 +71,8 @@ data class ModuleInfo(
     val optionalInputs: List<String> = emptyList(),
     val portDescriptions: Map<String, String> = emptyMap(),
     val optionDescriptions: Map<String, String> = emptyMap(),
+    // ports carrying a key, a password or a token — kept out of anything echoed back
+    val sensitiveInputs: List<String> = emptyList(),
 )
 
 // Install result: installed ids and conflicting (already-existing) ids

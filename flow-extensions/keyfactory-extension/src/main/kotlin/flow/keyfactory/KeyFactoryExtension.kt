@@ -68,6 +68,9 @@ class KeyFactoryExtension : ProcessorExtension {
 
     // failures (empty salt, key material that doesn't match the algorithm, a wrong keyType for the
     // encoding) propagate — the host surfaces the exception message as visible output
+    /** the passphrase, and an encoded key — never echoed back, logged, or put in an error message. */
+    override val sensitiveInputs = listOf("password", "key")
+
     override fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> {
         val algorithm = algorithmOf(options)
         val out = when {

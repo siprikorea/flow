@@ -221,6 +221,15 @@ public final class ExtensionWorker {
             // the extension's own settings, which the host edits once rather than per node, and
             // which of them hold a key
             writeOptions(o, e.getSettings(), e.getSecretSettings());
+            // what a generated schema needs beyond the names: which ports may be left out, and
+            // what each port and option is for. Asked with the options at their defaults, which is
+            // the only set of values a static schema can be about.
+            Map<String, String> defaults = new LinkedHashMap<>();
+            for (ExtensionOption opt : e.getOptions()) defaults.put(opt.getName(), opt.getDefault());
+            Wire.writeStringList(o, e.optionalInputsFor(defaults));
+            Wire.writeStringMap(o, e.getPortDescriptions());
+            Wire.writeStringMap(o, e.getOptionDescriptions());
+            Wire.writeStringList(o, e.getSensitiveInputs());
         }
     }
 
