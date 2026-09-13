@@ -35,6 +35,7 @@ import flow.ui.common.AppLogo
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
 import flow.ui.theme.Radius
 import flow.ui.theme.Size
@@ -121,12 +122,7 @@ private fun Tab(
             // What is open is a flow, and this is what a flow looks like everywhere else in the
             // program — the same mark the window and the dock carry.
             AppLogo(Size.icon)
-            Txt(
-                name, 14.sp,
-                if (active) Palette.textPrimary else Palette.textTertiary,
-                weight = if (active) FontWeight.Medium else FontWeight.Normal,
-                maxLines = 1,
-            )
+            Txt(name, FlowType.body, if (active) Palette.textPrimary else Palette.textTertiary, maxLines = 1)
             // Unsaved, in a slot of its own that is always there — so a file being saved does not
             // change the width of its tab, and so it never takes the close button's place. That is
             // what it used to do, on exactly the tab whose close button was wanted.
@@ -135,10 +131,7 @@ private fun Tab(
                     .background(if (dirty) Palette.warning else Color.Transparent, CircleShape),
             )
             // on every tab, the way the IDE next door does it
-            Txt(
-                "×", 14.sp, if (hovered || active) Palette.textSecondary else Palette.textTertiary,
-                modifier = Modifier.plainClick(onClose).padding(horizontal = 2.dp),
-            )
+            Txt("×", FlowType.body, if (hovered || active) Palette.textSecondary else Palette.textTertiary, modifier = Modifier.plainClick(onClose).padding(horizontal = 2.dp))
         }
     }
 }

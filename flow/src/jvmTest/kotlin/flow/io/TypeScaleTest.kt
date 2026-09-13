@@ -6,12 +6,13 @@ import kotlin.test.Test
 import kotlin.test.assertTrue
 
 /**
- * Every size in the program is one of the six the scale has.
+ * No screen names a size. They ask the scale for a style.
  *
- * They drifted: 8, 9, 10, 10.5, 11, 11.5, 12, 12.5, 13, 14 and 15 were all in use at once, most of
- * them in the screens written before the scale existed, and the result was a settings page whose
- * rows were smaller than the palette's beside it for no reason anyone could name. A size written as
- * a number is easy to add and impossible to notice, so this is what notices.
+ * Sizes drifted to eleven of them at once — 8 through 15 — most in the screens written before the
+ * scale existed, which is why a settings row read smaller than the palette row beside it. Now the
+ * only file with a number in it is the scale, so changing the balance is one edit and every screen
+ * follows. A number typed at a call site is easy to add and impossible to see, so this is what
+ * sees it.
  */
 class TypeScaleTest {
 
@@ -28,21 +29,21 @@ class TypeScaleTest {
     }
 
     @Test
-    fun `no text is sized outside the scale`() {
+    fun `no screen names a size of its own`() {
         // a size, but not the two text measurements that are not sizes
         val size = Regex("""(?<!letterSpacing = )(?<!lineHeight = )\b(\d+(?:\.\d+)?)\.sp\b""")
         val offenders = mutableListOf<String>()
         sources().forEach { file ->
             file.readLines().forEachIndexed { i, line ->
                 size.findAll(line).forEach { match ->
-                    val value = match.groupValues[1].toFloat()
-                    if (value !in allowed) offenders += "${file.name}:${i + 1}  ${match.value}"
+                    offenders += "${file.name}:${i + 1}  ${match.value}"
                 }
             }
         }
         assertTrue(
             offenders.isEmpty(),
-            "these are sized off the scale (${allowed.sorted().joinToString()}):\n" + offenders.joinToString("\n"),
+            "these name a size instead of asking FlowType for one (the scale is " +
+                "${allowed.sorted().joinToString()}):\n" + offenders.joinToString("\n"),
         )
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
 
 /**
@@ -85,13 +86,8 @@ fun Picker(
                                 .padding(horizontal = 8.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Txt(
-                                text,
-                                13.sp,
-                                if (id == selected) Palette.accent else Palette.text,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (id == selected) Txt("✓", 12.sp, Palette.accent)
+                            Txt(text, FlowType.small, if (id == selected) Palette.accent else Palette.text, modifier = Modifier.weight(1f))
+                            if (id == selected) Txt("✓", FlowType.small, Palette.accent)
                         }
                     }
                 }

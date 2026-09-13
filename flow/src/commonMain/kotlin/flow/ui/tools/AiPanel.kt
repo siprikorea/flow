@@ -52,6 +52,7 @@ import flow.ui.common.FlowMarkdown
 import flow.ui.common.Picker
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
 
 /**
@@ -88,7 +89,7 @@ fun AiPanel(ws: Workspace) {
                         .plainClick { Platform.pickFolder()?.let { ws.openProject(it) } }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
                 ) {
-                    Txt(ws.t("openFolder"), 13.sp, Palette.holeBg, weight = FontWeight.Medium)
+                    Txt(ws.t("openFolder"), FlowType.bodyStrong, Palette.holeBg)
                 }
             }
             else -> {
@@ -106,10 +107,10 @@ private fun Notice(title: String, body: String, footnote: String?, action: @Comp
         Modifier.fillMaxSize().padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Txt(title, 14.sp, Palette.text, weight = FontWeight.SemiBold)
-        Txt(body, 14.sp, Palette.subText)
+        Txt(title, FlowType.bodyStrong, Palette.text)
+        Txt(body, FlowType.body, Palette.subText)
         action()
-        footnote?.let { Txt(it, 13.sp, Palette.faintText) }
+        footnote?.let { Txt(it, FlowType.small, Palette.faintText) }
     }
 }
 
@@ -122,7 +123,7 @@ private fun Command(text: String) {
                 .border(1.dp, Palette.border, RoundedCornerShape(6.dp))
                 .padding(10.dp),
         ) {
-            Txt(text, 14.sp, Palette.text, mono = true)
+            Txt(text, FlowType.mono, Palette.text)
         }
     }
 }
@@ -153,7 +154,7 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
 
     if (ws.aiMessages.isEmpty()) {
         Box(modifier.fillMaxWidth().padding(14.dp)) {
-            Txt(ws.t("aiEmpty"), 14.sp, Palette.faintText)
+            Txt(ws.t("aiEmpty"), FlowType.body, Palette.faintText)
         }
         return
     }
@@ -165,13 +166,7 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
             itemsIndexed(ws.aiMessages) { index, message ->
                 val streaming = ws.aiStreaming && index == ws.aiMessages.lastIndex && !message.fromUser
                 Column(Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                    Txt(
-                        if (message.fromUser) ws.t("aiYou") else speakerName(ws, message),
-                        12.sp,
-                        if (message.fromUser) Palette.accent else Palette.catPlugin,
-                        weight = FontWeight.Bold,
-                        letterSpacing = 1.sp,
-                    )
+                    Txt(if (message.fromUser) ws.t("aiYou") else speakerName(ws, message), FlowType.caption, if (message.fromUser) Palette.accent else Palette.catPlugin)
                     Box(
                         Modifier.fillMaxWidth()
                             .background(
@@ -182,9 +177,9 @@ private fun Transcript(ws: Workspace, modifier: Modifier) {
                     ) {
                         when {
                             message.text.isBlank() ->
-                                Txt(if (streaming) ws.t("aiThinking") else "", 14.sp, Palette.faintText)
+                                Txt(if (streaming) ws.t("aiThinking") else "", FlowType.body, Palette.faintText)
                             // the user's own question is plain text; Claude's answer is Markdown
-                            message.fromUser -> Txt(message.text, 14.sp, Palette.text)
+                            message.fromUser -> Txt(message.text, FlowType.body, Palette.text)
                             else -> FlowMarkdown(message.text, streaming = streaming)
                         }
                     }
@@ -225,12 +220,12 @@ private fun Composer(ws: Workspace) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.weight(1f).padding(end = 8.dp)) {
-                if (text.isEmpty()) Txt(ws.t("aiPlaceholder"), 14.sp, Palette.faintText)
+                if (text.isEmpty()) Txt(ws.t("aiPlaceholder"), FlowType.body, Palette.faintText)
                 BasicTextField(
                     value = text,
                     onValueChange = { text = it },
                     enabled = !ws.aiStreaming,
-                    textStyle = TextStyle(color = Palette.text, fontSize = 14.sp),
+                    textStyle = TextStyle(color = Palette.text, fontSize = FlowType.body.size),
                     cursorBrush = SolidColor(Palette.accent),
                     modifier = Modifier.fillMaxWidth()
                         .onFocusChanged {
@@ -260,7 +255,7 @@ private fun Composer(ws: Workspace) {
             ModelPicker(ws)
             Spacer(Modifier.weight(1f))
             if (ws.aiMessages.isNotEmpty() && !ws.aiStreaming) {
-                Txt(ws.t("aiClear"), 13.sp, Palette.dimText, modifier = Modifier.plainClick { ws.clearAi() })
+                Txt(ws.t("aiClear"), FlowType.small, Palette.dimText, modifier = Modifier.plainClick { ws.clearAi() })
             }
         }
     }
@@ -300,8 +295,8 @@ private fun ModelPicker(ws: Workspace) {
             Modifier.padding(horizontal = 2.dp, vertical = 2.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Txt(label.ifBlank { ws.t("aiModelAuto") }, 13.sp, Palette.dimText, maxLines = 1)
-            Txt(" \u25be", 12.sp, Palette.faintText)
+            Txt(label.ifBlank { ws.t("aiModelAuto") }, FlowType.small, Palette.dimText, maxLines = 1)
+            Txt(" \u25be", FlowType.small, Palette.faintText)
         }
     }
 }

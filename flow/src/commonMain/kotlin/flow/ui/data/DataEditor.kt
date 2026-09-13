@@ -59,6 +59,7 @@ import flow.ui.io.EndPicker
 import flow.platform.droppedFilePath
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
+import flow.ui.theme.FlowType
 import flow.ui.theme.Mono
 import flow.ui.theme.Palette
 import flow.util.bytesToHex
@@ -158,13 +159,13 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            Txt(node.label, 16.sp, Palette.text, weight = FontWeight.SemiBold)
+            Txt(node.label, FlowType.title, Palette.text)
             val portKind = if (isOut) ws.t("labelOutputs") else ws.t("labelInputs")
             val endColor = if (isOut) Palette.catOutput else Palette.catInput
             Box(Modifier.background(endColor.copy(alpha = 0.16f), RoundedCornerShape(4.dp)).padding(horizontal = 7.dp, vertical = 2.dp)) {
-                Txt(portKind, 12.sp, endColor, weight = FontWeight.Medium)
+                Txt(portKind, FlowType.caption, endColor)
             }
-            if (isOut) Txt(ws.t("dataReadOnly"), 12.sp, Palette.dimText)
+            if (isOut) Txt(ws.t("dataReadOnly"), FlowType.small, Palette.dimText)
             Spacer(Modifier.weight(1f))
             if (isOut) {
                 ToolButton(ws.t("dataSaveFile")) {
@@ -208,9 +209,9 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
                     .border(1.dp, Palette.border, RoundedCornerShape(6.dp)).padding(horizontal = 10.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Txt("📄 ${Platform.fileName(filePath!!)}", 14.sp, Palette.text, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
-                Txt(ws.t("dataBytes").replace("{n}", totalFileSize.toString()), 13.sp, Palette.dimText, mono = true)
-                Txt("×", 16.sp, Palette.dimText, modifier = Modifier.plainClick { setParam("dataFile", null) }.padding(horizontal = 4.dp))
+                Txt("📄 ${Platform.fileName(filePath!!)}", FlowType.mono, Palette.text, modifier = Modifier.weight(1f), maxLines = 1)
+                Txt(ws.t("dataBytes").replace("{n}", totalFileSize.toString()), FlowType.mono, Palette.dimText)
+                Txt("×", FlowType.title, Palette.dimText, modifier = Modifier.plainClick { setParam("dataFile", null) }.padding(horizontal = 4.dp))
             }
         }
 
@@ -235,22 +236,19 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             }
 
             if (totalSize == 0L) {
-                Txt(
-                    if (isOut) ws.t("dataNoOutput") else ws.t("dataTypeHint"),
-                    14.sp, Palette.faintText, mono = true,
-                )
+                Txt(if (isOut) ws.t("dataNoOutput") else ws.t("dataTypeHint"), FlowType.mono, Palette.faintText)
             }
         }
 
         // what the input made of what is typed, said beside the value rather than in place of it
-        problem?.let { Txt(it, 13.sp, Palette.errorSoft) }
+        problem?.let { Txt(it, FlowType.small, Palette.errorSoft) }
 
         val windowEnd = minOf(windowStart + WINDOW_BYTES, totalSize)
         val label = if (totalSize > WINDOW_BYTES)
             ws.t("dataWindowOf").replace("{start}", windowStart.toString())
                 .replace("{end}", windowEnd.toString()).replace("{total}", totalSize.toString())
         else ws.t("dataBytes").replace("{n}", totalSize.toString())
-        Txt(label, 13.sp, Palette.dimText, mono = true)
+        Txt(label, FlowType.mono, Palette.dimText)
     }
 }
 
@@ -436,7 +434,7 @@ private fun EditableField(
             value = field,
             // what was typed shows straight away; turning it into bytes happens a moment later
             onValueChange = { field = it },
-            textStyle = TextStyle(color = Palette.text, fontSize = 14.sp, fontFamily = Mono),
+            textStyle = TextStyle(color = Palette.text, fontSize = FlowType.mono.size, fontFamily = Mono),
             cursorBrush = SolidColor(Palette.text),
             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll)
                 .onPreviewKeyEvent { ev ->
@@ -470,7 +468,7 @@ private fun ReadOnlyView(source: DataSource, writing: Writing, windowStart: Long
             value = text,
             onValueChange = {},
             readOnly = true,
-            textStyle = TextStyle(color = Palette.subText, fontSize = 14.sp, fontFamily = Mono),
+            textStyle = TextStyle(color = Palette.subText, fontSize = FlowType.mono.size, fontFamily = Mono),
             cursorBrush = SolidColor(Palette.text),
             modifier = Modifier.weight(1f).fillMaxHeight().verticalScroll(scroll),
         )
@@ -532,7 +530,7 @@ private fun ToolButton(label: String, onClick: () -> Unit) {
         Modifier.border(1.dp, Palette.border, RoundedCornerShape(6.dp)).plainClick(onClick)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     ) {
-        Txt(label, 13.sp, Palette.menuText, weight = FontWeight.Medium, maxLines = 1)
+        Txt(label, FlowType.bodyStrong, Palette.menuText, maxLines = 1)
     }
 }
 

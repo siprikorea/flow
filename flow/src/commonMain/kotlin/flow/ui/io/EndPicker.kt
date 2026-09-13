@@ -26,6 +26,7 @@ import flow.core.Workspace
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
 
 /**
@@ -62,9 +63,9 @@ fun EndPicker(
                 .padding(horizontal = 9.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Txt(label, 12.sp, Palette.dimText)
-            Txt(shown, 13.sp, Palette.text, modifier = Modifier.padding(horizontal = 6.dp))
-            Txt(if (open) "▲" else "▼", 12.sp, Palette.dimText)
+            Txt(label, FlowType.small, Palette.dimText)
+            Txt(shown, FlowType.small, Palette.text, modifier = Modifier.padding(horizontal = 6.dp))
+            Txt(if (open) "▲" else "▼", FlowType.small, Palette.dimText)
         }
         if (open) {
             Popup(
@@ -93,12 +94,8 @@ fun EndPicker(
                                 .padding(horizontal = 9.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Txt(
-                                name, 14.sp,
-                                if (id == selected) Palette.accent else Palette.text,
-                                modifier = Modifier.weight(1f),
-                            )
-                            if (id == selected) Txt("✓", 13.sp, Palette.accent)
+                            Txt(name, FlowType.body, if (id == selected) Palette.accent else Palette.text, modifier = Modifier.weight(1f))
+                            if (id == selected) Txt("✓", FlowType.small, Palette.accent)
                         }
                     }
                 }

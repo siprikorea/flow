@@ -47,6 +47,7 @@ import flow.core.bezierPoint
 import flow.core.portPos
 import androidx.compose.ui.geometry.Rect
 import flow.ui.common.Txt
+import flow.ui.theme.FlowType
 import flow.ui.theme.Palette
 import flow.ui.theme.Space
 
@@ -227,7 +228,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
 
         if (state.nodes.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Txt(state.t("emptyCanvas"), 14.sp, Palette.faintestText)
+                Txt(state.t("emptyCanvas"), FlowType.body, Palette.faintestText)
             }
         }
 
