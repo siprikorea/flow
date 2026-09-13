@@ -1,15 +1,16 @@
 package flow.extension
 
 /**
- * The four kinds of installable thing.
+ * What can be installed into Flow.
  *
- * A [ModuleExtension] does the work in the middle of a flow, an [InputExtension] decides how the
- * data going in is written, an [OutputExtension] how what comes out is shown, and a flow file
- * installed as a component is the fourth — built in the tool rather than written in Kotlin, so it
- * has no interface here.
+ * A [ModuleExtension] does the work in the middle of a flow, a [ViewExtension] shows what came out
+ * of one in a window of its own, and a flow file installed as a component is the third — built in
+ * the tool rather than written in Kotlin, so it has no interface here.
  *
- * The package is `flow.extension` and the types carry `Extension` in their names because that is
- * what every jar already built refers to; the word a person reads is "module" everywhere else.
+ * The package and two of the names still read `extension`. That is not what the program calls
+ * these — it calls them modules, everywhere a person reads — it is where the program already is:
+ * every jar anyone has installed names `flow.extension.*` in its class files and in its services
+ * file, and a name that moves is a jar that stops loading. See Legacy.kt.
  */
 
 /** The kind of editor a module option uses in the Flow property panel. */
@@ -18,6 +19,9 @@ enum class OptionType { TEXT, NUMBER, SELECT }
 /**
  * A predefined option the user can edit in the property panel.
  * `default` seeds the value on node creation; `choices` lists the allowed values for SELECT.
+ *
+ * Write it as [ModuleOption]; it keeps this name because every jar already built calls this
+ * constructor by it.
  */
 data class ExtensionOption(
     val name: String,
@@ -27,19 +31,18 @@ data class ExtensionOption(
 )
 
 /**
- * The same option, under the word the program uses everywhere else.
+ * A module's option, under the word the program uses everywhere else.
  *
- * An alias rather than a class: every jar already built calls `ExtensionOption`'s constructor by
- * that name, and a second class would be a second type they could never satisfy.
+ * An alias rather than a class of its own: a second class would be a second type, and the jars
+ * already built can only ever satisfy the first.
  */
 typealias ModuleOption = ExtensionOption
 
 /**
  * A module: the input → output work in the middle of a flow.
  *
- * This is what most installable things are — a hash, a cipher, an encoder. [InputExtension] and
- * [OutputExtension] are the two ends around it, and a component is a flow file installed as one
- * rather than a class.
+ * This is what most installed things are — a hash, a cipher, an encoder. A [ViewExtension] shows
+ * what one produced, and a component is a flow file installed as one rather than a class.
  *
  * Implementations must have a no-arg constructor and be registered under
  * `META-INF/services/flow.extension.ModuleExtension`. A jar registered under the older
@@ -193,14 +196,3 @@ interface ModuleExtension {
      */
     fun process(inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?>
 }
-
-/**
- * What a module was called while the program's own word for one was "module".
- *
- * Every jar built against that name is still out there, in installs nobody is going to rebuild, and
- * each one names this interface in its services file and in its class file. So it stays, as the
- * same contract under the older name: a class implementing it is a [ModuleExtension], and the host
- * loads both names. Nothing new should implement it.
- */
-@Deprecated("Renamed to ModuleExtension", ReplaceWith("ModuleExtension"))
-interface ProcessorExtension : ModuleExtension
