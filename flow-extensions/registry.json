@@ -3,7 +3,7 @@
     {
       "id": "flow.slack",
       "name": "Slack",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "Post the input to a Slack channel, with a bot token or an incoming webhook; the message id comes out so another can reply in thread.",
       "file": "slack-extension.jar",
       "inputs": [
@@ -18,7 +18,7 @@
     {
       "id": "flow.telegram",
       "name": "Telegram",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "description": "Send the input to a Telegram chat through a bot; the message id comes out so another can reply to it.",
       "file": "telegram-extension.jar",
       "inputs": [
@@ -33,7 +33,7 @@
     {
       "id": "flow.ai",
       "name": "AI",
-      "version": "1.2.3",
+      "version": "1.2.4",
       "description": "Send the input to a model with a role to play, and put its answer on the output — chain two to make each one a step.",
       "file": "ai-extension.jar",
       "inputs": [

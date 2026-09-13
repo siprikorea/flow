@@ -28,7 +28,7 @@ import java.time.Duration
 class TelegramExtension : ProcessorExtension {
     override val id = "flow.telegram"
     override val displayName = "Telegram"
-    override val version = "1.0.2"
+    override val version = "1.0.3"
     override val category = "messaging"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
@@ -61,7 +61,7 @@ class TelegramExtension : ProcessorExtension {
     )
 
     override val optionDescriptions = mapOf(
-        "chatId" to "Which chat: a numeric id, or '@channelname' for a public channel. Left empty, the one set in Settings ▸ Extensions.",
+        "chatId" to "Which chat: a numeric id, or '@channelname' for a public channel. Left empty, the one set in Settings ▸ Modules.",
         "parseMode" to "How the text is rendered. Empty means plain text, which is the safe choice — Telegram refuses the whole message if the markup does not parse.",
         "replyTo" to "The id of a message to reply to. Left empty, this is a new message.",
         "silent" to "Deliver without a notification sound: for something worth recording and not worth interrupting for.",
@@ -74,11 +74,11 @@ class TelegramExtension : ProcessorExtension {
 
         val token = options["botToken"].orEmpty().trim()
         require(token.isNotEmpty()) {
-            "no bot token — get one from @BotFather and put it in Settings ▸ Extensions ▸ Telegram"
+            "no bot token — get one from @BotFather and put it in Settings ▸ Modules ▸ Telegram"
         }
         val chat = options["chatId"].orEmpty().trim()
         require(chat.isNotEmpty()) {
-            "no chat — set one on this node, or in Settings ▸ Extensions ▸ Telegram"
+            "no chat — set one on this node, or in Settings ▸ Modules ▸ Telegram"
         }
         val timeout = options["timeoutSec"]?.trim()?.toLongOrNull()?.coerceIn(1, 600) ?: 30L
 

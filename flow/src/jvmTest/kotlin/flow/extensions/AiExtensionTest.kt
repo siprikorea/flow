@@ -203,7 +203,7 @@ class AiExtensionTest {
     /**
      * An extension's own settings reach it, underneath a node's options.
      *
-     * Declared by the extension, edited once in Settings ▸ Extensions, and merged in by the worker
+     * Declared by the extension, edited once in Settings ▸ Modules, and merged in by the worker
      * so that a node option left blank takes the setting's value. Both halves matter and both are
      * silent when wrong — a setting that never arrives looks like a node that ignored it, and one
      * that overrides a node looks like a node whose options do nothing — so both are asserted, by

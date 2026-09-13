@@ -48,7 +48,7 @@ internal fun isInstalledComponent(ref: String): Boolean {
 }
 
 // every component available as a comp: node — installed ones only. A project flow becomes one of
-// these by being explicitly installed (Settings ▸ Extensions ▸ Flows), same as a processor or
+// these by being explicitly installed (Settings ▸ Modules ▸ Flows), same as a processor or
 // view; merely existing in the open folder does not, any more than a processor is on the palette
 // just because its jar is somewhere on disk. Running a flow directly by path (run_flow, the CLI's
 // own positional-arg mode) is unaffected — this list is only what's offered as a *building block*.

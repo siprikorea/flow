@@ -428,7 +428,7 @@ class Workspace(private val scope: CoroutineScope) {
         pushExtensionSettings()
         // Components on offer as a building block (the palette, comp:<ref> autocomplete-ish spots)
         // are the installed ones only — a flow that merely lives in the open folder isn't one until
-        // explicitly installed (Settings ▸ Extensions ▸ Flows), the same as a processor or view
+        // explicitly installed (Settings ▸ Modules ▸ Flows), the same as a processor or view
         // isn't on the palette just because its jar exists somewhere. It can still be *referenced*
         // as comp:<path> directly (the engine resolves either store), just not auto-discovered.
         components = Platform.listInstalledComponents().mapNotNull { name ->
@@ -439,7 +439,7 @@ class Workspace(private val scope: CoroutineScope) {
     }
 
     /** A project flow's ports, read fresh — independent of [components], which only lists the
-     * ones installed. Settings ▸ Extensions ▸ Flows shows this for every project flow so it can
+     * ones installed. Settings ▸ Modules ▸ Flows shows this for every project flow so it can
      * offer Install for one that qualifies, whether or not it already is. Null when the file is
      * missing, unparseable, or has no cin/cout boundary — nothing an install would do anything with.
      */

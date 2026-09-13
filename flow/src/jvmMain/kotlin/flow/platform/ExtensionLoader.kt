@@ -75,7 +75,7 @@ internal object ExtensionLoader {
     private val processes = LinkedHashMap<File, ExtensionProcess>()
 
     /**
-     * What Settings ▸ Extensions has been set to, by extension id.
+     * What Settings ▸ Modules has been set to, by extension id.
      *
      * Held here rather than read off disk per run: it is the app's own state, the Settings screen
      * is the only thing that writes it, and a run must not pay for a file read per node. Pushed in

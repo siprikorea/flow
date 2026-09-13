@@ -283,7 +283,7 @@ internal fun validateFlow(flow: FlowFile): List<String> {
         paramProblems(n.type, n.params).forEach { problems += "'${n.id}' (${n.type}): $it" }
         val ports = portsOf(n.type, n.params)
         if (ports == null) {
-            problems += "'${n.id}' has unknown type '${n.type}' — the processor may not be installed"
+            problems += "'${n.id}' has unknown type '${n.type}' — the module may not be installed"
             return@forEach
         }
         known[n.id] = ports

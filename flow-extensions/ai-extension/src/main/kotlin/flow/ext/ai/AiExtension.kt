@@ -41,7 +41,7 @@ import java.time.Duration
 class AiExtension : ProcessorExtension {
     override val id = "flow.ai"
     override val displayName = "AI"
-    override val version = "1.2.3"
+    override val version = "1.2.4"
     override val category = "ai"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
@@ -61,7 +61,7 @@ class AiExtension : ProcessorExtension {
      * The same two, set once for every AI node instead of on each of them.
      *
      * A node's own value wins when it has one; blank means "whatever this is set to", which is
-     * already how the node reads them, so a flow that names neither follows Settings ▸ Extensions,
+     * already how the node reads them, so a flow that names neither follows Settings ▸ Modules,
      * and one that names neither there follows Settings ▸ AI.
      */
     override val settings = listOf(
@@ -129,7 +129,7 @@ class AiExtension : ProcessorExtension {
             ?: api.defaultModel
             // a command picks its own default when not told; only the API has to be given one
             ?: if (options["transport"] == VIA_CLI) "" else throw IllegalStateException(
-                "no model for $provider — set one on this node, or in Settings ▸ Extensions ▸ AI",
+                "no model for $provider — set one on this node, or in Settings ▸ Modules ▸ AI",
             )
         val role = options["role"].orEmpty().ifBlank { "Answer with the result only, and no explanation." }
         val timeout = options["timeoutSec"]?.trim()?.toLongOrNull()?.coerceIn(1, 3600) ?: 120L
@@ -141,12 +141,12 @@ class AiExtension : ProcessorExtension {
         }
 
         val url = settings.string(api.urlSetting)?.ifBlank { null } ?: api.defaultUrl
-        // this extension's own setting first — Settings ▸ Extensions ▸ AI, which is where someone
+        // this extension's own setting first — Settings ▸ Modules ▸ AI, which is where someone
         // configuring this node looks — then the app's AI panel key, then the environment
         val key = options["apiKey"]?.trim()?.ifBlank { null } ?: Config.apiKey(provider)
         if (api.needsKey && key.isEmpty()) {
             throw IllegalStateException(
-                "no API key for $provider — enter one in Settings ▸ Extensions ▸ AI, " +
+                "no API key for $provider — enter one in Settings ▸ Modules ▸ AI, " +
                     "or in Settings ▸ AI, or set ${api.envVar}",
             )
         }

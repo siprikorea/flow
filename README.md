@@ -147,7 +147,7 @@ Extensions provide **modules only** — components are built inside the Flow too
 - **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code, registered under `META-INF/services/flow.extension.ModuleExtension`. The file is a jar and the class loader reads it by content, but it carries a `.flowext` suffix so it is recognisable as a Flow extension rather than as any other library; `.jar` still loads, so anything installed earlier keeps working.
 
 Nothing ships with the app — the palette starts empty and every module arrives by being installed
-from **Settings ▸ Extensions**. The published set covers the JCA facilities plus a few utilities:
+from **Settings ▸ Modules**. The published set covers the JCA facilities plus a few utilities:
 `flow.hash`, `flow.mac`,
 `flow.signature`, `flow.cipher` (symmetric algorithms, and RSA with PKCS#1 or OAEP padding),
 `flow.keygen`, `flow.keypairgen`, `flow.keyfactory` (PBKDF2 derivation, and PKCS#8 / X.509 /
@@ -235,7 +235,7 @@ a flow should do and it is drafted from the installed modules, wired up and laid
 
 | Tool | |
 |---|---|
-| `list_nodes` | every building block — cin/cout, each processor's ports and options, flows installed as components |
+| `list_nodes` | every building block — cin/cout, each module's ports and options, flows installed as components |
 | `list_flows` | the project's flow files with their ports |
 | `read_flow` | a flow as the same `{nodes, edges}` spec `build_flow` takes, plus its `problems` |
 | `validate_flow` | verify a saved flow and report every fault found |
@@ -244,7 +244,7 @@ a flow should do and it is drafted from the installed modules, wired up and laid
 | `run_flow` | run a saved flow headlessly with real input and return what it output |
 | `open_flow`, `set_flow_input`, `start_flow`, `stop_flow` | act on the running app's own tabs (they refuse when it isn't running) |
 
-Each installed processor is a tool of its own besides — `flow_hash`, `flow_cipher` and so on — so a
+Each installed module is a tool of its own besides — `flow_hash`, `flow_cipher` and so on — so a
 single step can be run without a flow to put it in.
 
 `build_flow` takes the graph, not the file format: nodes by type, edges as `"node.port"` (or just
@@ -274,7 +274,7 @@ claude mcp add flow -- /abs/path/to/flow/build/flow-mcp
 
 The equivalent entry for a `mcpServers` config block is
 `{"flow": {"command": "/abs/path/to/flow/build/flow-mcp"}}`. The tool list is settled when the
-server starts — a processor installed afterwards needs a restart, which is what a client does
+server starts — a module installed afterwards needs a restart, which is what a client does
 between sessions anyway — while the flows themselves are read from disk per call, so one saved
 while the server runs shows up without one. Only protocol messages go to stdout; logs go to stderr
 (no SLF4J binding is on the classpath, so the SDK's own logging is a no-op and cannot reach the

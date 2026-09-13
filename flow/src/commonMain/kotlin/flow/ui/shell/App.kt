@@ -838,22 +838,20 @@ fun SettingsScreen(ws: Workspace) {
     var query by remember { mutableStateOf("") }
     val recorder = remember { FocusRequester() }
 
-    // Extensions is a heading with the four kinds under it: an extension is any of them, and which
-    // one you are looking for is the first thing you know.
+    // Everything installed is a module, so the three pages stand on their own rather than under a
+    // heading that repeats what one of them is already called.
     val categories = listOf(
         Category("appearance", ws.t("setAppearance")),
         Category("ai", ws.t("setAi")),
         Category("keymap", ws.t("setKeymap")),
-        Category("extensions", ws.t("manageTitle"), heading = true),
-        Category("views", ws.t("setViews"), nested = true),
-        Category("processors", ws.t("setProcessors"), nested = true),
-        Category("flows", ws.t("setFlows"), nested = true),
+        Category("processors", ws.t("setProcessors")),
+        Category("views", ws.t("setViews")),
+        Category("flows", ws.t("setFlows")),
     )
     val shown = categories.filter { query.isBlank() || it.label.contains(query, ignoreCase = true) }
-    // the heading is a place in the list, not a page; landing on it means landing on its first kind
-    val selectable = shown.filterNot { it.heading }
-    // "extensions" is where the rest of the app asks to be taken; it is a heading now, so it means
-    // the first kind under it rather than nothing
+    val selectable = shown
+    // "extensions" is the id the rest of the app still asks to be taken to — the menu item, the
+    // install flow — and the modules page is where that means
     val requested = if (category == "extensions") "processors" else category
     val current = selectable.find { it.key == requested } ?: selectable.firstOrNull()
 
@@ -901,12 +899,7 @@ fun SettingsScreen(ws: Workspace) {
                 DtxField(query, { query = it })
                 Spacer(Modifier.height(8.dp))
                 shown.forEach { item ->
-                    CategoryRow(
-                        item.label,
-                        selected = current?.key == item.key,
-                        heading = item.heading,
-                        nested = item.nested,
-                    ) { if (!item.heading) category = item.key }
+                    CategoryRow(item.label, selected = current?.key == item.key) { category = item.key }
                 }
             }
             Box(Modifier.width(1.dp).fillMaxHeight().background(Palette.panelBorder))
@@ -1147,40 +1140,25 @@ private fun ShortcutField(label: String, recording: Boolean, hint: String, onCli
 private fun CategoryRow(
     label: String,
     selected: Boolean,
-    heading: Boolean = false,
-    nested: Boolean = false,
     onSelect: () -> Unit,
 ) {
     val (src, hovered) = rememberHover()
     val bg = when {
         selected -> Palette.langActiveBg
-        hovered && !heading -> Palette.hoverBg
+        hovered -> Palette.hoverBg
         else -> androidx.compose.ui.graphics.Color.Transparent
     }
     Box(
         Modifier.fillMaxWidth().hoverable(src).background(bg, RoundedCornerShape(5.dp))
-            .then(if (heading) Modifier else Modifier.plainClick(onSelect))
-            .padding(start = if (nested) 20.dp else 9.dp, end = 9.dp, top = 6.dp, bottom = 6.dp),
+            .plainClick(onSelect)
+            .padding(start = 9.dp, end = 9.dp, top = 6.dp, bottom = 6.dp),
     ) {
-        Txt(
-            label, 12.5.sp,
-            when {
-                heading -> Palette.subText
-                selected -> Palette.text
-                else -> Palette.menuText
-            },
-            weight = if (heading) FontWeight.Bold else FontWeight.Normal,
-        )
+        Txt(label, 12.5.sp, if (selected) Palette.text else Palette.menuText)
     }
 }
 
-/** A row in the settings category list: a page, or the heading a group of them sits under. */
-private data class Category(
-    val key: String,
-    val label: String,
-    val heading: Boolean = false,
-    val nested: Boolean = false,
-)
+/** One page in the settings list. */
+private data class Category(val key: String, val label: String)
 
 // label column + control, like IntelliJ's option rows
 @Composable

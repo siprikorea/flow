@@ -14,7 +14,7 @@ private fun usage(): Nothing {
           cli <component> <value>                 single input (when there is one port)
           cli <component> --in <port>=<value> ... per-port input
           cli --list                              list components (project + installed)
-          cli --install <extension.jar> [--force]    install an extension JAR
+          cli --install <module.jar> [--force]       install a module JAR
           cli --mcp                               run as an MCP server on stdio
         """.trimIndent(),
     )
@@ -33,7 +33,7 @@ fun main(args: Array<String>) {
                 System.err.println("Already installed: ${r.conflicts.joinToString(", ")} — use --force to overwrite")
                 exitProcess(1)
             }
-            println("Installed: ${r.installed.joinToString(", ").ifBlank { "(no extensions)" }}")
+            println("Installed: ${r.installed.joinToString(", ").ifBlank { "(no modules)" }}")
             return
         }
         "--mcp" -> {

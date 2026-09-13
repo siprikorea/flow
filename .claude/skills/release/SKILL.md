@@ -137,7 +137,7 @@ would clobber it.
 ## 5. Report
 
 Say the tag, what `latest` now serves, and what the user has to do: update the app, then
-**Settings ▸ Extensions ▸ Processors ▸ Refresh** before a new or updated extension appears. An
+**Settings ▸ Modules ▸ Refresh** before a new or updated extension appears. An
 extension that declares settings needs *both* halves updated — the app reads the declaration, the
 jar makes it.
 

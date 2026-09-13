@@ -82,7 +82,7 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
             }
         }
         // the process ended — anything still waiting will never be answered
-        failAllPending("extension process for '${dir.name}' stopped")
+        failAllPending("module process for '${dir.name}' stopped")
     }, "extension-reader-${dir.name}").apply { isDaemon = true }
 
     private fun failAllPending(reason: String) {
@@ -100,7 +100,7 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
         val id = nextId.getAndIncrement()
         val future = CompletableFuture<Reply>()
         pending[id] = Pending(future)
-        val stream = out ?: return Reply(false, "extension process is not running".toByteArray())
+        val stream = out ?: return Reply(false, "module process is not running".toByteArray())
         try {
             synchronized(stream) {
                 stream.writeInt(id)
@@ -110,7 +110,7 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
             }
         } catch (e: Exception) {
             pending.remove(id)
-            return Reply(false, (e.message ?: "could not reach the extension process").toByteArray())
+            return Reply(false, (e.message ?: "could not reach the module process").toByteArray())
         }
         return try {
             future.get()
@@ -129,7 +129,7 @@ internal class ExtensionProcess(private val dir: File, private val jars: List<Fi
             process = null
             out = null
         }
-        failAllPending("extension process for '${dir.name}' was stopped")
+        failAllPending("module process for '${dir.name}' was stopped")
     }
 
     private fun jarOf(c: Class<*>): String? =

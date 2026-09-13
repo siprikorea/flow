@@ -118,8 +118,8 @@ object FlowTools {
         Tool(
             name = "list_nodes",
             description = "List everything that can be a node in a flow: the cin/cout boundary nodes, " +
-                "each installed processor with its ports and options, and each flow installed as a " +
-                "component (Settings ▸ Extensions ▸ Flows) usable as comp:<ref> — a flow that merely " +
+                "each installed module with its ports and options, and each flow installed as a " +
+                "component (Settings ▸ Modules ▸ Flows) usable as comp:<ref> — a flow that merely " +
                 "exists in the open folder isn't one of these until installed; use comp:<path relative " +
                 "to the folder> for a project flow that isn't. Call this before build_flow to get exact " +
                 "type names and option values.",
@@ -199,7 +199,7 @@ object FlowTools {
         ),
         Tool(
             name = "validate_flow",
-            description = "Verify a saved flow and report every fault found: a processor that is not " +
+            description = "Verify a saved flow and report every fault found: a module that is not " +
                 "installed, an option set to a value it does not accept, ports that no longer match the " +
                 "node's options, an edge to a port that isn't there, an input fed twice or not at all, a " +
                 "loop in the wiring, a missing cin/cout. Returns 'no problems found' when it is sound.",
@@ -277,7 +277,7 @@ object FlowTools {
                 .append("(${def.ins.joinToString(",").ifEmpty { "-" }} → ${def.outs.joinToString(",").ifEmpty { "-" }})\n")
         }
 
-        out.append("\n── processors ──\n")
+        out.append("\n── modules ──\n")
         Platform.installedModuleInfos().forEach { m ->
             out.append("${m.id}  '${m.name}'  ")
                 .append("${m.inputs.joinToString(",").ifEmpty { "-" }} → ${m.outputs.joinToString(",").ifEmpty { "-" }}\n")
@@ -645,7 +645,7 @@ object FlowTools {
                         }
                         putJsonObject("type") {
                             put("type", "string")
-                            put("description", "'cin', 'cout', a processor id like 'flow.hash', or 'comp:<flow path>' — see list_nodes")
+                            put("description", "'cin', 'cout', a module id like 'flow.hash', or 'comp:<flow path>' — see list_nodes")
                         }
                         putJsonObject("label") {
                             put("type", "string")
@@ -653,7 +653,7 @@ object FlowTools {
                         }
                         putJsonObject("params") {
                             put("type", "object")
-                            put("description", "processor option values, e.g. {\"algo\":\"SHA-256\"}; omitted options take their default")
+                            put("description", "module option values, e.g. {\"algo\":\"SHA-256\"}; omitted options take their default")
                         }
                         putJsonObject("x") {
                             put("type", "number")

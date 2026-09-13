@@ -27,13 +27,13 @@ import java.time.Duration
  * want one flow to say one thing in one place. Whichever is configured is the one used; a token
  * wins if both are.
  *
- * Both are secrets, so they live in Settings ▸ Extensions ▸ Slack and are kept where keys are kept,
+ * Both are secrets, so they live in Settings ▸ Modules ▸ Slack and are kept where keys are kept,
  * not in the settings file and not in the flow — a flow is a document people share.
  */
 class SlackExtension : ProcessorExtension {
     override val id = "flow.slack"
     override val displayName = "Slack"
-    override val version = "1.0.2"
+    override val version = "1.0.3"
     override val category = "messaging"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
@@ -64,7 +64,7 @@ class SlackExtension : ProcessorExtension {
     )
 
     override val optionDescriptions = mapOf(
-        "channel" to "Which channel: '#builds' or a channel id. Left empty, the one set in Settings ▸ Extensions.",
+        "channel" to "Which channel: '#builds' or a channel id. Left empty, the one set in Settings ▸ Modules.",
         "threadTs" to "The id of a message to reply under — the output of another Slack node. Left empty, this is a new message.",
         "timeoutSec" to "How long to wait for Slack to answer.",
     )
@@ -81,7 +81,7 @@ class SlackExtension : ProcessorExtension {
             webhook.isNotEmpty() -> mapOf("out" to postToWebhook(webhook, text, timeout).encodeToByteArray())
             else -> throw IllegalStateException(
                 "Slack is not configured — put a bot token or an incoming webhook URL in " +
-                    "Settings ▸ Extensions ▸ Slack",
+                    "Settings ▸ Modules ▸ Slack",
             )
         }
     }
@@ -96,7 +96,7 @@ class SlackExtension : ProcessorExtension {
     private fun postAsApp(token: String, options: Map<String, String>, text: String, timeoutSec: Long): String {
         val channel = options["channel"].orEmpty().trim()
         require(channel.isNotEmpty()) {
-            "no channel — set one on this node, or in Settings ▸ Extensions ▸ Slack"
+            "no channel — set one on this node, or in Settings ▸ Modules ▸ Slack"
         }
         val body = buildJsonObject {
             put("channel", channel)

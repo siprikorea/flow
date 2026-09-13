@@ -173,7 +173,7 @@ class MessagingExtensionsTest {
     fun `the credentials are settings, and are the ones kept out of the settings file`() {
         assertEquals(listOf("botToken", "webhookUrl"), SlackExtension().secretSettings)
         assertEquals(listOf("botToken"), TelegramExtension().secretSettings)
-        // and the connection details are settings, so they are entered once in Settings ▸ Extensions
+        // and the connection details are settings, so they are entered once in Settings ▸ Modules
         assertTrue(SlackExtension().settings.map { it.name }.containsAll(listOf("botToken", "webhookUrl", "channel", "apiUrl")))
         assertTrue(TelegramExtension().settings.map { it.name }.containsAll(listOf("botToken", "chatId", "apiUrl")))
     }

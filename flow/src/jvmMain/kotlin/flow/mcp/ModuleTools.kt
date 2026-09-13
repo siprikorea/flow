@@ -50,7 +50,7 @@ internal object ModuleTools {
      */
     fun description(module: ModuleInfo): String {
         val what = module.portDescriptions["_module"]
-            ?: "Run the ${module.name} processor directly, without building a flow."
+            ?: "Run the ${module.name} module directly, without building a flow."
         val outputs = module.outputs.joinToString(", ").ifEmpty { "nothing" }
         return "$what Returns: $outputs. Byte values are UTF-8 text unless prefixed with 'hex:' or " +
             "'b64:'; outputs come back the same way, printable text as-is and anything else as 'hex:'."

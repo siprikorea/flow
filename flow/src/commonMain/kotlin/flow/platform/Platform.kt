@@ -63,7 +63,7 @@ expect object Platform {
     fun decodeText(bytes: ByteArray, charset: String): String
     fun charsetNames(): List<String>
 
-    // What Settings ▸ Extensions was set to, by extension id — handed to a processor underneath the
+    // What Settings ▸ Modules was set to, by extension id — handed to a processor underneath the
     // node's own options. Pushed in when it changes rather than read per run.
     fun setExtensionSettings(values: Map<String, Map<String, String>>)
 

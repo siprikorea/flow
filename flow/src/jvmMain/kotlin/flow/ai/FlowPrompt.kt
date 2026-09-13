@@ -31,7 +31,7 @@ internal object FlowPrompt {
         A node is one of three things:
           cin  — an input to the flow. Its label is the port name.
           cout — an output from the flow. Its label is the port name.
-          a processor, by id (flow.hash, flow.cipher, …), or comp:<path> for another flow used as
+          a module, by id (flow.hash, flow.cipher, …), or comp:<path> for another flow used as
           a sub-component.
 
         Use these tools rather than writing .flow files by hand. They are all you have: nothing
