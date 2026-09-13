@@ -62,9 +62,9 @@ fun EndPicker(
                 .padding(horizontal = 9.dp, vertical = 5.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Txt(label, 10.5.sp, Palette.dimText)
-            Txt(shown, 11.5.sp, Palette.text, modifier = Modifier.padding(horizontal = 6.dp))
-            Txt(if (open) "▲" else "▼", 8.sp, Palette.dimText)
+            Txt(label, 12.sp, Palette.dimText)
+            Txt(shown, 13.sp, Palette.text, modifier = Modifier.padding(horizontal = 6.dp))
+            Txt(if (open) "▲" else "▼", 12.sp, Palette.dimText)
         }
         if (open) {
             Popup(
@@ -94,11 +94,11 @@ fun EndPicker(
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Txt(
-                                name, 12.sp,
+                                name, 14.sp,
                                 if (id == selected) Palette.accent else Palette.text,
                                 modifier = Modifier.weight(1f),
                             )
-                            if (id == selected) Txt("✓", 11.sp, Palette.accent)
+                            if (id == selected) Txt("✓", 13.sp, Palette.accent)
                         }
                     }
                 }

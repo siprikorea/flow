@@ -94,7 +94,7 @@ fun PropsPanel(state: EditorState) {
             singleEdge != null -> EdgeProps(state, singleEdge)
             total > 1 -> MultiProps(state, onFocusChange)
             else -> Txt(
-                state.t("propsEmpty"), 12.sp, Palette.textTertiary,
+                state.t("propsEmpty"), 14.sp, Palette.textTertiary,
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
@@ -103,7 +103,7 @@ fun PropsPanel(state: EditorState) {
 
 @Composable
 private fun SectionLabel(text: String) {
-    Txt(text.uppercase(), 11.sp, Palette.textTertiary, weight = FontWeight.Bold, letterSpacing = 1.sp)
+    Txt(text.uppercase(), 13.sp, Palette.textTertiary, weight = FontWeight.Bold, letterSpacing = 1.sp)
 }
 
 @Composable
@@ -142,7 +142,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
                     .background(Palette.danger.copy(alpha = 0.1f), RoundedCornerShape(6.dp))
                     .border(1.dp, Palette.danger.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
                     .padding(10.dp),
-            ) { Txt(message, 12.sp, Palette.danger) }
+            ) { Txt(message, 14.sp, Palette.danger) }
         }
     }
 
@@ -187,7 +187,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
             SectionLabel(state.t("labelParams"))
             node.params.forEach { (key, value) ->
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Txt(key, 11.sp, Palette.textTertiary, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
+                    Txt(key, 13.sp, Palette.textTertiary, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
                     DtxField(
                         value,
                         { v -> state.updateNode(node.id) { it.copy(params = it.params + (key to v)) } },
@@ -223,7 +223,7 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
 @Composable
 private fun OptionEditor(opt: OptDef, value: String, onFocusChange: (Boolean) -> Unit, onChange: (String) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Txt(opt.name, 11.sp, Palette.textTertiary, mono = true, maxLines = 1)
+        Txt(opt.name, 13.sp, Palette.textTertiary, mono = true, maxLines = 1)
         when (opt.type) {
             OptType.SELECT -> OptionSelect(opt.choices, value, onChange)
             OptType.NUMBER -> DtxField(
@@ -254,8 +254,8 @@ private fun OptionSelect(choices: List<String>, value: String, onChange: (String
                 .padding(horizontal = 9.dp, vertical = 7.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Txt(value, 12.sp, Palette.textPrimary, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
-            Txt(if (open) "▲" else "▼", 9.sp, Palette.textTertiary)
+            Txt(value, 14.sp, Palette.textPrimary, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+            Txt(if (open) "▲" else "▼", 12.sp, Palette.textTertiary)
         }
         if (open) {
             Popup(
@@ -285,8 +285,8 @@ private fun OptionSelect(choices: List<String>, value: String, onChange: (String
                                 .padding(horizontal = 9.dp, vertical = 6.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Txt(choice, 12.sp, if (choice == value) Palette.accent else Palette.textPrimary, mono = true, modifier = Modifier.weight(1f))
-                            if (choice == value) Txt("✓", 11.sp, Palette.accent)
+                            Txt(choice, 14.sp, if (choice == value) Palette.accent else Palette.textPrimary, mono = true, modifier = Modifier.weight(1f))
+                            if (choice == value) Txt("✓", 13.sp, Palette.accent)
                         }
                     }
                 }
@@ -308,16 +308,16 @@ private fun PortSection(state: EditorState, node: Node, kind: String, editable: 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     DtxField(
                         port.name, { v -> state.renamePort(node.id, kind, i, v) },
-                        modifier = Modifier.weight(1f), mono = true, fontSize = 11.5.sp,
+                        modifier = Modifier.weight(1f), mono = true, fontSize = 13.sp,
                         onFocusChange = onFocusChange,
                     )
                     Txt(
-                        "×", 13.sp, Palette.textTertiary,
+                        "×", 14.sp, Palette.textTertiary,
                         modifier = Modifier.plainClick { state.removePort(node.id, kind, i) }.padding(horizontal = 5.dp, vertical = 2.dp),
                     )
                 }
             } else {
-                Txt(port.name, 11.5.sp, Palette.textPrimary, mono = true, maxLines = 1)
+                Txt(port.name, 13.sp, Palette.textPrimary, mono = true, maxLines = 1)
             }
         }
         if (editable) {
@@ -346,7 +346,7 @@ private fun MultiProps(state: EditorState, onFocusChange: (Boolean) -> Unit) {
                 val common = if (values.distinct().size == 1) values.first() else ""
                 var text by remember(key, common) { mutableStateOf(common) }
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Txt(key, 11.sp, Palette.textSecondary, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
+                    Txt(key, 13.sp, Palette.textSecondary, mono = true, maxLines = 1, modifier = Modifier.width(76.dp))
                     DtxField(
                         text,
                         { v -> text = v; state.setParamForSelected(key, v) },
@@ -375,7 +375,7 @@ private fun EdgeProps(state: EditorState, edge: Edge) {
     ) {
         Txt(
             "${edge.from.node} [${edge.from.port}] → ${edge.to.node} [${edge.to.port}]",
-            11.5.sp, Palette.textSecondary, mono = true,
+            13.sp, Palette.textSecondary, mono = true,
         )
     }
     FlowDangerIconButton(Lucide.Trash2, state.t("confirmDeleteEdge"), state.t("cancel"), state.t("deleteEdge")) {

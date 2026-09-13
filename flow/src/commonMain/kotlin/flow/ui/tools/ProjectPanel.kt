@@ -154,13 +154,13 @@ private fun EmptyProject(ws: Workspace) {
         Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Txt(ws.t("noProject"), 12.sp, Palette.faintText)
+        Txt(ws.t("noProject"), 14.sp, Palette.faintText)
         Box(
             Modifier
                 .border(1.dp, Palette.runFromBorder, RoundedCornerShape(6.dp))
                 .plainClick { Platform.pickFolder()?.let { ws.openProject(it) } }
                 .padding(horizontal = 12.dp, vertical = 6.dp),
-        ) { Txt(ws.t("openFolderHint"), 11.5.sp, Palette.accentHover) }
+        ) { Txt(ws.t("openFolderHint"), 13.sp, Palette.accentHover) }
     }
 }
 
@@ -238,9 +238,9 @@ private fun RootRow(ws: Workspace) {
     ) {
         LucideIcon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Palette.subText, 14.dp)
         LucideIcon(Lucide.FolderOpen, Palette.accentSoft, 14.dp)
-        Txt(ws.rootLabel, 12.5.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1)
+        Txt(ws.rootLabel, 14.sp, Palette.text, weight = FontWeight.Medium, maxLines = 1)
         // full path of the folder being shown — greyed out, like IntelliJ's project root
-        Txt(ws.dirLabel, 10.sp, Palette.faintText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+        Txt(ws.dirLabel, 12.sp, Palette.faintText, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
     }
 }
 
@@ -311,15 +311,15 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
                 contentAlignment = Alignment.Center,
             ) { LucideIcon(if (expanded) Lucide.ChevronDown else Lucide.ChevronRight, Palette.subText, 14.dp) }
             LucideIcon(if (expanded) Lucide.FolderOpen else Lucide.Folder, if (expanded) Palette.accentSoft else Palette.subText, 14.dp)
-            Txt(row.name, 12.sp, if (selected) Palette.text else Palette.menuText, maxLines = 1, modifier = Modifier.weight(1f))
+            Txt(row.name, 14.sp, if (selected) Palette.text else Palette.menuText, maxLines = 1, modifier = Modifier.weight(1f))
         } else {
             Spacer(Modifier.size(12.dp))
             Box(Modifier.size(14.dp), contentAlignment = Alignment.Center) {
                 if (isFlow) KindBadge("f", if (isComp) Palette.catComponent else Palette.dimText, 13.dp)
-                else Txt("\u25aa", 11.sp, Palette.faintestText, weight = FontWeight.Bold)
+                else Txt("\u25aa", 13.sp, Palette.faintestText, weight = FontWeight.Bold)
             }
             Txt(
-                if (isFlow) row.name.removeSuffix(".flow") else row.name, 12.sp,
+                if (isFlow) row.name.removeSuffix(".flow") else row.name, 14.sp,
                 when {
                     !isFlow -> Palette.faintText // not a flow file: can't be opened
                     isActive || isOpen -> Palette.text
@@ -440,9 +440,9 @@ private fun MenuItem(
             .padding(horizontal = 10.dp, vertical = 5.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Txt(label, 12.sp, Palette.text, modifier = Modifier.weight(1f))
+        Txt(label, 14.sp, Palette.text, modifier = Modifier.weight(1f))
         Spacer(Modifier.width(16.dp))
-        if (shortcut.isNotEmpty()) Txt(shortcut, 11.sp, Palette.dimText)
-        if (submenu) Txt("\u25b6", 9.sp, Palette.subText)
+        if (shortcut.isNotEmpty()) Txt(shortcut, 13.sp, Palette.dimText)
+        if (submenu) Txt("\u25b6", 12.sp, Palette.subText)
     }
 }

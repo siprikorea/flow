@@ -224,7 +224,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
         ) {
             LucideIcon(kindIcon, kindColor, FlowSize.icon)
             Spacer(Modifier.width(6.dp))
-            Txt(node.label, 12.sp, Palette.textPrimary, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
+            Txt(node.label, 14.sp, Palette.textPrimary, weight = FontWeight.SemiBold, maxLines = 1, modifier = Modifier.weight(1f))
             // status dot (6dp): nothing while idle, a slow pulse while running, a flat colour once
             // the run has an outcome — CLAUDE.md §5
             when (node.status) {
@@ -312,7 +312,7 @@ private fun NodeStatusLabel(msg: String, color: Color) {
             text = msg,
             style = TextStyle(
                 color = color,
-                fontSize = 10.sp,
+                fontSize = 12.sp,
                 fontFamily = Mono,
                 textAlign = TextAlign.Center,
             ),
@@ -330,7 +330,7 @@ private fun NodeStatusLabel(msg: String, color: Color) {
                         .background(Palette.dropdownBg, RoundedCornerShape(6.dp))
                         .border(1.dp, Palette.dropdownBorder, RoundedCornerShape(6.dp))
                         .padding(horizontal = 9.dp, vertical = 6.dp),
-                ) { Txt(msg, 11.sp, Palette.textPrimary) }
+                ) { Txt(msg, 13.sp, Palette.textPrimary) }
             },
             delayMillis = 350,
             tooltipPlacement = TooltipPlacement.CursorPoint(offset = DpOffset(0.dp, 16.dp)),

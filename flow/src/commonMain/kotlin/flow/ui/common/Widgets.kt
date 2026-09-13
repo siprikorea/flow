@@ -122,7 +122,7 @@ fun DtxField(
     modifier: Modifier = Modifier,
     mono: Boolean = false,
     textColor: Color = Palette.textPrimary,
-    fontSize: TextUnit = 12.sp,
+    fontSize: TextUnit = 14.sp,
     // an API key: shown as dots, since it is pasted in once and read by anyone looking over a
     // shoulder for the rest of the session otherwise
     mask: Boolean = false,

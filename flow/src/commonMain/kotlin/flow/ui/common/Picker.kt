@@ -87,11 +87,11 @@ fun Picker(
                         ) {
                             Txt(
                                 text,
-                                11.sp,
+                                13.sp,
                                 if (id == selected) Palette.accent else Palette.text,
                                 modifier = Modifier.weight(1f),
                             )
-                            if (id == selected) Txt("✓", 10.sp, Palette.accent)
+                            if (id == selected) Txt("✓", 12.sp, Palette.accent)
                         }
                     }
                 }

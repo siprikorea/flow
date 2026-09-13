@@ -227,7 +227,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
 
         if (state.nodes.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Txt(state.t("emptyCanvas"), 13.sp, Palette.faintestText)
+                Txt(state.t("emptyCanvas"), 14.sp, Palette.faintestText)
             }
         }
 

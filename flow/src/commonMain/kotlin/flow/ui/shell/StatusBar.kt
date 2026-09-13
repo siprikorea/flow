@@ -49,14 +49,14 @@ fun StatusBar(ws: Workspace) {
             )
             if (active != null) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Txt("−", 12.sp, Palette.textSecondary, modifier = Modifier.plainClick {
+                    Txt("−", 14.sp, Palette.textSecondary, modifier = Modifier.plainClick {
                         active.zoom = (active.zoom - 0.1f).coerceAtLeast(0.3f)
                     }.padding(horizontal = 6.dp))
                     Txt(
                         "${(active.zoom * 100).roundToInt()}%", FlowType.mono, Palette.textTertiary,
                         modifier = Modifier.plainClick { active.zoom = 1f },
                     )
-                    Txt("+", 12.sp, Palette.textSecondary, modifier = Modifier.plainClick {
+                    Txt("+", 14.sp, Palette.textSecondary, modifier = Modifier.plainClick {
                         active.zoom = (active.zoom + 0.1f).coerceAtMost(2.5f)
                     }.padding(horizontal = 6.dp))
                 }

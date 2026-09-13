@@ -219,8 +219,8 @@ private fun SaveCloseDialog(ws: Workspace, name: String) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Txt(ws.t("unsavedTitle"), 14.sp, Palette.text)
-            Txt(ws.t("unsavedBody").replace("{name}", name), 12.5.sp, Palette.subText)
+            Txt(ws.t("unsavedTitle"), 16.sp, Palette.text)
+            Txt(ws.t("unsavedBody").replace("{name}", name), 14.sp, Palette.subText)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelClose() }
                 DialogButton(ws.t("dontSave"), Palette.dangerBorder, Palette.errorSoft) { ws.confirmDiscardAndClose() }
@@ -244,8 +244,8 @@ private fun FileDeleteDialog(ws: Workspace, count: Int) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Txt(ws.t("deleteFilesTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
-            Txt(ws.t("deleteFilesBody").replace("{n}", count.toString()), 12.5.sp, Palette.subText)
+            Txt(ws.t("deleteFilesTitle"), 16.sp, Palette.text, weight = FontWeight.SemiBold)
+            Txt(ws.t("deleteFilesBody").replace("{n}", count.toString()), 14.sp, Palette.subText)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelDeleteFiles() }
                 DialogButton(ws.t("delete"), Palette.error, Palette.holeBg, filled = true) { ws.confirmDeleteFiles() }
@@ -270,7 +270,7 @@ private fun RenameDialog(ws: Workspace, current: String) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Txt(ws.t("renameTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
+            Txt(ws.t("renameTitle"), 16.sp, Palette.text, weight = FontWeight.SemiBold)
             DtxField(text, { text = it })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelRename() }
@@ -296,10 +296,10 @@ private fun NewFolderDialog(ws: Workspace) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Txt(ws.t("newFolderTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
+            Txt(ws.t("newFolderTitle"), 16.sp, Palette.text, weight = FontWeight.SemiBold)
             // where it lands: the project root shows as its folder name
             Txt(listOf(ws.rootLabel, ws.newFolderParent ?: "").filter { it.isNotEmpty() }.joinToString("/"),
-                11.sp, Palette.faintText, mono = true, maxLines = 1)
+                13.sp, Palette.faintText, mono = true, maxLines = 1)
             DtxField(text, { text = it })
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.align(Alignment.End)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelNewFolder() }
@@ -323,8 +323,8 @@ private fun OverwriteDialog(ws: Workspace, id: String) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            Txt(ws.t("overwriteTitle"), 14.sp, Palette.text, weight = FontWeight.SemiBold)
-            Txt(ws.t("overwriteBody").replace("{id}", id), 12.5.sp, Palette.subText)
+            Txt(ws.t("overwriteTitle"), 16.sp, Palette.text, weight = FontWeight.SemiBold)
+            Txt(ws.t("overwriteBody").replace("{id}", id), 14.sp, Palette.subText)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 DialogButton(ws.t("cancel"), Palette.buttonBorder, Palette.menuText) { ws.cancelInstall() }
                 DialogButton(ws.t("overwrite"), Palette.accent, Palette.holeBg, filled = true) { ws.confirmInstall() }
@@ -346,7 +346,7 @@ private fun DialogButton(
         else Modifier.border(1.dp, color, RoundedCornerShape(6.dp))
     )
     Box(m.plainClick(onClick).padding(horizontal = 14.dp, vertical = 8.dp)) {
-        Txt(label, 12.sp, textColor)
+        Txt(label, 14.sp, textColor)
     }
 }
 
@@ -354,13 +354,13 @@ private fun DialogButton(
 private fun EmptyEditor(ws: Workspace) {
     Box(Modifier.fillMaxSize().background(Palette.canvasBg), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Txt(ws.t("noOpenFile"), 13.sp, Palette.faintText)
+            Txt(ws.t("noOpenFile"), 14.sp, Palette.faintText)
             Box(
                 Modifier
                     .border(1.dp, Palette.runFromBorder, RoundedCornerShape(6.dp))
                     .plainClick { ws.newComponent() }
                     .padding(horizontal = 16.dp, vertical = 8.dp)
-            ) { Txt(ws.t("newFlow"), 12.sp, Palette.accentHover) }
+            ) { Txt(ws.t("newFlow"), 14.sp, Palette.accentHover) }
         }
     }
 }
@@ -386,7 +386,7 @@ private fun DragGhost(d: DragModule) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             LucideIcon(icon, color, Size.icon)
-            Txt(d.label, 12.sp, Palette.textPrimary)
+            Txt(d.label, 14.sp, Palette.textPrimary)
         }
     }
 }
@@ -408,8 +408,8 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
         ) {
             val title = if (ws.saveWarn) ws.t("saveWarnTitle") else ws.t(ws.errorTitleKey)
             val titleColor = if (ws.saveWarn) Palette.warnSoft else Palette.errorSoft
-            Txt(title, 14.sp, titleColor, weight = FontWeight.SemiBold)
-            Txt(message, 12.5.sp, Palette.subText)
+            Txt(title, 16.sp, titleColor, weight = FontWeight.SemiBold)
+            Txt(message, 14.sp, Palette.subText)
             Row(modifier = Modifier.align(Alignment.End)) {
                 DialogButton(ws.t("ok"), Palette.accent, Palette.holeBg, filled = true) { ws.saveError = null }
             }
@@ -467,7 +467,7 @@ private fun ModuleMarket(ws: Workspace, kind: String) {
                 tab,
             ) { tab = it }
             Box(Modifier.weight(1f)) { DtxField(query, { query = it }) }
-            Txt(ws.t("registryRefresh"), 11.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
+            Txt(ws.t("registryRefresh"), 13.sp, Palette.accentHover, modifier = Modifier.plainClick { ws.loadRegistry() })
         }
 
         if (categories.size > 1) {
@@ -478,10 +478,10 @@ private fun ModuleMarket(ws: Workspace, kind: String) {
         }
 
         when {
-            ws.registryLoading && items.isEmpty() -> Txt(ws.t("registryLoading"), 12.sp, Palette.faintText)
-            ws.registryError != null && items.isEmpty() -> Txt(ws.registryError!!, 12.sp, Palette.errorSoft)
+            ws.registryLoading && items.isEmpty() -> Txt(ws.t("registryLoading"), 14.sp, Palette.faintText)
+            ws.registryError != null && items.isEmpty() -> Txt(ws.registryError!!, 14.sp, Palette.errorSoft)
         }
-        ws.registryError?.takeIf { items.isNotEmpty() }?.let { Txt(it, 11.sp, Palette.errorSoft) }
+        ws.registryError?.takeIf { items.isNotEmpty() }?.let { Txt(it, 13.sp, Palette.errorSoft) }
 
         Row(Modifier.height(420.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
             Column(
@@ -491,7 +491,7 @@ private fun ModuleMarket(ws: Workspace, kind: String) {
                 if (shown.isEmpty()) {
                     Txt(
                         if (tab == TAB_INSTALLED) ws.t("extNoneInstalled") else ws.t("registryEmpty"),
-                        12.sp,
+                        14.sp,
                         Palette.faintText,
                     )
                 }
@@ -500,7 +500,7 @@ private fun ModuleMarket(ws: Workspace, kind: String) {
                 }
             }
             Box(Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())) {
-                if (selected == null) Txt(ws.t("extNoSelection"), 12.sp, Palette.faintText)
+                if (selected == null) Txt(ws.t("extNoSelection"), 14.sp, Palette.faintText)
                 else ExtensionDetail(ws, selected)
             }
         }
@@ -577,12 +577,12 @@ private fun MarketRow(ws: Workspace, item: MarketItem, selected: Boolean, onClic
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Txt(item.name, 12.5.sp, Palette.textPrimary, weight = FontWeight.Medium, maxLines = 1)
-            Txt("v${item.version}", 10.sp, Palette.dimText, mono = true)
+            Txt(item.name, 14.sp, Palette.textPrimary, weight = FontWeight.Medium, maxLines = 1)
+            Txt("v${item.version}", 12.sp, Palette.dimText, mono = true)
         }
         // a tick rather than a button: the row is for finding one, and the pane beside it is where
         // installing and removing happen
-        if (item.installed) Txt("✓", 12.sp, Palette.success)
+        if (item.installed) Txt("✓", 14.sp, Palette.success)
     }
 }
 
@@ -593,18 +593,18 @@ private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
     val busy = item.id in ws.registryBusy
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Txt(item.name, 15.sp, Palette.textPrimary, weight = FontWeight.SemiBold)
-            Txt("v${item.version}", 11.sp, Palette.dimText, mono = true)
+            Txt(item.name, 16.sp, Palette.textPrimary, weight = FontWeight.SemiBold)
+            Txt("v${item.version}", 13.sp, Palette.dimText, mono = true)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             Chip(ws.t("cat_${item.category}"), false) {}
             if (item.entry == null) Chip(ws.t("fromFile"), false) {}
         }
-        if (item.description.isNotBlank()) Txt(item.description, 12.sp, Palette.subText)
+        if (item.description.isNotBlank()) Txt(item.description, 14.sp, Palette.subText)
         item.entry?.let { entry ->
             val ports = (entry.inputs.joinToString(", ").ifEmpty { "–" }) + "  →  " +
                 (entry.outputs.joinToString(", ").ifEmpty { "–" })
-            Txt(ports, 11.sp, Palette.faintText, mono = true)
+            Txt(ports, 13.sp, Palette.faintText, mono = true)
         }
 
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -612,7 +612,7 @@ private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
             // every branch that has one has it for sure
             val entry = item.entry
             when {
-                busy -> Txt(ws.t("installing"), 11.sp, Palette.faintText)
+                busy -> Txt(ws.t("installing"), 13.sp, Palette.faintText)
                 entry == null -> Unit
                 state == flow.model.RegistryState.UPDATABLE ->
                     DialogButton("${ws.t("update")} → ${entry.version}", Palette.accent, Palette.holeBg, filled = true) {
@@ -645,7 +645,7 @@ private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
 
             Spacer(Modifier.height(4.dp))
             Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
-            Txt(ws.t("extSettings").uppercase(), 10.sp, Palette.dimText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+            Txt(ws.t("extSettings").uppercase(), 12.sp, Palette.dimText, weight = FontWeight.Bold, letterSpacing = 1.sp)
             settings.forEach { setting ->
                 val value = ws.settingValues(item.id, listOf(setting))[setting.name].orEmpty()
                 SettingRow(setting.name) {
@@ -659,7 +659,7 @@ private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
                         // address that is wrong, a key that is not entered yet. Saying so beats an
                         // empty menu that looks broken.
                         setting.type == OptType.SELECT ->
-                            Txt(ws.t("extSettingNoChoices"), 11.sp, Palette.faintText)
+                            Txt(ws.t("extSettingNoChoices"), 13.sp, Palette.faintText)
                         else -> DtxField(
                             value,
                             { ws.setExtensionSetting(item.id, setting.name, it, secret = setting.secret) },
@@ -684,7 +684,7 @@ private fun Chip(label: String, selected: Boolean, onClick: () -> Unit) {
             .plainClick(onClick)
             .padding(horizontal = 10.dp, vertical = 4.dp),
     ) {
-        Txt(label, 10.5.sp, if (selected) Palette.holeBg else Palette.menuText)
+        Txt(label, 12.sp, if (selected) Palette.holeBg else Palette.menuText)
     }
 }
 
@@ -698,13 +698,13 @@ private fun FlowsSettings(ws: Workspace) {
                 Platform.pickFlowFile()?.let { ws.installLocalFlow(it) }
             }
         }
-        Txt(ws.t("installedComponents").uppercase(), 11.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
+        Txt(ws.t("installedComponents").uppercase(), 13.sp, Palette.subText, weight = FontWeight.Bold, letterSpacing = 1.sp)
         // every flow in the open folder is listed here, but only an installed one is usable as a
         // comp: building block elsewhere (Workspace.components) — Install/Uninstall is what moves
         // a flow between those two states. Deleting the file itself stays the Project panel's job.
         val flows = if (ws.hasProject) ws.files.filter { it.endsWith(".flow") } else emptyList()
-        if (!ws.hasProject) Txt(ws.t("noProject"), 12.sp, Palette.faintText)
-        else if (flows.isEmpty()) Txt(ws.t("noneInstalled"), 12.sp, Palette.faintText)
+        if (!ws.hasProject) Txt(ws.t("noProject"), 14.sp, Palette.faintText)
+        else if (flows.isEmpty()) Txt(ws.t("noneInstalled"), 14.sp, Palette.faintText)
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             flows.forEach { path ->
                 // a flow only qualifies once it has boundary nodes; say so either way
@@ -776,16 +776,16 @@ private fun ExtensionRow(
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Txt(title, 12.5.sp, Palette.text, weight = FontWeight.Medium)
-                if (version != null) Txt("v$version", 10.5.sp, Palette.dimText, mono = true)
+                Txt(title, 14.sp, Palette.text, weight = FontWeight.Medium)
+                if (version != null) Txt("v$version", 12.sp, Palette.dimText, mono = true)
                 if (updateTo != null) {
-                    Txt("→ $updateTo", 10.5.sp, Palette.warn, mono = true, weight = FontWeight.Medium)
+                    Txt("→ $updateTo", 12.sp, Palette.warn, mono = true, weight = FontWeight.Medium)
                 }
             }
-            if (note.isNotBlank()) Txt(note, 11.sp, Palette.subText, maxLines = 2)
+            if (note.isNotBlank()) Txt(note, 13.sp, Palette.subText, maxLines = 2)
         }
         if (busy) {
-            Txt(ws.t("installing"), 11.sp, Palette.faintText)
+            Txt(ws.t("installing"), 13.sp, Palette.faintText)
         } else {
             // update sits ahead of uninstall, so the useful action is the one nearer the text
             onUpdate?.let { RowButton(ws.t("update"), Palette.warn, Palette.holeBg, it) }
@@ -807,7 +807,7 @@ private fun RowButton(
     val base = if (fill != null) Modifier.background(fill, RoundedCornerShape(5.dp))
     else Modifier.border(1.dp, Palette.dangerBorder, RoundedCornerShape(5.dp))
     Box(base.plainClick(onClick).padding(horizontal = 10.dp, vertical = 4.dp)) {
-        Txt(label, 11.sp, textColor, weight = FontWeight.Medium)
+        Txt(label, 13.sp, textColor, weight = FontWeight.Medium)
     }
 }
 
@@ -910,7 +910,7 @@ fun SettingsScreen(ws: Workspace) {
                 Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState())
                     .padding(horizontal = 22.dp, vertical = 18.dp),
             ) {
-                Txt(current?.label ?: "", 14.sp, Palette.text, weight = FontWeight.SemiBold)
+                Txt(current?.label ?: "", 16.sp, Palette.text, weight = FontWeight.SemiBold)
                 Spacer(Modifier.height(4.dp))
                 Box(Modifier.fillMaxWidth().height(1.dp).background(Palette.panelBorder))
                 Spacer(Modifier.height(16.dp))
@@ -944,7 +944,7 @@ fun SettingsScreen(ws: Workspace) {
                         SettingRow(ws.t("aiProvider")) {
                             Segmented(AI_PROVIDERS, aiProvider) { aiProvider = it }
                         }
-                        Txt(ws.t("aiProviderHint"), 11.sp, Palette.faintText)
+                        Txt(ws.t("aiProviderHint"), 13.sp, Palette.faintText)
 
                         Spacer(Modifier.height(14.dp))
 
@@ -968,7 +968,7 @@ fun SettingsScreen(ws: Workspace) {
                             Txt(
                                 if (cliPath != null) ws.t("aiCliFound").replace("{path}", cliPath)
                                 else ws.t("aiCliMissing").replace("{cli}", cli),
-                                11.sp,
+                                13.sp,
                                 Palette.faintText,
                             )
                             Spacer(Modifier.height(10.dp))
@@ -1016,7 +1016,7 @@ fun SettingsScreen(ws: Workspace) {
                                     if (key.isNotBlank()) ws.t("aiApiKeyHint")
                                     else if (fromEnv != null) ws.t("aiApiKeyEnv").replace("{env}", fromEnv)
                                     else ws.t("aiApiKeyMissing"),
-                                    11.sp,
+                                    13.sp,
                                     Palette.faintText,
                                 )
                                 Spacer(Modifier.height(10.dp))
@@ -1061,7 +1061,7 @@ fun SettingsScreen(ws: Workspace) {
                             }
                             SettingRow(ws.t("aiModel")) {
                                 if (models.isEmpty()) {
-                                    Txt(ws.t("aiNoModels"), 11.sp, Palette.faintText)
+                                    Txt(ws.t("aiNoModels"), 13.sp, Palette.faintText)
                                 } else {
                                     Picker(
                                         options = models.map { m -> m to m },
@@ -1077,7 +1077,7 @@ fun SettingsScreen(ws: Workspace) {
                                     ) { label, open -> PickerField(label.ifBlank { ws.t("aiModelAuto") }, open) }
                                 }
                             }
-                            Txt(ws.t("aiModelServerHint"), 11.sp, Palette.faintText)
+                            Txt(ws.t("aiModelServerHint"), 13.sp, Palette.faintText)
                         }
                     }
                     "keymap" -> Column {
@@ -1133,7 +1133,7 @@ private fun ShortcutField(label: String, recording: Boolean, hint: String, onCli
             .padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
         Txt(
-            if (recording) hint else label.ifEmpty { "—" }, 12.sp,
+            if (recording) hint else label.ifEmpty { "—" }, 14.sp,
             if (recording) Palette.accentHover else Palette.text,
         )
     }
@@ -1156,7 +1156,7 @@ private fun CategoryRow(
             .plainClick(onSelect)
             .padding(start = 9.dp, end = 9.dp, top = 6.dp, bottom = 6.dp),
     ) {
-        Txt(label, 12.5.sp, if (selected) Palette.text else Palette.menuText)
+        Txt(label, 14.sp, if (selected) Palette.text else Palette.menuText)
     }
 }
 
@@ -1167,7 +1167,7 @@ private data class Category(val key: String, val label: String)
 @Composable
 private fun SettingRow(label: String, control: @Composable () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-        Txt(label, 12.5.sp, Palette.subText, modifier = Modifier.width(140.dp))
+        Txt(label, 14.sp, Palette.subText, modifier = Modifier.width(140.dp))
         control()
     }
 }
@@ -1210,7 +1210,7 @@ private fun Radios(
                 }
                 Txt(
                     label,
-                    12.sp,
+                    14.sp,
                     if (!on) Palette.faintText else if (chosen) Palette.textPrimary else Palette.menuText,
                 )
             }
@@ -1230,8 +1230,8 @@ private fun PickerField(label: String, open: Boolean) {
             .padding(horizontal = 9.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Txt(label, 12.sp, Palette.textPrimary, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
-        Txt(if (open) "▲" else "▼", 9.sp, Palette.textTertiary)
+        Txt(label, 14.sp, Palette.textPrimary, mono = true, maxLines = 1, modifier = Modifier.weight(1f))
+        Txt(if (open) "▲" else "▼", 12.sp, Palette.textTertiary)
     }
 }
 
@@ -1259,7 +1259,7 @@ private fun Segmented(options: List<Pair<String, String>>, selected: String, onS
                     .plainClick { onSelect(value) }
                     .padding(horizontal = 12.dp, vertical = 5.dp),
             ) {
-                Txt(label, 12.sp, if (on) Palette.holeBg else Palette.menuText, weight = if (on) FontWeight.Medium else FontWeight.Normal)
+                Txt(label, 14.sp, if (on) Palette.holeBg else Palette.menuText, weight = if (on) FontWeight.Medium else FontWeight.Normal)
             }
         }
     }

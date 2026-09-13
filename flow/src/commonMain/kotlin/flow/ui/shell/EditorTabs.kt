@@ -122,7 +122,7 @@ private fun Tab(
             // program — the same mark the window and the dock carry.
             AppLogo(Size.icon)
             Txt(
-                name, 12.sp,
+                name, 14.sp,
                 if (active) Palette.textPrimary else Palette.textTertiary,
                 weight = if (active) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
@@ -136,7 +136,7 @@ private fun Tab(
             )
             // on every tab, the way the IDE next door does it
             Txt(
-                "×", 13.sp, if (hovered || active) Palette.textSecondary else Palette.textTertiary,
+                "×", 14.sp, if (hovered || active) Palette.textSecondary else Palette.textTertiary,
                 modifier = Modifier.plainClick(onClose).padding(horizontal = 2.dp),
             )
         }
