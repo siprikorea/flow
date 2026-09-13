@@ -20,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -87,10 +88,15 @@ fun FlowButton(
             .plainClick { if (enabled) onClick() }
             .padding(horizontal = if (icon != null) 10.dp else 14.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        // Centred, not packed to the start: a button sized by its own content looks the same
+        // either way, but one given a width — the two in a confirm dialog, "Run from here" — had
+        // its label sitting against the left edge. The label is what a button is; it belongs in
+        // the middle of whatever width the button ends up with.
+        horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
     ) {
         if (icon != null) LucideIcon(icon, textColor, if (compact) Size.iconSmall else Size.icon)
-        Txt(label, FlowType.body, textColor)
+        // and centred within itself too, for a label wider than the button it was given
+        Txt(label, FlowType.body, textColor, align = TextAlign.Center)
     }
 }
 
