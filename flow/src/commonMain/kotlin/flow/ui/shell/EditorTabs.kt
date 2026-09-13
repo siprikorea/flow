@@ -13,13 +13,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
@@ -33,6 +36,7 @@ import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
+import flow.ui.theme.Radius
 import flow.ui.theme.Size
 
 @Composable
@@ -81,13 +85,21 @@ private fun Tab(
     onDoubleClick: () -> Unit = {},
 ) {
     val (hoverSrc, hovered) = rememberHover()
-    // IntrinsicSize.Max gives fillMaxWidth a real width inside the horizontal scroller,
-    // so the active-tab top indicator (VS Code style) actually renders
-    Column(Modifier.width(IntrinsicSize.Max)) {
+    // A tab is a chip, not a slab of the strip: rounded, with the strip showing above, below and
+    // between them. That shape is the whole of how the open file is marked — a fill that sits
+    // above the strip — so there is no rule over it or under it to say the same thing again.
+    Box(Modifier.padding(horizontal = 2.dp, vertical = 3.dp)) {
         Row(
             Modifier
-                .height(Size.tabBar - 2.dp)
-                .background(if (active) Palette.panel else if (hovered) Palette.hoverOverlay else Color.Transparent)
+                .height(Size.tabBar - 6.dp)
+                .clip(RoundedCornerShape(Radius.surface))
+                .background(
+                    when {
+                        active -> Palette.raised
+                        hovered -> Palette.hoverOverlay
+                        else -> Color.Transparent
+                    },
+                )
                 .hoverable(hoverSrc)
                 // single click selects; double click toggles the side panels (canvas-only)
                 .pointerInput(Unit) {
@@ -102,35 +114,31 @@ private fun Tab(
                         }
                     }
                 }
-                .padding(start = 12.dp, end = 8.dp),
+                .padding(start = 8.dp, end = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
             // What is open is a flow, and this is what a flow looks like everywhere else in the
-            // program — the same mark the window and the dock carry. A coloured dot said only
-            // "this tab has a colour"; an icon says what kind of file the tab is.
+            // program — the same mark the window and the dock carry.
             AppLogo(Size.icon)
             Txt(
                 name, 12.sp,
-                // unsaved is the name's own colour now, not a dot in the corner the close button
-                // had to be given up for — the file the user is working in is exactly the one
-                // whose close button has to be there when they reach for it
-                when {
-                    dirty -> Palette.warning
-                    active -> Palette.textPrimary
-                    else -> Palette.textTertiary
-                },
+                if (active) Palette.textPrimary else Palette.textTertiary,
                 weight = if (active) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
             )
-            // always on the open file, on hover for the rest
+            // Unsaved, in a slot of its own that is always there — so a file being saved does not
+            // change the width of its tab, and so it never takes the close button's place. That is
+            // what it used to do, on exactly the tab whose close button was wanted.
+            Box(
+                Modifier.size(5.dp)
+                    .background(if (dirty) Palette.warning else Color.Transparent, CircleShape),
+            )
+            // on every tab, the way the IDE next door does it
             Txt(
-                "×", 13.sp, if (hovered || active) Palette.textSecondary else Color.Transparent,
-                modifier = Modifier.plainClick(onClose).padding(horizontal = 3.dp),
+                "×", 13.sp, if (hovered || active) Palette.textSecondary else Palette.textTertiary,
+                modifier = Modifier.plainClick(onClose).padding(horizontal = 2.dp),
             )
         }
-        // the open tab is underlined, the way an IDE marks the file you are in — under the tab,
-        // against the editor it belongs to, rather than a rule floating above it
-        Box(Modifier.height(2.dp).fillMaxWidth().background(if (active) Palette.accent else Color.Transparent))
     }
 }
