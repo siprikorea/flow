@@ -158,8 +158,13 @@ off a ciphertext), `flow.merge`, `flow.split`, `flow.sleep` and `flow.mcp`.
 
 First-party extensions live under `flow-extensions/` using `flow.*` package ids. They are built the
 same way anyone else's would be and published to the registry — the app has no privileged set. Their
-registry entries (id, version, description, ports) are hand-kept in `flow-extensions/registry.json`;
-a release build fails if it drifts from the jars actually built.
+registry entries (id, version, description, ports, category) are hand-kept in
+`flow-extensions/registry.json`; a release build fails if it drifts from the jars actually built.
+
+An extension also declares its own `category` ("crypto", "ai", "messaging", "other"), which is what
+groups it in the palette — the registry's copy groups the Extensions screen, and a test holds the two
+to the same answer. One that declares nothing, or a category this build has not heard of, is listed
+under Other rather than dropped.
 
 ### Storage & sandbox (installed, read-only)
 Everything installed lives under `~/.flow/extensions/<id>/`, keyed by id, each in **its own folder**

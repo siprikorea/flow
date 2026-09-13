@@ -48,6 +48,16 @@ fun categoryOf(entry: RegistryEntry): String =
     entry.category.lowercase().takeIf { it in CATEGORIES } ?: CATEGORY_OTHER
 
 /**
+ * The same for something installed, which says what it is itself.
+ *
+ * An extension declares its category, so the palette can group one installed from a file and can
+ * group at all without the registry having been fetched. One built before the contract had a
+ * category says nothing, and is listed under Other rather than left out.
+ */
+fun categoryOf(module: ModuleInfo): String =
+    module.category.lowercase().takeIf { it in CATEGORIES } ?: CATEGORY_OTHER
+
+/**
  * The entries of each category, in [CATEGORIES] order, leaving out the ones with nothing in them.
  *
  * Order within a category is the order the registry gave, so whoever maintains the manifest decides
@@ -55,6 +65,20 @@ fun categoryOf(entry: RegistryEntry): String =
  */
 fun byCategory(entries: List<RegistryEntry>): List<Pair<String, List<RegistryEntry>>> {
     val grouped = entries.groupBy(::categoryOf)
+    return CATEGORIES.mapNotNull { category ->
+        grouped[category]?.takeIf { it.isNotEmpty() }?.let { category to it }
+    }
+}
+
+/**
+ * The installed processors of each category, in [CATEGORIES] order, leaving out the empty ones.
+ *
+ * The palette's grouping. Order within a category is the order it was given — the workspace sorts
+ * installed modules by name — and a category nothing is installed under is left out rather than
+ * heading a list of nothing.
+ */
+fun modulesByCategory(modules: List<ModuleInfo>): List<Pair<String, List<ModuleInfo>>> {
+    val grouped = modules.groupBy(::categoryOf)
     return CATEGORIES.mapNotNull { category ->
         grouped[category]?.takeIf { it.isNotEmpty() }?.let { category to it }
     }

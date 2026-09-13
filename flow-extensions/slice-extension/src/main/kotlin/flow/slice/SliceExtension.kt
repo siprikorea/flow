@@ -16,7 +16,8 @@ import flow.extension.OptionType
 class SliceExtension : ProcessorExtension {
     override val id = "flow.slice"
     override val displayName = "Slice"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "other"
     override val inputs = listOf("in")
     override val outputs = listOf("out", "rest")
     override val options = listOf(

@@ -73,6 +73,9 @@ data class ModuleInfo(
     val optionDescriptions: Map<String, String> = emptyMap(),
     // ports carrying a key, a password or a token — kept out of anything echoed back
     val sensitiveInputs: List<String> = emptyList(),
+    // what the extension says it is for, which is the group the palette lists it under. Blank from
+    // an extension built before the contract had it — see categoryOf(ModuleInfo).
+    val category: String = "",
 )
 
 // Install result: installed ids and conflicting (already-existing) ids

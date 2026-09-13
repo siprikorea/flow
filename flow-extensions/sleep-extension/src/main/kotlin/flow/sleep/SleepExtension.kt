@@ -14,7 +14,8 @@ import flow.extension.OptionType
 class SleepExtension : ProcessorExtension {
     override val id = "flow.sleep"
     override val displayName = "Sleep"
-    override val version = "1.1.1"
+    override val version = "1.1.2"
+    override val category = "other"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(ExtensionOption("ms", OptionType.NUMBER, "1000"))

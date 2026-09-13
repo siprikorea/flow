@@ -8,7 +8,8 @@ import flow.extension.ProcessorExtension
 class HotpExtension : ProcessorExtension {
     override val id = "flow.hotp"
     override val displayName = "HOTP"
-    override val version = "1.1.1"
+    override val version = "1.1.2"
+    override val category = "crypto"
     override val inputs = listOf("secret", "counter")
     override val outputs = listOf("out")
     override val options = Otp.options()

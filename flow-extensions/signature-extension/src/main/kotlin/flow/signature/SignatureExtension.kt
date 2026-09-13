@@ -17,7 +17,8 @@ import java.security.spec.X509EncodedKeySpec
 class SignatureExtension : ProcessorExtension {
     override val id = "flow.signature"
     override val displayName = "Signature"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = listOf("in", "key", "signature") // full set; see inputsFor for the per-operation set
     override val outputs = listOf("out")
     override val options = listOf(

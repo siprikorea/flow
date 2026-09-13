@@ -19,7 +19,8 @@ import java.util.concurrent.TimeUnit
 class McpToolExtension : ProcessorExtension {
     override val id = "flow.mcp"
     override val displayName = "MCP Tool"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "ai"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(

@@ -19,7 +19,8 @@ import flow.extension.ProcessorExtension
 class BranchExtension : ProcessorExtension {
     override val id = "flow.branch"
     override val displayName = "Branch"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
+    override val category = "other"
     override val inputs = listOf("in", "compare")
     override val outputs = listOf("then", "else")
 

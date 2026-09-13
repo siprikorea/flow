@@ -170,4 +170,31 @@ class RegistryKindTest {
         assertTrue(unknown.isEmpty(), "not a category this build knows: ${unknown.map { it.id to it.category }}")
     }
 
+    /* ───────── the palette's grouping ───────── */
+
+    private fun module(id: String, category: String) =
+        ModuleInfo(id, id, listOf("in"), listOf("out"), category = category)
+
+    @Test
+    fun `installed processors group by what the extension says it is`() {
+        val groups = modulesByCategory(
+            listOf(module("a", "other"), module("b", "crypto"), module("c", "ai"), module("d", "crypto")),
+        )
+        assertEquals(listOf(CATEGORY_CRYPTO, CATEGORY_AI, CATEGORY_OTHER), groups.map { it.first })
+        // the order they were given in stands within a group — the workspace sorts them by name
+        assertEquals(listOf("b", "d"), groups.first().second.map { it.id })
+    }
+
+    /**
+     * An extension installed before categories existed, or from a newer build than this one, still
+     * has a row in the palette — under Other, which is the whole of what an unknown category costs.
+     */
+    @Test
+    fun `an extension that says nothing, or something unknown, is listed under Other`() {
+        assertEquals(CATEGORY_OTHER, categoryOf(module("old", "")))
+        assertEquals(CATEGORY_OTHER, categoryOf(module("future", "quantum")))
+        val groups = modulesByCategory(listOf(module("old", ""), module("future", "quantum")))
+        assertEquals(listOf(CATEGORY_OTHER), groups.map { it.first })
+        assertEquals(2, groups.single().second.size)
+    }
 }

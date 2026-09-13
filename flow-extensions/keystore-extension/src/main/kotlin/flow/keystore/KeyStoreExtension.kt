@@ -19,7 +19,8 @@ import java.security.KeyStore
 class KeyStoreExtension : ProcessorExtension {
     override val id = "flow.keystore"
     override val displayName = "Key Store"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = listOf("store", "password")
     override val outputs = listOf("privateKey", "certificate", "publicKey")
     override val options = listOf(

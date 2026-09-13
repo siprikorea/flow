@@ -235,6 +235,8 @@ public final class ExtensionWorker {
             Wire.writeStringMap(o, e.getPortDescriptions());
             Wire.writeStringMap(o, e.getOptionDescriptions());
             Wire.writeStringList(o, e.getSensitiveInputs());
+            // which group the palette lists it under; "" from an extension built before categories
+            Wire.writeString(o, e.getCategory());
         }
     }
 

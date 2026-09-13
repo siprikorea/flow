@@ -41,7 +41,8 @@ import java.time.Duration
 class AiExtension : ProcessorExtension {
     override val id = "flow.ai"
     override val displayName = "AI"
-    override val version = "1.2.2"
+    override val version = "1.2.3"
+    override val category = "ai"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
 

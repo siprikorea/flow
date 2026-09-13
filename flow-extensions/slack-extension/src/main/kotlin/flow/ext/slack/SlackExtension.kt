@@ -33,7 +33,8 @@ import java.time.Duration
 class SlackExtension : ProcessorExtension {
     override val id = "flow.slack"
     override val displayName = "Slack"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "messaging"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
 

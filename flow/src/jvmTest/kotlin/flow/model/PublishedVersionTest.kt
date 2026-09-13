@@ -102,4 +102,41 @@ class PublishedVersionTest {
             "the manifest offers a version the extension does not report, so the update never settles",
         )
     }
+
+    /**
+     * The category each extension declares, by id. None declared is the interface's default of "",
+     * which reads as Other.
+     */
+    private fun declaredCategories(): Map<String, String> {
+        val id = Regex("""override val id = "([^"]+)"""")
+        val category = Regex("""override val category = "([^"]+)"""")
+        return extensionRoot().walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && it.path.contains("src/main/") }
+            .mapNotNull { file ->
+                val text = file.readText()
+                val found = id.find(text)?.groupValues?.get(1) ?: return@mapNotNull null
+                found to (category.find(text)?.groupValues?.get(1) ?: "")
+            }
+            .toMap()
+    }
+
+    /**
+     * The group an extension is listed under is the same in both places it is written down.
+     *
+     * The manifest's category sorts the Extensions screen; the source's sorts the palette, because
+     * the palette groups what is installed and has no manifest to consult. They are the same piece
+     * of information written twice, and a category raised in one and not the other puts an
+     * extension in two different groups depending on which screen you are looking at.
+     */
+    @Test
+    fun `an extension is in the same category wherever it is listed`() {
+        val declared = declaredCategories()
+        val wrong = published().mapNotNull { entry ->
+            val source = declared[entry.id] ?: return@mapNotNull null
+            // a view has no palette row to group, so only processors have to agree
+            if (entry.kind != KIND_PROCESSOR || source == categoryOf(entry)) null
+            else "${entry.id}: source '$source', manifest '${entry.category}'"
+        }
+        assertEquals(emptyList(), wrong, "the palette and the Extensions screen would group these differently")
+    }
 }

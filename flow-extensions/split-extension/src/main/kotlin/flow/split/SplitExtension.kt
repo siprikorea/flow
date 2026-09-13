@@ -7,7 +7,8 @@ import flow.extension.ProcessorExtension
 class SplitExtension : ProcessorExtension {
     override val id = "flow.split"
     override val displayName = "Split"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "other"
     override val inputs = listOf("in")
     override val outputs = listOf("a", "b")
     override val options = listOf(ExtensionOption("sep", default = ","))

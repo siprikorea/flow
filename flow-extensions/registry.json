@@ -3,7 +3,7 @@
     {
       "id": "flow.slack",
       "name": "Slack",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Post the input to a Slack channel, with a bot token or an incoming webhook; the message id comes out so another can reply in thread.",
       "file": "slack-extension.jar",
       "inputs": [
@@ -18,7 +18,7 @@
     {
       "id": "flow.telegram",
       "name": "Telegram",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Send the input to a Telegram chat through a bot; the message id comes out so another can reply to it.",
       "file": "telegram-extension.jar",
       "inputs": [
@@ -33,7 +33,7 @@
     {
       "id": "flow.ai",
       "name": "AI",
-      "version": "1.2.2",
+      "version": "1.2.3",
       "description": "Send the input to a model with a role to play, and put its answer on the output — chain two to make each one a step.",
       "file": "ai-extension.jar",
       "inputs": [
@@ -48,7 +48,7 @@
     {
       "id": "flow.base64",
       "name": "Base64",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Base64 encode or decode, standard or URL-safe alphabet, padding optional.",
       "file": "base64-extension.jar",
       "inputs": [
@@ -63,7 +63,7 @@
     {
       "id": "flow.cipher",
       "name": "Cipher",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Symmetric and RSA encryption/decryption — AES, DES, DESede, Blowfish, RSA; GCM with additional authenticated data.",
       "file": "cipher-extension.jar",
       "inputs": [
@@ -81,7 +81,7 @@
     {
       "id": "flow.hash",
       "name": "Hash",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Message digest: MD5, SHA-1, SHA-256, SHA-512.",
       "file": "hash-extension.jar",
       "inputs": [
@@ -96,7 +96,7 @@
     {
       "id": "flow.hotp",
       "name": "HOTP",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "description": "Counter-based one-time password (RFC 4226). Takes a raw or base32 secret.",
       "file": "hotp-extension.jar",
       "inputs": [
@@ -112,7 +112,7 @@
     {
       "id": "flow.json",
       "name": "JSON",
-      "version": "1.1.0",
+      "version": "1.1.1",
       "description": "Take one field out of a JSON document with a path, or re-format the whole thing.",
       "file": "json-extension.jar",
       "inputs": [
@@ -127,7 +127,7 @@
     {
       "id": "flow.jwt",
       "name": "JWT",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Verify a JWT against a secret and split out its header, payload and signature.",
       "file": "jwt-extension.jar",
       "inputs": [
@@ -145,7 +145,7 @@
     {
       "id": "flow.keyfactory",
       "name": "Key Factory",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Derive a key from a password (PBKDF2) or rebuild one from encoded key bytes.",
       "file": "keyfactory-extension.jar",
       "inputs": [
@@ -162,7 +162,7 @@
     {
       "id": "flow.keygen",
       "name": "Key Generator",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Generate a symmetric key for AES, DES, Blowfish, HMAC and friends.",
       "file": "keygen-extension.jar",
       "inputs": [],
@@ -175,7 +175,7 @@
     {
       "id": "flow.keypairgen",
       "name": "Key Pair Generator",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Generate an RSA, DSA or EC key pair.",
       "file": "keypairgen-extension.jar",
       "inputs": [],
@@ -189,7 +189,7 @@
     {
       "id": "flow.keystore",
       "name": "Key Store",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Read a private key, certificate and public key out of a PKCS12 or JKS store.",
       "file": "keystore-extension.jar",
       "inputs": [
@@ -207,7 +207,7 @@
     {
       "id": "flow.mac",
       "name": "MAC",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Keyed message authentication code (HMAC) over the input.",
       "file": "mac-extension.jar",
       "inputs": [
@@ -223,7 +223,7 @@
     {
       "id": "flow.mcp",
       "name": "MCP Tool",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Call a tool on an external MCP server, or list the tools it offers.",
       "file": "mcp-extension.jar",
       "inputs": [
@@ -238,7 +238,7 @@
     {
       "id": "flow.branch",
       "name": "Branch",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "kind": "processor",
       "category": "other",
       "description": "Send the value one way or the other: the side not taken carries nothing, so what hangs off it does not run.",
@@ -255,7 +255,7 @@
     {
       "id": "flow.merge",
       "name": "Merge",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Join two inputs into one, with an optional separator.",
       "file": "merge-extension.jar",
       "inputs": [
@@ -271,7 +271,7 @@
     {
       "id": "flow.securerandom",
       "name": "Secure Random",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Random bytes from a named SecureRandom algorithm.",
       "file": "securerandom-extension.jar",
       "inputs": [],
@@ -284,7 +284,7 @@
     {
       "id": "flow.signature",
       "name": "Signature",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Sign data or verify a signature — RSA, DSA, ECDSA.",
       "file": "signature-extension.jar",
       "inputs": [
@@ -301,7 +301,7 @@
     {
       "id": "flow.sleep",
       "name": "Sleep",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "description": "Pass the input through after a delay; useful for pacing a flow.",
       "file": "sleep-extension.jar",
       "inputs": [
@@ -316,7 +316,7 @@
     {
       "id": "flow.slice",
       "name": "Slice",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Take a byte range out of the input and pass the remainder on separately.",
       "file": "slice-extension.jar",
       "inputs": [
@@ -332,7 +332,7 @@
     {
       "id": "flow.split",
       "name": "Split",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "description": "Split the input on a separator into two outputs.",
       "file": "split-extension.jar",
       "inputs": [
@@ -348,7 +348,7 @@
     {
       "id": "flow.totp",
       "name": "TOTP",
-      "version": "1.1.1",
+      "version": "1.1.2",
       "description": "Time-based one-time password (RFC 6238), with a configurable step and digit count.",
       "file": "totp-extension.jar",
       "inputs": [
@@ -363,7 +363,7 @@
     {
       "id": "flow.qr",
       "name": "QR Code",
-      "version": "1.0.1",
+      "version": "1.0.2",
       "kind": "processor",
       "category": "other",
       "description": "Encode the input as a QR code image, ready for the Image View.",

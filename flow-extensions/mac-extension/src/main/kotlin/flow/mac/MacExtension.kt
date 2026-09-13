@@ -10,7 +10,8 @@ import javax.crypto.spec.SecretKeySpec
 class MacExtension : ProcessorExtension {
     override val id = "flow.mac"
     override val displayName = "MAC"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = listOf("in", "key")
     override val outputs = listOf("out")
     override val options = listOf(

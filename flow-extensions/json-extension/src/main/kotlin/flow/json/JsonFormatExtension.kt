@@ -23,7 +23,8 @@ import flow.extension.OptionType
 class JsonFormatExtension : ProcessorExtension {
     override val id = "flow.json"
     override val displayName = "JSON"
-    override val version = "1.1.0"
+    override val version = "1.1.1"
+    override val category = "other"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(

@@ -16,7 +16,8 @@ import javax.imageio.ImageIO
 class QrExtension : ProcessorExtension {
     override val id = "flow.qr"
     override val displayName = "QR Code"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "other"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(

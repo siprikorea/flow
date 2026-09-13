@@ -7,7 +7,8 @@ import flow.extension.ProcessorExtension
 class MergeExtension : ProcessorExtension {
     override val id = "flow.merge"
     override val displayName = "Merge"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "other"
     override val inputs = listOf("a", "b")
     override val outputs = listOf("out")
     override val options = listOf(ExtensionOption("sep", default = ""))

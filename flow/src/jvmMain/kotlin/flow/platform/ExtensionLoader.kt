@@ -135,7 +135,7 @@ internal object ExtensionLoader {
             ModuleInfo(
                 id, name, inputs, outputs, options, version, settings,
                 Wire.readStringList(input), Wire.readStringMap(input), Wire.readStringMap(input),
-                Wire.readStringList(input),
+                Wire.readStringList(input), Wire.readString(input),
             )
         }
     }

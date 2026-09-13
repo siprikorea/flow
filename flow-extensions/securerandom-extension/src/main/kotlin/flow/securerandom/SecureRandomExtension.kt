@@ -12,7 +12,8 @@ import java.security.SecureRandom
 class SecureRandomExtension : ProcessorExtension {
     override val id = "flow.securerandom"
     override val displayName = "Secure Random"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = emptyList<String>()
     override val outputs = listOf("out")
     override val options = listOf(

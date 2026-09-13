@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.geometry.Offset
 import flow.model.AiMessage
+import flow.model.CATEGORIES
 import flow.model.CompDef
 import flow.model.FlowFile
 import flow.model.ModuleInfo
@@ -1223,7 +1224,12 @@ class Workspace(private val scope: CoroutineScope) {
             leftTab = s.leftTab
             // an older session file has no such field; keep the root open
             expandedDirs = s.expandedDirs.toSet() + ""
-            expandedSections = s.expandedSections.toSet()
+            expandedSections = s.expandedSections.toSet().let { saved ->
+                // The palette's one Processors section became one per category. Someone who had it
+                // open had it open for a reason, so the sections that replaced it open with it
+                // rather than the panel coming back looking empty.
+                if ("modules" in saved) saved + CATEGORIES.map { "modules:$it" } else saved
+            }
             showProps = s.showProps
             showMinimap = s.showMinimap
             leftWidth = s.leftWidth.coerceIn(160f, 500f)

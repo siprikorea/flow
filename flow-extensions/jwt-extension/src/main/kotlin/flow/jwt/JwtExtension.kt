@@ -21,7 +21,8 @@ import javax.crypto.spec.SecretKeySpec
 class JwtExtension : ProcessorExtension {
     override val id = "flow.jwt"
     override val displayName = "JWT"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = listOf("jwt", "secret")
     override val outputs = listOf("header", "payload", "signature")
     override val options = listOf(

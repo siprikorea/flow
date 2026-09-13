@@ -13,7 +13,8 @@ import flow.extension.ProcessorExtension
 class TotpExtension : ProcessorExtension {
     override val id = "flow.totp"
     override val displayName = "TOTP"
-    override val version = "1.1.1"
+    override val version = "1.1.2"
+    override val category = "crypto"
     override val inputs = listOf("secret")
     override val outputs = listOf("out")
     override val options = Otp.options() + listOf(

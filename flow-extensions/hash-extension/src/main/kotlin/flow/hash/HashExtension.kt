@@ -9,7 +9,8 @@ import java.security.MessageDigest
 class HashExtension : ProcessorExtension {
     override val id = "flow.hash"
     override val displayName = "Hash"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(

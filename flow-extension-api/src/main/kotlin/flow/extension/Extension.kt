@@ -48,6 +48,20 @@ interface ProcessorExtension {
      */
     val version: String get() = "1.0.0"
 
+    /**
+     * What this extension is for: "crypto", "ai", "messaging", or "other".
+     *
+     * It decides which group the extension is listed under in the palette and in the Extensions
+     * screen — nothing else; an extension works the same whichever category it is in. Declared
+     * here rather than read from the registry so that the palette can group an extension installed
+     * from a file, and so that grouping does not need the network.
+     *
+     * A name this build of Flow does not know, and the default of none, are both listed under
+     * "other" rather than dropped: a category added to the contract later must not make an
+     * extension built before it disappear.
+     */
+    val category: String get() = ""
+
     /** Input port ids (the full/default set — see [inputsFor] for option-dependent ports). */
     val inputs: List<String>
 

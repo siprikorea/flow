@@ -13,7 +13,8 @@ import javax.crypto.KeyGenerator
 class KeyGenExtension : ProcessorExtension {
     override val id = "flow.keygen"
     override val displayName = "Key Generator"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = emptyList<String>()
     override val outputs = listOf("out")
     override val options = listOf(

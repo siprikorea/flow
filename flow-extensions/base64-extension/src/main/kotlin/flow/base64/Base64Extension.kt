@@ -14,7 +14,8 @@ import java.util.Base64
 class Base64Extension : ProcessorExtension {
     override val id = "flow.base64"
     override val displayName = "Base64"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "other"
     override val inputs = listOf("in")
     override val outputs = listOf("out")
     override val options = listOf(

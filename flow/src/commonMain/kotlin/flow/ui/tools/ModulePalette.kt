@@ -29,6 +29,7 @@ import flow.core.Workspace
 import flow.model.CompDef
 import flow.model.IO_DEFS
 import flow.model.REGISTRY
+import flow.model.modulesByCategory
 import flow.ui.common.FlowListRow
 import flow.ui.common.FlowSectionHeader
 import flow.ui.common.Txt
@@ -56,11 +57,24 @@ internal fun ModulePalette(ws: Workspace) {
             }
         }
         // Built-ins, installed extensions and the user's own components all read as one kind —
-        // "processor" — per the design guide's 3-colour category scheme; they stay split into two
-        // sections because that grouping (mine vs. shipped) is still useful to find things by.
-        Section(ws, "modules", ws.t("processorSection")) {
-            REGISTRY.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.ins.size, it.outs.size) }
-            ws.installedModules.forEach { m -> PaletteCard(ws, m.id, m.name, m.inputs.size, m.outputs.size) }
+        // "processor" — per the design guide's 3-colour category scheme; they stay split into
+        // sections because that grouping is what a list of two dozen processors is found by.
+        //
+        // Processors are grouped by what they are for — the same categories the Extensions screen
+        // sorts by, from the same answer, so what was installed under "Crypto" is where "Crypto"
+        // is here. A category nothing is installed under is not shown at all.
+        //
+        // Built-ins are none at the moment (REGISTRY is empty — everything is an extension), so
+        // their section appears only if one is ever added back rather than heading an empty list.
+        if (REGISTRY.isNotEmpty()) {
+            Section(ws, "modules", ws.t("processorSection")) {
+                REGISTRY.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.ins.size, it.outs.size) }
+            }
+        }
+        modulesByCategory(ws.installedModules).forEach { (category, modules) ->
+            Section(ws, "modules:$category", ws.t("cat_$category")) {
+                modules.forEach { m -> PaletteCard(ws, m.id, m.name, m.inputs.size, m.outputs.size) }
+            }
         }
         Section(ws, "components", ws.t("componentsSection")) {
             if (ws.components.isEmpty()) {

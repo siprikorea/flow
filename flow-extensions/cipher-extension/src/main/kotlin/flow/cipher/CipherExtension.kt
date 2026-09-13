@@ -27,7 +27,8 @@ import javax.crypto.spec.SecretKeySpec
 class CipherExtension : ProcessorExtension {
     override val id = "flow.cipher"
     override val displayName = "Cipher"
-    override val version = "1.1.0"
+    override val version = "1.1.1"
+    override val category = "crypto"
     override val inputs = listOf("in", "key", "iv", "aad")
     override val outputs = listOf("out")
 

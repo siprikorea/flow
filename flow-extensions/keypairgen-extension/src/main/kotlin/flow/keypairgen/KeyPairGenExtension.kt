@@ -14,7 +14,8 @@ import java.security.SecureRandom
 class KeyPairGenExtension : ProcessorExtension {
     override val id = "flow.keypairgen"
     override val displayName = "Key Pair Generator"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = emptyList<String>()
     override val outputs = listOf("publicKey", "privateKey")
     override val options = listOf(

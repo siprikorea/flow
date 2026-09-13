@@ -25,7 +25,8 @@ import javax.crypto.spec.PBEKeySpec
 class KeyFactoryExtension : ProcessorExtension {
     override val id = "flow.keyfactory"
     override val displayName = "Key Factory"
-    override val version = "1.0.1"
+    override val version = "1.0.2"
+    override val category = "crypto"
     override val inputs = listOf("password", "salt", "key") // full set; see inputsFor
     override val outputs = listOf("out")
     override val options = listOf(
