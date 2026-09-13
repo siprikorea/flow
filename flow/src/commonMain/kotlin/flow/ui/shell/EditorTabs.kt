@@ -27,6 +27,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import flow.core.FocusRegion
 import flow.core.Workspace
 import flow.util.flowLabel
 import flow.ui.common.AppLogo
@@ -54,7 +55,9 @@ fun EditorTabs(ws: Workspace) {
                         name = flowLabel(doc.fileName),
                         active = i == ws.activeIndex,
                         dirty = doc.dirty,
-                        onSelect = { ws.select(i) },
+                        // picking a tab puts you in the editor, so the canvas's own shortcuts
+                        // answer again without having to click the canvas itself first
+                        onSelect = { ws.select(i); ws.focus = FocusRegion.CANVAS },
                         onClose = { ws.requestClose(i) },
                         onDoubleClick = {
                             // leave only the canvas; double-click again restores both panels

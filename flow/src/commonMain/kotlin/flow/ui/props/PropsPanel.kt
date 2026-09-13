@@ -39,6 +39,7 @@ import com.composables.icons.lucide.Play
 import com.composables.icons.lucide.Plus
 import com.composables.icons.lucide.Trash2
 import flow.core.EditorState
+import flow.core.FocusRegion
 import flow.model.Edge
 import flow.model.Node
 import flow.model.OptDef
@@ -66,6 +67,7 @@ fun PropsPanel(state: EditorState) {
     val onFocusChange: (Boolean) -> Unit = { focused ->
         if (focused) {
             state.textEditing = true
+            state.ws.focus = FocusRegion.TEXT
             focusSnap = state.snapshot()
         } else {
             state.textEditing = false

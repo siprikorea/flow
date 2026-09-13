@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Action
+import flow.core.FocusRegion
 import flow.core.Workspace
 import flow.platform.Platform
 import flow.platform.droppedFilePath
@@ -225,7 +226,7 @@ private fun RootRow(ws: Workspace) {
                         if (event.type != PointerEventType.Press) continue
                         val change = event.changes.first()
                         change.consume()
-                        ws.projectFocused = true
+                        ws.focus = FocusRegion.PROJECT
                         if (event.buttons.isSecondaryPressed) ws.openProjectMenu("", origin + change.position)
                         else ws.toggleExpand("")
                     }
@@ -278,7 +279,7 @@ private fun ItemRow(ws: Workspace, row: Workspace.Row) {
                         if (event.type != PointerEventType.Press) continue
                         val change = event.changes.first()
                         change.consume()
-                        ws.projectFocused = true
+                        ws.focus = FocusRegion.PROJECT
                         val mods = event.keyboardModifiers
                         if (event.buttons.isSecondaryPressed) {
                             if (path !in ws.projectSelected) ws.selectFile(path)

@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.model.indexOfPort
 import flow.core.EditorState
+import flow.core.FocusRegion
 import flow.core.GRID
 import flow.core.bezierCtrl
 import flow.core.bezierPoint
@@ -94,7 +95,7 @@ fun CanvasView(state: EditorState, modifier: Modifier = Modifier) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     state.menu = null
-                    state.ws.projectFocused = false
+                    state.ws.focus = FocusRegion.CANVAS
                     // drag on empty canvas = rubber-band select, click = select/deselect an edge
                     val startWorld = state.screenToWorld(down.position)
                     var moved = false

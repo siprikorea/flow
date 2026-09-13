@@ -82,6 +82,14 @@ class DataTab(val doc: EditorState, val nodeId: String) {
 }
 
 // Workspace: global UI state + open documents (tabs) + project file list + component registry
+/**
+ * The part of the window the keyboard belongs to while a shortcut is pressed.
+ *
+ * TEXT is every field everywhere — the AI composer, a node's options, a rename — because what they
+ * all have in common is that a key typed in one is a character, not a command.
+ */
+enum class FocusRegion { CANVAS, PROJECT, TEXT }
+
 class Workspace(private val scope: CoroutineScope) {
     private val json = Json { ignoreUnknownKeys = true; prettyPrint = true }
 
@@ -271,9 +279,21 @@ class Workspace(private val scope: CoroutineScope) {
         saveError = message
     }
 
-    // true while the project tree is the panel the user last clicked in — the scope its
-    // shortcuts (rename/delete) act on
-    var projectFocused by mutableStateOf(false)
+    /**
+     * Where the keys are going: the part of the window the user last put themselves in.
+     *
+     * A shortcut with no modifier belongs to one region and not to the others. Space runs the flow
+     * — on the canvas. In a text field it is a space, and the flow running because a question was
+     * being typed in the AI panel is the bug this exists to stop.
+     *
+     * Written as "which region", not "is a field focused", on purpose: a text field nobody
+     * remembered to mark here then costs a shortcut that does nothing, rather than a flow that
+     * runs while you type.
+     */
+    var focus by mutableStateOf(FocusRegion.CANVAS)
+
+    /** True while the project tree is the region — the scope its rename/delete shortcuts act on. */
+    val projectFocused: Boolean get() = focus == FocusRegion.PROJECT
 
     // action id -> shortcut, editable in Settings > Keymap
     var keymap by mutableStateOf(DEFAULT_KEYMAP)

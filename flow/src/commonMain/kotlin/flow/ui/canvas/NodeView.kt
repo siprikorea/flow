@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.EditorState
+import flow.core.FocusRegion
 import flow.core.PORT_INSET
 import flow.core.PORT_SIZE
 import flow.core.portPos
@@ -171,7 +172,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
                 var lastDown = 0L
                 awaitEachGesture {
                     val down = awaitFirstDown()
-                    state.ws.projectFocused = false
+                    state.ws.focus = FocusRegion.CANVAS
                     down.consume() // consume so the canvas can't clear the selection
                     val mods = currentEvent.keyboardModifiers
                     if (mods.isCtrlPressed || mods.isMetaPressed) state.toggleNode(node.id) // Cmd/Win = add to selection

@@ -45,6 +45,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import flow.core.FocusRegion
 import flow.core.Workspace
 import flow.platform.Platform
 import flow.ui.common.FlowMarkdown
@@ -232,7 +233,12 @@ private fun Composer(ws: Workspace) {
                     textStyle = TextStyle(color = Palette.text, fontSize = 12.sp),
                     cursorBrush = SolidColor(Palette.accent),
                     modifier = Modifier.fillMaxWidth()
-                        .onFocusChanged { focused = it.isFocused }
+                        .onFocusChanged {
+                            focused = it.isFocused
+                            // the keys are this field's while it has them: a space typed into a
+                            // question is a space, not the canvas's run shortcut
+                            if (it.isFocused) ws.focus = FocusRegion.TEXT
+                        }
                         .onPreviewKeyEvent { event ->
                             // Enter sends; Shift-Enter is how a second line is written
                             if (event.type == KeyEventType.KeyDown && event.key == Key.Enter && !event.isShiftPressed) {

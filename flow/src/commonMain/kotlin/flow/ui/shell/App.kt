@@ -55,6 +55,7 @@ import flow.core.Action
 import flow.core.DEFAULT_KEYMAP
 import flow.core.DragModule
 import flow.core.Shortcut
+import flow.core.FocusRegion
 import flow.core.Workspace
 import flow.model.KIND_VIEW
 import flow.model.KIND_PROCESSOR
@@ -1283,10 +1284,27 @@ fun closeOnEscape(ev: KeyEvent, close: () -> Unit): Boolean {
     return true
 }
 
+/**
+ * Whether Space means "run the flow" as things stand.
+ *
+ * Its own function because it is the whole of the rule and nothing about keyboards: the canvas is
+ * the region that runs flows, and a modal or the settings screen is over the canvas rather than
+ * part of it. Also the only part of [handleKey] a test can reach — a KeyEvent cannot be built
+ * outside Compose.
+ */
+internal fun spaceRunsFlow(ws: Workspace): Boolean =
+    ws.focus == FocusRegion.CANVAS && !ws.dialogOpen && !ws.showSettings
+
 fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     val active = ws.active
     if (ev.type == KeyEventType.KeyUp) {
-        if (ev.key == Key.Spacebar) { active?.spaceDown = false; return true }
+        // Always let go of the key — a space held down on the canvas and released over a text
+        // field must not leave the canvas thinking it is still held — but only the canvas's own
+        // space was ever consumed, so only it says the event was answered.
+        if (ev.key == Key.Spacebar) {
+            active?.spaceDown = false
+            return spaceRunsFlow(ws)
+        }
         return false
     }
     if (ev.type != KeyEventType.KeyDown) return false
@@ -1331,10 +1349,19 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
     }
     if (active == null) return false
     if (active.textEditing) return false // ignore shortcuts while a text field is focused
+    // A modal or the settings screen has the keyboard. The canvas's own shortcuts — Delete on a
+    // selection, Backspace, paste — are not theirs to answer, whether or not a field inside them
+    // happens to be focused yet.
+    if (ws.dialogOpen || ws.showSettings) return false
     return when {
-        // space toggles run/stop; with a node selected it runs from there
-        // (like the "Start from here" button). Guard against key auto-repeat.
+        // Space toggles run/stop; with a node selected it runs from there (like the "Start from
+        // here" button). Guard against key auto-repeat.
+        //
+        // Only the canvas hears it. Anywhere a key is a character — the AI panel's question box, a
+        // node's options, a rename — a space is a space, and a flow that starts running because
+        // someone was typing is not a shortcut, it is a surprise.
         ev.key == Key.Spacebar -> {
+            if (!spaceRunsFlow(ws)) return false
             if (!active.spaceDown) {
                 active.spaceDown = true
                 when {
