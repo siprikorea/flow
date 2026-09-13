@@ -146,21 +146,28 @@ fun App(
                     }
                 }
                 WindowSurface(Modifier.weight(1f).fillMaxHeight(), fill = Palette.canvasBg) {
-                    Row(Modifier.fillMaxSize()) {
-                        Column(Modifier.weight(1f).fillMaxHeight()) {
-                            EditorTabs(ws)
-                            Box(
-                                Modifier.weight(1f).fillMaxWidth()
-                                    .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = editorDropTarget),
-                            ) {
-                                val active = ws.active
-                                if (active != null) CanvasView(active, Modifier.fillMaxSize()) else EmptyEditor(ws)
-                            }
+                    Column(Modifier.fillMaxSize()) {
+                        EditorTabs(ws)
+                        Box(
+                            Modifier.weight(1f).fillMaxWidth()
+                                .dragAndDropTarget(shouldStartDragAndDrop = { true }, target = editorDropTarget),
+                        ) {
+                            val active = ws.active
+                            if (active != null) CanvasView(active, Modifier.fillMaxSize()) else EmptyEditor(ws)
                         }
-                        // docked inside the frame, not hung off the rail — one sheet, one border,
-                        // a hairline where two regions of it meet
-                        val active = ws.active
-                        if (ws.showProps && active != null) PropsPanel(active)
+                    }
+                }
+                // A sheet of its own, the way the project panel is one. It used to be docked
+                // inside the editor's frame, which said the two were one surface with a line
+                // ruled down it — but what is on the right is about the selection, not part of
+                // the canvas, and the shape should say so before anything is read.
+                val active = ws.active
+                if (ws.showProps && active != null) {
+                    ResizeDivider(Color.Transparent, Frame.inset) {
+                        ws.propsWidth = (ws.propsWidth - it).coerceIn(200f, 560f)
+                    }
+                    WindowSurface(Modifier.width(ws.propsWidth.dp).fillMaxHeight()) {
+                        PropsPanel(active)
                     }
                 }
                 RightRail(ws)

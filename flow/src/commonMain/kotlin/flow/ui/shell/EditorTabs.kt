@@ -13,10 +13,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.key
@@ -86,7 +84,6 @@ private fun Tab(
     // IntrinsicSize.Max gives fillMaxWidth a real width inside the horizontal scroller,
     // so the active-tab top indicator (VS Code style) actually renders
     Column(Modifier.width(IntrinsicSize.Max)) {
-        Box(Modifier.height(2.dp).fillMaxWidth().background(if (active) Palette.accent else Color.Transparent))
         Row(
             Modifier
                 .height(Size.tabBar - 2.dp)
@@ -115,19 +112,25 @@ private fun Tab(
             AppLogo(Size.icon)
             Txt(
                 name, 12.sp,
-                if (active) Palette.textPrimary else Palette.textTertiary,
+                // unsaved is the name's own colour now, not a dot in the corner the close button
+                // had to be given up for — the file the user is working in is exactly the one
+                // whose close button has to be there when they reach for it
+                when {
+                    dirty -> Palette.warning
+                    active -> Palette.textPrimary
+                    else -> Palette.textTertiary
+                },
                 weight = if (active) FontWeight.Medium else FontWeight.Normal,
                 maxLines = 1,
             )
-            // dirty: a 6dp amber dot normally, close (x) on hover
-            if (dirty && !hovered) {
-                Box(Modifier.size(6.dp).background(Palette.warning, CircleShape))
-            } else {
-                Txt(
-                    "×", 13.sp, if (hovered || active) Palette.textSecondary else Color.Transparent,
-                    modifier = Modifier.plainClick(onClose).padding(horizontal = 3.dp),
-                )
-            }
+            // always on the open file, on hover for the rest
+            Txt(
+                "×", 13.sp, if (hovered || active) Palette.textSecondary else Color.Transparent,
+                modifier = Modifier.plainClick(onClose).padding(horizontal = 3.dp),
+            )
         }
+        // the open tab is underlined, the way an IDE marks the file you are in — under the tab,
+        // against the editor it belongs to, rather than a rule floating above it
+        Box(Modifier.height(2.dp).fillMaxWidth().background(if (active) Palette.accent else Color.Transparent))
     }
 }

@@ -103,6 +103,11 @@ class Scheme(
     val textDisabled: Color,
     val accentPressed: Color,
     val accentSubtle: Color,
+    // A selected control's own fill — the rail button whose panel is open. Stronger than
+    // [accentSubtle], which tints a row inside a panel: a 40dp strip of chrome has nothing around
+    // it to compare against, so the same wash that reads as "selected" in a list reads as nothing
+    // at all out there.
+    val accentFill: Color,
     val warning: Color,
     val danger: Color,
     // The three module-category colours the guide allows — everything else stays grey.
@@ -206,6 +211,7 @@ val DarkScheme = Scheme(
     textDisabled = Color(0xFF52565E),
     accentPressed = Color(0xFF2B62CE),
     accentSubtle = Color(0x2E3574F0),
+    accentFill = Color(0x663574F0),
     warning = Color(0xFFD6A73B),
     danger = Color(0xFFDB5C5C),
     catInput = Color(0xFFD6A73B),
@@ -307,6 +313,7 @@ val LightScheme = Scheme(
     textDisabled = Color(0xFFA8ACB4),
     accentPressed = Color(0xFF254FAD),
     accentSubtle = Color(0x1F2E5FCC),
+    accentFill = Color(0x452E5FCC),
     warning = Color(0xFFA97C1B),
     danger = Color(0xFFC0453F),
     catInput = Color(0xFFA97C1B),
@@ -407,6 +414,7 @@ object Palette {
     val textDisabled get() = scheme.textDisabled
     val accentPressed get() = scheme.accentPressed
     val accentSubtle get() = scheme.accentSubtle
+    val accentFill get() = scheme.accentFill
     val warning get() = scheme.warning
     val danger get() = scheme.danger
     val catInput get() = scheme.catInput

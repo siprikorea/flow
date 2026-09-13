@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -52,7 +52,6 @@ import flow.ui.common.FlowButton
 import flow.ui.common.FlowButtonVariant
 import flow.ui.common.FlowDangerIconButton
 import flow.ui.common.LucideIcon
-import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
@@ -76,34 +75,28 @@ fun PropsPanel(state: EditorState) {
         }
     }
 
-    Row {
-        ResizeDivider(Palette.frameBorder) {
-            // divider is on the panel's left edge, so dragging right shrinks it
-            state.ws.propsWidth = (state.ws.propsWidth - it).coerceIn(200f, 560f)
-        }
-        Column(
-            Modifier
-                .width(state.ws.propsWidth.dp)
-                .fillMaxHeight()
-                .background(Palette.panelBg)
-                .verticalScroll(rememberScrollState())
-                .padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val singleNode = if (state.selNodes.size == 1 && state.selEdges.isEmpty())
-                state.nodeById(state.selNodes.first()) else null
-            val singleEdge = if (state.selEdges.size == 1 && state.selNodes.isEmpty())
-                state.edges.find { it.id == state.selEdges.first() } else null
-            val total = state.selNodes.size + state.selEdges.size
-            when {
-                singleNode != null -> NodeProps(state, singleNode, onFocusChange)
-                singleEdge != null -> EdgeProps(state, singleEdge)
-                total > 1 -> MultiProps(state, onFocusChange)
-                else -> Txt(
-                    state.t("propsEmpty"), 12.sp, Palette.textTertiary,
-                    modifier = Modifier.padding(top = 6.dp),
-                )
-            }
+    // The sheet and the seam beside it belong to the shell (see App): this is the content of a
+    // tool window, the same as the project panel is, and it fills whatever it is given.
+    Column(
+        Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        val singleNode = if (state.selNodes.size == 1 && state.selEdges.isEmpty())
+            state.nodeById(state.selNodes.first()) else null
+        val singleEdge = if (state.selEdges.size == 1 && state.selNodes.isEmpty())
+            state.edges.find { it.id == state.selEdges.first() } else null
+        val total = state.selNodes.size + state.selEdges.size
+        when {
+            singleNode != null -> NodeProps(state, singleNode, onFocusChange)
+            singleEdge != null -> EdgeProps(state, singleEdge)
+            total > 1 -> MultiProps(state, onFocusChange)
+            else -> Txt(
+                state.t("propsEmpty"), 12.sp, Palette.textTertiary,
+                modifier = Modifier.padding(top = 6.dp),
+            )
         }
     }
 }

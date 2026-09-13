@@ -67,7 +67,7 @@ fun ActivityButton(
         Box(
             Modifier
                 .size(Size.iconButton)
-                .background(if (selected) Palette.accentSubtle else Color.Transparent, shape)
+                .background(if (selected) Palette.accentFill else Color.Transparent, shape)
                 // over the selection, not instead of it: a selected button still lights up
                 .background(if (hovered) Palette.hoverOverlay else Color.Transparent, shape),
             contentAlignment = Alignment.Center,

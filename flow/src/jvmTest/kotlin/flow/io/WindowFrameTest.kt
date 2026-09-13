@@ -51,6 +51,11 @@ class WindowFrameTest {
                 ws.docs.add(EditorState(CoroutineScope(Dispatchers.Unconfined), ws, "a.flow").also { it.load(FlowFile()) })
                 ws.activeIndex = 0
                 ws.showLeft = showLeft
+                // The margin round the window is what is being measured, so it is measured with
+                // one sheet in it. A second sheet beside the first puts its own rounded corners in
+                // the middle of every scan line, which is a different question — and the one
+                // `a tool window has the frame's own corner` asks.
+                ws.showProps = false
                 App(ws)
             }
         }
@@ -173,6 +178,66 @@ class WindowFrameTest {
         }
         val distinct = corners.map { it.second }.distinct()
         assertEquals(1, distinct.size, "the corners are not all the same: $corners")
+    }
+
+    /**
+     * The properties panel is a sheet of its own, with the window showing between it and the editor.
+     *
+     * It used to be docked inside the editor's frame, one surface with a rule down it. What tells
+     * the two apart now is the ground: scanning in from the right there are two borders with the
+     * window's own gradient between them, exactly the seam that separates the project panel from
+     * the editor on the other side.
+     */
+    @Test
+    fun `the properties panel is a sheet beside the editor, not part of it`() {
+        val scene = ImageComposeScene(w, h, density = Density(density), coroutineContext = Dispatchers.Unconfined) {
+            ApplyTheme(Theme.DARK)
+            Box(Modifier.fillMaxSize()) {
+                val ws = Workspace(CoroutineScope(Dispatchers.Unconfined))
+                ws.theme = Theme.DARK
+                ws.docs.add(EditorState(CoroutineScope(Dispatchers.Unconfined), ws, "a.flow").also { it.load(FlowFile()) })
+                ws.activeIndex = 0
+                ws.showLeft = false
+                ws.showProps = true
+                App(ws)
+            }
+        }
+        val image = scene.render()
+        val b = Bitmap().also {
+            it.allocPixels(ImageInfo.makeN32(w, h, ColorAlphaType.UNPREMUL))
+            image.readPixels(it)
+            scene.close()
+        }
+
+        // in from the right: the properties sheet's own two borders, then the editor's
+        val outer = nextLineLeft(b, w - 1)
+        val propsLeft = nextLineLeft(b, runLeftEnd(b, outer) - 1)
+        val editorRight = nextLineLeft(b, runLeftEnd(b, propsLeft) - 1)
+        assertEquals(px(Frame.band.value), w - 1 - outer, "the sheet does not start where the chrome ends")
+        assertTrue(propsLeft > 0 && editorRight > 0, "only one border was found: $propsLeft / $editorRight")
+        assertEquals(
+            px(Frame.inset.value), runLeftEnd(b, propsLeft) - editorRight - 1,
+            "the gap between the two sheets is not the window's own seam",
+        )
+    }
+
+    /** The next column to the left holding the frame's line, checked across three rows so text is not one. */
+    private fun nextLineLeft(b: Bitmap, from: Int): Int {
+        val rows = listOf(h * 45 / 100, h / 2, h * 55 / 100)
+        var x = from
+        while (x > 0) {
+            if (rows.all { isFrameLine(b.getColor(x, it)) }) return x
+            x--
+        }
+        return -1
+    }
+
+    /** The leftmost column of the line [x] is part of — a 1dp line is more than one pixel. */
+    private fun runLeftEnd(b: Bitmap, x: Int): Int {
+        val rows = listOf(h * 45 / 100, h / 2, h * 55 / 100)
+        var at = x
+        while (at > 0 && rows.all { isFrameLine(b.getColor(at - 1, it)) }) at--
+        return at
     }
 
     /**
