@@ -218,25 +218,34 @@ shape. From the terminal:
 ./gradlew :flow:cli --args="--mcp"                                     # MCP server on stdio
 ```
 
-Modules: `flow-extension-api` (contract), `flow` (editor + CLI + install/registry), `flow-extensions/base64-extension` (`flow.base64`, with an encode/decode option), `flow-extensions/mcp-extension` (`flow.mcp`, calls a tool on an external MCP server) and `flow-extensions/sample-extension` (`com.example.mul3`, `com.example.upper`).
+Modules: `flow-extension-api` (contract), `flow` (editor + CLI + install/registry), `flow-mcp` (the MCP protocol, over the official Java SDK), `flow-extensions/base64-extension` (`flow.base64`, with an encode/decode option), `flow-extensions/mcp-extension` (`flow.mcp`, calls a tool on an external MCP server) and `flow-extensions/sample-extension` (`com.example.mul3`, `com.example.upper`).
 
 ## MCP
 
-Flow speaks the Model Context Protocol in both directions, with no extra dependencies — the
-JSON-RPC 2.0 stdio plumbing is implemented in the repo.
+Flow speaks the Model Context Protocol in both directions. The server side is the official
+[MCP Java SDK](https://github.com/modelcontextprotocol/java-sdk) (MIT), wrapped by the `flow-mcp`
+module: the protocol — initialize, the capability handshake, `tools/list`, `tools/call`, `ping`,
+the framing, the version negotiation — is the SDK's, and what this repository writes is the tools.
+`flow.mcp.FlowTools` is those tools and knows nothing about MCP, which is why the assistant inside
+the app calls the same ones without a protocol in between.
 
 ### Flow as an MCP server
 `cli --mcp` lets a client such as Claude Desktop or Claude Code **author** flow files: describe what
-a flow should do and it is drafted from the installed modules, wired up and laid out. Running flows
-is the app's job, so the server exposes five tools and nothing else:
+a flow should do and it is drafted from the installed modules, wired up and laid out.
 
 | Tool | |
 |---|---|
-| `list_modules` | every building block — cin/cout, each module's ports and options, existing flows usable as sub-components |
+| `list_nodes` | every building block — cin/cout, each processor's ports and options, flows installed as components |
 | `list_flows` | the project's flow files with their ports |
 | `read_flow` | a flow as the same `{nodes, edges}` spec `build_flow` takes, plus its `problems` |
 | `validate_flow` | verify a saved flow and report every fault found |
 | `build_flow` | build a `.flow` from that spec and return its contents |
+| `save_flow` | the same, written into the open folder |
+| `run_flow` | run a saved flow headlessly with real input and return what it output |
+| `open_flow`, `set_flow_input`, `start_flow`, `stop_flow` | act on the running app's own tabs (they refuse when it isn't running) |
+
+Each installed processor is a tool of its own besides — `flow_hash`, `flow_cipher` and so on — so a
+single step can be run without a flow to put it in.
 
 `build_flow` takes the graph, not the file format: nodes by type, edges as `"node.port"` (or just
 `"node"` when that side has one port). Port lists, edge ids and node sizes are worked out server
@@ -264,9 +273,12 @@ claude mcp add flow -- /abs/path/to/flow/build/flow-mcp
 ```
 
 The equivalent entry for a `mcpServers` config block is
-`{"flow": {"command": "/abs/path/to/flow/build/flow-mcp"}}`. Tools are rebuilt per request, so a
-flow saved while the server runs shows up without a restart. Only protocol messages go to stdout;
-logs go to stderr.
+`{"flow": {"command": "/abs/path/to/flow/build/flow-mcp"}}`. The tool list is settled when the
+server starts — a processor installed afterwards needs a restart, which is what a client does
+between sessions anyway — while the flows themselves are read from disk per call, so one saved
+while the server runs shows up without one. Only protocol messages go to stdout; logs go to stderr
+(no SLF4J binding is on the classpath, so the SDK's own logging is a no-op and cannot reach the
+protocol's stream).
 
 ### Claude Desktop extension (.mcpb)
 For Claude Desktop the server can ship as an extension bundle instead of a config entry:
@@ -287,7 +299,8 @@ The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carrie
 its own, reading both flows and installed extensions out of `~/.flow` as the app does. Claude Desktop bundles a Node runtime but no JVM,
 so the launcher resolves a JDK 25+ from `JAVA_HOME`, then `/usr/libexec/java_home`, then `PATH` — one
 has to be installed on the machine. Only the jars the MCP path actually loads are staged (no Compose
-or Skiko), which keeps the bundle near 3MB.
+or Skiko): the app's own, the SDK's, and what the SDK brings — Jackson, Reactor, the schema
+validator — which puts the bundle near 10MB.
 
 ### Calling an MCP tool from a flow
 The `flow.mcp` module ("MCP Tool") runs an MCP server as a child process and calls one of its

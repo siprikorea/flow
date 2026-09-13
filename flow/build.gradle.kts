@@ -41,6 +41,10 @@ kotlin {
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
             implementation(project(":flow-extension-api"))
             implementation(project(":flow-extension-host"))
+            // The MCP protocol, kept in one module of its own — see :flow-mcp. The app depends on
+            // it because the app is what starts the server: the CLI's --mcp, and the launchers the
+            // AI panel writes for Claude Code/Codex/Gemini, all run out of this same classpath.
+            implementation(project(":flow-mcp"))
             // JBR's window-decoration API: lets the title bar tell the OS exactly how tall it is,
             // so native traffic lights centre on it instead of on some assumed default height.
             // compose.desktop.currentOs already runs on JetBrains Runtime, so this is always
@@ -265,7 +269,13 @@ tasks.register<JavaExec>("cli") {
 // The MCP/CLI path never touches Compose or Skiko, so only these dependency jars ship — keeping the
 // UI stack out takes the bundle well under 1MB now that no extension jars ride along either. A new
 // runtime dependency on that path needs its prefix added here (mcpbBundleVerify below catches a miss).
-val mcpbServerJars = listOf("kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-extension-api", "flow-extension-host")
+val mcpbServerJars = listOf(
+    "kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-extension-api", "flow-extension-host",
+    // the MCP server: :flow-mcp and the official SDK it wraps, with the JSON mapper the SDK finds
+    // by ServiceLoader, the schema validator it checks tool schemas with, and Reactor underneath
+    "flow-mcp", "mcp-core", "mcp-json-jackson3", "jackson-", "json-schema-validator", "itu-",
+    "reactor-core", "reactive-streams", "slf4j-api", "snakeyaml",
+)
 
 val mcpbStage = tasks.register<Copy>("mcpbStage") {
     group = "application"
@@ -299,16 +309,30 @@ val mcpbBundleVerify = tasks.register("mcpbBundleVerify") {
     doLast {
         val proc = ProcessBuilder("/bin/sh", script.get().asFile.absolutePath)
             .redirectErrorStream(false).start()
-        proc.outputStream.bufferedWriter().use {
-            it.write("""{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}""" + "\n")
-            it.write("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""" + "\n")
-            // nothing ships with the app any more, so what this proves is that the tool runs at all
-            // — it reaches the extension store and answers, whatever the machine happens to have
-            it.write("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_nodes","arguments":{}}}""" + "\n")
+        val toServer = proc.outputStream.bufferedWriter()
+        val fromServer = proc.inputStream.bufferedReader()
+        // Written and read one at a time, with the pipe kept open: the server stops reading the
+        // moment stdin closes, so writing everything and then closing loses whatever it had not
+        // got to yet.
+        fun ask(line: String): String {
+            toServer.write(line); toServer.write("\n"); toServer.flush()
+            return fromServer.readLine() ?: ""
         }
-        val out = proc.inputStream.bufferedReader().readText()
+        ask(
+            """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05",""" +
+                """"capabilities":{},"clientInfo":{"name":"mcpbBundleVerify","version":"1.0"}}}""",
+        )
+        // the handshake a client actually performs, since that is what is being checked here
+        toServer.write("""{"jsonrpc":"2.0","method":"notifications/initialized"}""" + "\n")
+        toServer.flush()
+        val tools = ask("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""")
+        // nothing ships with the app any more, so what this proves is that the tool runs at all
+        // — it reaches the extension store and answers, whatever the machine happens to have
+        val nodes = ask("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_nodes","arguments":{}}}""")
+        toServer.close()
         val err = proc.errorStream.bufferedReader().readText()
         proc.waitFor()
+        val out = tools + "\n" + nodes
         check(out.contains("\"tools\"")) {
             "bundle server did not list its tools\nstdout: $out\nstderr: $err"
         }

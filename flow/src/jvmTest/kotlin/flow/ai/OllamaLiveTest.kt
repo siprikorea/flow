@@ -59,7 +59,7 @@ class OllamaLiveTest {
         // Not the exact wording asked for — a small local model rarely obeys a reply format — but
         // names it can only have by having called the tool. Two of them, so one lucky guess at a
         // word like "Hash" is not enough.
-        val real = flow.mcp.McpServer.invoke("list_nodes", kotlinx.serialization.json.JsonObject(emptyMap()))
+        val real = flow.mcp.FlowTools.invoke("list_nodes", kotlinx.serialization.json.JsonObject(emptyMap()))
             .lines().mapNotNull { line -> Regex("'([^']+)'").find(line)?.groupValues?.get(1) }
             .filter { it.length > 3 }
         val mentioned = real.filter { reply.text.contains(it, ignoreCase = true) }

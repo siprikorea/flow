@@ -1,6 +1,6 @@
 package flow.cli
 
-import flow.mcp.McpServer
+import flow.mcp.FlowMcpServer
 import flow.model.asComponent
 import flow.platform.Platform
 import kotlin.system.exitProcess
@@ -43,7 +43,7 @@ fun main(args: Array<String>) {
             args.indexOf("--project").takeIf { it >= 0 }?.let { at ->
                 args.getOrNull(at + 1)?.let { Platform.openProject(it) }
             }
-            McpServer.run()
+            FlowMcpServer.run()
             return
         }
         "--list" -> {

@@ -1,6 +1,6 @@
 package flow.ai
 
-import flow.mcp.McpServer
+import flow.mcp.FlowTools
 import java.io.File
 
 /**
@@ -236,5 +236,5 @@ private fun claudeStreamJson(line: String): CliEvent {
 
 /** Flow's tools, as the MCP server registers them under the name the config gives it. */
 internal val FLOW_TOOLS: List<String> by lazy {
-    McpServer.toolSpecs().map { "mcp__flow__${it.name}" }
+    FlowTools.specs().map { "mcp__flow__${it.name}" }
 }

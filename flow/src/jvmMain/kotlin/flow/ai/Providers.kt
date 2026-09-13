@@ -1,6 +1,6 @@
 package flow.ai
 
-import flow.mcp.McpServer
+import flow.mcp.FlowTools
 import flow.model.AI_ERR_OLLAMA_DOWN
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -276,7 +276,7 @@ internal object GeminiApi : AiApi {
                 add(
                     buildJsonObject {
                         putJsonArray("functionDeclarations") {
-                            McpServer.toolSpecs().forEach { tool ->
+                            FlowTools.specs().forEach { tool ->
                                 add(
                                     buildJsonObject {
                                         put("name", tool.name)
@@ -385,7 +385,7 @@ internal object AnthropicApi : AiApi {
             put("messages", JsonArray(transcript))
             put("stream", true)
             putJsonArray("tools") {
-                McpServer.toolSpecs().forEach { tool ->
+                FlowTools.specs().forEach { tool ->
                     add(
                         buildJsonObject {
                             put("name", tool.name)
@@ -510,7 +510,7 @@ internal object AnthropicApi : AiApi {
 
 /** Flow's tools as a `tools` array of function declarations — the MCP schemas, rewrapped. */
 private fun openAiStyleTools(): JsonArray = buildJsonArray {
-    McpServer.toolSpecs().forEach { tool ->
+    FlowTools.specs().forEach { tool ->
         add(
             buildJsonObject {
                 put("type", "function")

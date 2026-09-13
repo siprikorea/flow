@@ -3,8 +3,8 @@ package flow.mcp
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.boolean
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -27,21 +27,36 @@ class ToolErrorTest {
 
     private fun call(name: String, arguments: String = "{}"): JsonObject {
         val request = """{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"$name","arguments":$arguments}}"""
-        return json.parseToJsonElement(McpServer.handleForTest(request)!!).jsonObject
+        return json.parseToJsonElement(McpTestServer.request(request)).jsonObject
     }
 
+    /** The tool result out of the JSON-RPC reply around it. */
     private fun failure(result: JsonObject): JsonObject = result["result"]!!.jsonObject
 
+    /**
+     * An unknown tool never reaches a tool, so the protocol answers it: JSON-RPC -32602, naming
+     * what was asked for. That is the SDK's own answer and the spec's, and it is the one thing
+     * here a client can already handle without reading a result at all.
+     */
     @Test
-    fun `an unknown tool is a failure with a code and a way forward`() {
-        val out = failure(call("nonesuch"))
-        assertTrue(out["isError"]!!.jsonPrimitive.boolean)
-        val detail = out["structuredContent"]!!.jsonObject
+    fun `an unknown tool is refused by the protocol, naming what was asked for`() {
+        val error = call("nonesuch")["error"]!!.jsonObject
+        assertEquals(-32602, error["code"]!!.jsonPrimitive.int)
+        assertTrue(error["data"]!!.jsonPrimitive.content.contains("nonesuch"), "$error")
+    }
+
+    /**
+     * The assistant inside the app calls the same tools without a protocol between, so for it the
+     * same mistake has to be an answer rather than a transport error — with the code and the way
+     * forward every other failure carries.
+     */
+    @Test
+    fun `an unknown tool asked for in the app is an answer, with a code and a way forward`() {
+        val answered = FlowTools.call("nonesuch", JsonObject(emptyMap()))
+        assertTrue(answered.isError)
+        val detail = answered.failure!!
         assertEquals(ToolFailure.NOT_FOUND, detail["code"]!!.jsonPrimitive.content)
-        assertTrue(detail["hint"]!!.jsonPrimitive.content.contains("tools/list"))
-        // the text half carries the same thing, for a client that only shows the string
-        val text = out["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
-        assertTrue(text.contains(ToolFailure.NOT_FOUND), text)
+        assertTrue(answered.text.contains(ToolFailure.NOT_FOUND), answered.text)
     }
 
     @Test

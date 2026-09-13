@@ -15,6 +15,7 @@ dependencyResolutionManagement {
 
 rootProject.name = "flow"
 include(":flow")
+include(":flow-mcp")
 include(":flow-extension-api")
 include(":flow-extension-host")
 include(":flow-extensions:ai-extension")

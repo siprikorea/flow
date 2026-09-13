@@ -14,46 +14,40 @@ import flow.model.asComponent
 import flow.platform.Platform
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.addJsonObject
-import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.Json
 
 /**
- * MCP server over stdio: lets an MCP client (Claude Desktop/Code, …) author Flow files — see what
- * processors are available, draft a flow from a description, then read one back, review its wiring,
- * write the edit out again, and run it for real to check the output rather than just the wiring.
+ * Everything Flow offers an assistant, as tools: see what processors are available, draft a flow
+ * from a description, read one back, review its wiring, write the edit out again, and run it for
+ * real to check the output rather than just the wiring.
  *
  * Everything mechanical about the file format (port lists, edge ids, node sizes, and coordinates
- * when they aren't given) is worked out here, so a client only ever describes what the flow does
+ * when they aren't given) is worked out here, so a caller only ever describes what the flow does
  * and how its processors connect. list_nodes/list_flows/read_flow/validate_flow/build_flow/
  * save_flow/run_flow are pure file I/O and the CLI's own headless engine — they work whether or
  * not the app itself is running.
  *
- * open_flow/set_flow_input/start_flow/stop_flow are the other kind: this process is separate from
- * the running app and can't reach into its open tabs directly, so each leaves a request behind
- * (see Platform.request*) for Workspace.askAi to pick up once the current turn ends — the actual
- * app, actually running the actual flow on screen, as opposed to run_flow's headless check. They
- * refuse outright when the app isn't running (Platform.isAppRunning), rather than leaving a
- * request nothing will ever read.
+ * open_flow/set_flow_input/start_flow/stop_flow are the other kind: served from the MCP server
+ * this is a separate process from the app and can't reach into its open tabs directly, so each
+ * leaves a request behind (see Platform.request*) for Workspace.askAi to pick up once the current
+ * turn ends — the actual app, actually running the actual flow on screen, as opposed to run_flow's
+ * headless check. They refuse outright when the app isn't running (Platform.isAppRunning), rather
+ * than leaving a request nothing will ever read.
  *
- * Speaks JSON-RPC 2.0, one message per line, implementing initialize / tools/list / tools/call /
- * ping. Only protocol messages go to stdout — anything else is written to stderr.
+ * Nothing here knows about MCP. These same tools are reached two ways: over stdio by an MCP client
+ * (Claude Desktop/Code — [FlowMcpServer] puts them on the wire), and directly by the assistant
+ * running inside the app, which is in this process and just calls [call]. A tool that leaves a
+ * request behind for the app does that either way.
  */
-object McpServer {
-    private const val PROTOCOL_VERSION = "2024-11-05"
-    private const val SERVER_NAME = "flow"
-    private const val SERVER_VERSION = "1.0.0"
-
+object FlowTools {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     // flow files on disk are pretty-printed (the editor writes them that way), and a spec read back
     // to an MCP client is far easier to edit indented than as one line
@@ -72,82 +66,51 @@ object McpServer {
             "list_nodes, list_flows, read_flow, validate_flow, run_flow, build_flow and save_flow " +
             "all work without it."
 
-    fun run() {
-        System.err.println("[flow-mcp] listening on stdio")
-        generateSequence(::readLine).forEach { line ->
-            if (line.isBlank()) return@forEach
-            val response = runCatching { handle(line) }.getOrElse { e ->
-                error(JsonNull, -32603, e.message ?: "internal error")
-            }
-            if (response != null) {
-                println(json.encodeToString(JsonObject.serializer(), response))
-                System.out.flush()
-            }
-        }
-    }
-
-    /**
-     * One request, answered as the loop would answer it.
-     *
-     * The seam a test drives this server through: everything that decides what a client sees —
-     * dispatch, the tool's own refusals, how a failure is shaped — is on this side of stdio, and
-     * driving the real pipe to reach it would test the pipe.
-     */
-    internal fun handleForTest(line: String): String? =
-        handle(line)?.let { json.encodeToString(JsonObject.serializer(), it) }
-
-    // null = the message was a notification, which takes no reply
-    private fun handle(line: String): JsonObject? {
-        val request = runCatching { json.parseToJsonElement(line).jsonObject }.getOrNull()
-            ?: return error(JsonNull, -32700, "parse error")
-        val id = request["id"]
-        val method = request["method"]?.jsonPrimitive?.content ?: return error(id ?: JsonNull, -32600, "missing method")
-        val params = request["params"] as? JsonObject ?: JsonObject(emptyMap())
-        if (id == null) return null // notification (e.g. notifications/initialized)
-
-        return when (method) {
-            "initialize" -> result(id, initialize(params))
-            "ping" -> result(id, JsonObject(emptyMap()))
-            "tools/list" -> result(id, buildJsonObject { put("tools", toolList()) })
-            "tools/call" -> result(id, callTool(params))
-            else -> error(id, -32601, "unknown method: $method")
-        }
-    }
-
-    private fun initialize(params: JsonObject): JsonObject {
-        // echo the client's protocol version when it names one, so a newer client isn't refused
-        val version = params["protocolVersion"]?.jsonPrimitive?.content ?: PROTOCOL_VERSION
-        return buildJsonObject {
-            put("protocolVersion", version)
-            putJsonObject("capabilities") { putJsonObject("tools") { put("listChanged", false) } }
-            putJsonObject("serverInfo") {
-                put("name", SERVER_NAME)
-                put("version", SERVER_VERSION)
-            }
-        }
-    }
-
     /* ───────── tools ───────── */
 
     private class Tool(val name: String, val description: String, val schema: JsonObject, val call: (JsonObject) -> String)
 
-    /**
-     * The same tools, for an assistant that is not on the other end of a pipe.
-     *
-     * Claude Code is a child process and reaches these over stdio; the Ollama provider runs inside
-     * the app and calls them directly. Nothing else differs — a tool that leaves a request behind
-     * for the app to pick up does that either way, and it happens to be this same process reading
-     * it back.
-     */
+    /** One tool as a caller sees it: what it is called, what it is for, what it takes. */
     class ToolSpec(val name: String, val description: String, val schema: JsonObject)
 
-    fun toolSpecs(): List<ToolSpec> = allTools().map { ToolSpec(it.name, it.description, it.schema) }
+    /**
+     * What a tool answered.
+     *
+     * A failure is both prose and fields: [text] is what any caller can show, and [failure] is the
+     * same thing as an object — a code to branch on and a hint to act on — for one that reads it.
+     * Both are filled from the one [ToolFailure], so neither kind of caller has to parse the
+     * other's format.
+     */
+    class ToolAnswer(val text: String, val failure: JsonObject? = null) {
+        val isError: Boolean get() = failure != null
+    }
 
-    /** Runs one, returning what it said — including, as text, why it could not. */
-    fun invoke(name: String, args: JsonObject): String {
-        val tool = allTools().find { it.name == name } ?: return "unknown tool: $name"
-        return runCatching { tool.call(args) }
-            .getOrElse { e -> e.message ?: e::class.simpleName ?: "the tool failed" }
+    fun specs(): List<ToolSpec> = allTools().map { ToolSpec(it.name, it.description, it.schema) }
+
+    /**
+     * Runs one, answering with what it said — including why it could not.
+     *
+     * Nothing thrown escapes: a tool's own refusal, a bad argument and a crash all come back as an
+     * answer marked as a failure, because the caller on the other side is an assistant that has to
+     * be told what went wrong in order to do something else.
+     */
+    fun call(name: String, args: JsonObject): ToolAnswer {
+        val tool = allTools().find { it.name == name } ?: return failed(
+            ToolFailure(
+                ToolFailure.NOT_FOUND,
+                "No tool by that name. List the tools to see what this server has.",
+                message = "unknown tool: $name",
+            ),
+        )
+        return runCatching { ToolAnswer(tool.call(args)) }.getOrElse { e -> failed(failureOf(e)) }
+    }
+
+    /** The same, for a caller that only shows text — the assistant running inside the app. */
+    fun invoke(name: String, args: JsonObject): String = call(name, args).text
+
+    private fun failed(failure: ToolFailure): ToolAnswer {
+        val detail = failure.toJson()
+        return ToolAnswer(prettyJson.encodeToString(JsonObject.serializer(), detail), detail)
     }
 
     // Rebuilt per request so flows and processors added while the server runs are seen without a restart.
@@ -283,31 +246,6 @@ object McpServer {
             schema = ModuleTools.schema(module),
             call = { args -> ModuleTools.call(module, args) },
         )
-    }
-
-    private fun toolList(): JsonArray = buildJsonArray {
-        allTools().forEach { tool ->
-            addJsonObject {
-                put("name", tool.name)
-                put("description", tool.description)
-                put("inputSchema", tool.schema)
-            }
-        }
-    }
-
-    private fun callTool(params: JsonObject): JsonObject {
-        val name = params["name"]?.jsonPrimitive?.content
-            ?: return toolError(ToolFailure(ToolFailure.MISSING_PORT, "Name the tool to call in 'name'."))
-        val args = params["arguments"] as? JsonObject ?: JsonObject(emptyMap())
-        val tool = allTools().find { it.name == name }
-            ?: return toolError(
-                ToolFailure(
-                    ToolFailure.NOT_FOUND,
-                    "No tool by that name. Call tools/list to see what this server has.",
-                    message = "unknown tool: $name",
-                ),
-            )
-        return runCatching { toolText(tool.call(args)) }.getOrElse { e -> toolError(failureOf(e)) }
     }
 
     /**
@@ -766,58 +704,5 @@ object McpServer {
             }
         }
         putJsonArray("required") { fields.forEach { add(it.name) } }
-    }
-
-    private fun toolText(text: String): JsonObject = buildJsonObject {
-        putJsonArray("content") {
-            addJsonObject {
-                put("type", "text")
-                put("text", text)
-            }
-        }
-        put("isError", false)
-    }
-
-    /**
-     * A failure, as both prose and fields.
-     *
-     * MCP carries a tool result as text, so the structure goes in the text as JSON: a client that
-     * only shows the string still shows something readable, and one that parses it can branch on
-     * `code` and read `hint` without guessing at wording. `structuredContent` carries the same
-     * object for clients that read it, so neither kind has to parse the other's format.
-     */
-    private fun toolError(failure: ToolFailure): JsonObject {
-        val detail = failure.toJson()
-        return buildJsonObject {
-            putJsonArray("content") {
-                addJsonObject {
-                    put("type", "text")
-                    put("text", prettyJson.encodeToString(JsonObject.serializer(), detail))
-                }
-            }
-            put("structuredContent", detail)
-            put("isError", true)
-        }
-    }
-
-    /** The old shape, for the places that still hand up a bare sentence. */
-    private fun toolError(message: String): JsonObject =
-        toolError(ToolFailure(ToolFailure.INTERNAL, "The message is the tool's own.", message = message))
-
-    /* ───────── JSON-RPC envelopes ───────── */
-
-    private fun result(id: JsonElement, payload: JsonObject): JsonObject = buildJsonObject {
-        put("jsonrpc", "2.0")
-        put("id", id)
-        put("result", payload)
-    }
-
-    private fun error(id: JsonElement, code: Int, message: String): JsonObject = buildJsonObject {
-        put("jsonrpc", "2.0")
-        put("id", id)
-        putJsonObject("error") {
-            put("code", code)
-            put("message", message)
-        }
     }
 }

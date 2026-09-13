@@ -1,6 +1,6 @@
 package flow.ai
 
-import flow.mcp.McpServer
+import flow.mcp.FlowTools
 import flow.model.AI_ERR_EMPTY
 import flow.model.AI_ERR_STEPS
 import flow.model.AiReply
@@ -99,7 +99,7 @@ internal class HttpAgent(private val api: AiApi) {
                 }
             }
             turn.calls.forEach { call ->
-                transcript += api.toolResult(call, McpServer.invoke(call.name, call.args))
+                transcript += api.toolResult(call, FlowTools.invoke(call.name, call.args))
             }
         }
 

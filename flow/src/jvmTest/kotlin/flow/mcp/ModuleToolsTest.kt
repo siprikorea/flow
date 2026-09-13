@@ -97,7 +97,7 @@ class ModuleToolsTest {
 
     private fun listTools(): List<JsonObject> {
         val request = """{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}"""
-        return json.parseToJsonElement(McpServer.handleForTest(request)!!)
+        return json.parseToJsonElement(McpTestServer.request(request))
             .jsonObject["result"]!!.jsonObject["tools"]!!.jsonArray.map { it.jsonObject }
     }
 
@@ -211,7 +211,7 @@ class ModuleToolsTest {
 
     private fun call(name: String, arguments: String): JsonObject {
         val request = """{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"$name","arguments":$arguments}}"""
-        return json.parseToJsonElement(McpServer.handleForTest(request)!!).jsonObject["result"]!!.jsonObject
+        return json.parseToJsonElement(McpTestServer.request(request)).jsonObject["result"]!!.jsonObject
     }
 
     private fun text(result: JsonObject) = result["content"]!!.jsonArray.first().jsonObject["text"]!!.jsonPrimitive.content
