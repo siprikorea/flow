@@ -102,6 +102,10 @@ kotlin {
 // app is launched with — without it every test JVM prints JEP 472's restricted-method warning.
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
+    // Where the tests read the extension store from. A developer machine has extensions installed
+    // under ~/.flow and CI has none, so tests that touch one pass here and fail there — which is
+    // how two of them reached main red. `-PflowTestHome=/tmp/empty` runs them the way CI sees them.
+    providers.gradleProperty("flowTestHome").orNull?.let { systemProperty("user.home", it) }
 }
 
 // The version jpackage stamps on the installer, and so the name of the file that ships:
