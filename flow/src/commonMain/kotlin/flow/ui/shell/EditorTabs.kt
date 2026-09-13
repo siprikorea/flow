@@ -29,6 +29,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
 import flow.util.flowLabel
+import flow.ui.common.AppLogo
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.common.rememberHover
@@ -52,7 +53,6 @@ fun EditorTabs(ws: Workspace) {
                     Tab(
                         name = flowLabel(doc.fileName),
                         active = i == ws.activeIndex,
-                        dotColor = if (ws.isComponentFile(doc.fileName)) Palette.catProcessor else Palette.textTertiary,
                         dirty = doc.dirty,
                         onSelect = { ws.select(i) },
                         onClose = { ws.requestClose(i) },
@@ -74,7 +74,6 @@ fun EditorTabs(ws: Workspace) {
 private fun Tab(
     name: String,
     active: Boolean,
-    dotColor: Color,
     dirty: Boolean,
     onSelect: () -> Unit,
     onClose: () -> Unit,
@@ -107,7 +106,10 @@ private fun Tab(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
-            Box(Modifier.size(7.dp).background(dotColor, RoundedCornerShape(2.dp)))
+            // What is open is a flow, and this is what a flow looks like everywhere else in the
+            // program — the same mark the window and the dock carry. A coloured dot said only
+            // "this tab has a colour"; an icon says what kind of file the tab is.
+            AppLogo(Size.icon)
             Txt(
                 name, 12.sp,
                 if (active) Palette.textPrimary else Palette.textTertiary,

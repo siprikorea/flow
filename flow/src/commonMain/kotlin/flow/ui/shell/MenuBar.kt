@@ -68,7 +68,15 @@ fun MenuBar(
                         }
                     } else Modifier
                 )
-                .padding(start = 10.dp + leadingInset, end = 8.dp), // left: room for native traffic lights
+                // left: room for native traffic lights. Right: enough that the last control's
+                // centre lands on the right rail's centre line — the rail is Size.activityBar
+                // wide and its icons are centred in it, so a settings button that stops 8dp from
+                // the edge sits 2dp inside the button below it, which is exactly the kind of
+                // not-quite that the eye picks up and cannot name.
+                .padding(
+                    start = 10.dp + leadingInset,
+                    end = Size.activityBar / 2 - Size.iconButton / 2,
+                ),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {

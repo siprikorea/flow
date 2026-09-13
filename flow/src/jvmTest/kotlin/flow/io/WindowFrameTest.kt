@@ -211,4 +211,52 @@ class WindowFrameTest {
                 "bottom ${"%06X".format(bottomRight and 0xFFFFFF)})")
         }
     }
+
+    /**
+     * The settings button in the title bar stands on the rail's own line.
+     *
+     * They are drawn by different files — one is the last control in a Row, the other is a button
+     * in a Column — so nothing makes them agree except arithmetic, and being two dp apart is
+     * exactly the kind of wrong that is felt before it is seen. Measured as ink: the columns each
+     * icon actually paints, and where the middle of that span falls.
+     */
+    @Test
+    fun `the settings button and the properties button stand on the same line`() {
+        val b = render(showLeft = false)
+        val band = px(Frame.band.value)
+        // the right-hand end of the chrome, wide enough for one button and nothing beside it
+        val from = w - band
+        val until = w - 1
+
+        val gear = inkCentre(b, from, until, px(4f), band - px(4f))
+        val props = inkCentre(b, from, until, band + px(6f), band * 2 - px(6f))
+        assertTrue(gear > 0 && props > 0, "nothing was drawn to measure: $gear / $props")
+        assertTrue(abs(gear - props) <= 1, "the settings icon is at $gear and the properties icon at $props")
+    }
+
+    /**
+     * The middle of whatever is painted in a box, by column.
+     *
+     * The ground is a gradient, so "not the background" is decided against the row's own leftmost
+     * pixel rather than against one colour for the whole window.
+     */
+    private fun inkCentre(b: Bitmap, fromX: Int, untilX: Int, fromY: Int, untilY: Int): Double {
+        var first = -1
+        var last = -1
+        for (x in fromX..untilX) {
+            for (y in fromY..untilY) {
+                val ground = b.getColor(fromX, y)
+                if (!sameColour(b.getColor(x, y), ground)) {
+                    if (first < 0) first = x
+                    last = x
+                    break
+                }
+            }
+        }
+        return if (first < 0) -1.0 else (first + last) / 2.0
+    }
+
+    private fun sameColour(a: Int, other: Int): Boolean = listOf(16, 8, 0).all { shift ->
+        abs(((a shr shift) and 0xFF) - ((other shr shift) and 0xFF)) <= 4
+    }
 }

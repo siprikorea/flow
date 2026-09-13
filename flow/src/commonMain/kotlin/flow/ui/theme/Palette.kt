@@ -124,6 +124,11 @@ class Scheme(
     // The one line drawn around the content and around a tool window. Every panel edge that used
     // to draw its own divider against the window now leaves it to this, which is what makes the
     // border the same weight on all four sides and continuous through the corners.
+    //
+    // Darker than anything it separates, the way an IDE draws one: a line lighter than the ground
+    // reads as a seam that was added, while one darker reads as the edge of the sheet itself. In
+    // dark it is black outright — at one device pixel against a ground this dark, anything less is
+    // a grey smudge.
     val frameBorder: Color,
 )
 
@@ -212,7 +217,7 @@ val DarkScheme = Scheme(
     windowTop = Color(0xFF2A3040),
     windowMid = Color(0xFF191D26),
     windowBottom = Color(0xFF0B0D11),
-    frameBorder = Color(0xFF303541),
+    frameBorder = Color(0xFF000000),
 )
 
 /**
@@ -313,7 +318,7 @@ val LightScheme = Scheme(
     windowTop = Color(0xFFF4F6FB),
     windowMid = Color(0xFFE4E8F0),
     windowBottom = Color(0xFFC8CEDB),
-    frameBorder = Color(0xFFC6CCD6),
+    frameBorder = Color(0xFFAEB4BF),
 )
 
 /**

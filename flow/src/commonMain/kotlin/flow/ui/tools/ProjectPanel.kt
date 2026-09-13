@@ -66,7 +66,6 @@ import flow.ui.common.ActivityRail
 import flow.ui.common.KindBadge
 import flow.ui.common.LucideIcon
 import flow.ui.common.WindowSurface
-import flow.ui.common.RailSide
 import flow.ui.common.ResizeDivider
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -83,13 +82,13 @@ private val ROW_INDENT = 13.dp // per tree level
 @Composable
 fun LeftRail(ws: Workspace) {
     ActivityRail {
-        ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
+        ActivityButton(selected = ws.showLeft && ws.leftTab == "project", onClick = { ws.clickActivity("project") }) { tint ->
             LucideIcon(Lucide.Folder, tint, Size.iconLarge)
         }
-        ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
+        ActivityButton(selected = ws.showLeft && ws.leftTab == "modules", onClick = { ws.clickActivity("modules") }) { tint ->
             LucideIcon(Lucide.LayoutGrid, tint, Size.iconLarge)
         }
-        ActivityButton(RailSide.LEFT, selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
+        ActivityButton(selected = ws.showLeft && ws.leftTab == "ai", onClick = { ws.clickActivity("ai") }) { tint ->
             LucideIcon(Lucide.Sparkles, tint, Size.iconLarge)
         }
     }

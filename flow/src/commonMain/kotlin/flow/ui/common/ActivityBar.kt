@@ -20,9 +20,6 @@ import flow.ui.theme.Palette
 import flow.ui.theme.Radius
 import flow.ui.theme.Size
 
-// window edge the rail sits on (where its selection bar is drawn)
-enum class RailSide { LEFT, RIGHT }
-
 // Vertical icon rail on one window edge; each button toggles the panel it stands for.
 //
 // No background of its own: the rail is part of the window, not part of the content, and letting
@@ -40,17 +37,18 @@ fun ActivityRail(content: @Composable ColumnScope.() -> Unit) {
 /**
  * One button on a rail: an icon, centred, in a square the size of the strip.
  *
- * The hover is a rounded box behind the icon rather than a band across the rail — the same shape
- * an icon button has anywhere else in the program, and the same shape the IDEs next door use. A
- * full-width wash made the rail look like a list of rows, which it is not: these are buttons, and
- * a button should be the size of the thing you are aiming at.
+ * Both states are the same shape, filled differently: hovering fills it faintly, selecting fills it
+ * with the accent at low opacity and turns the icon accent too, and hovering a selected one lays
+ * the hover over the selection so it still answers the pointer. That is how the IDEs next door
+ * show a tool window is open, and it is a shape the size of the thing you are aiming at rather
+ * than a band across the rail.
  *
- * Selection stays an accent icon plus a 2dp bar on the window's edge, not a filled box — a blue
- * box behind a selected icon is the one thing this app's own guide rules out.
+ * There is no bar on the window's edge any more. It said the same thing as the fill twice, from
+ * somewhere the eye had no reason to be, and cut into the border the window otherwise keeps
+ * unbroken.
  */
 @Composable
 fun ActivityButton(
-    side: RailSide,
     selected: Boolean,
     onClick: () -> Unit,
     icon: @Composable (Color) -> Unit,
@@ -61,24 +59,17 @@ fun ActivityButton(
         hovered -> Palette.textPrimary
         else -> Palette.textSecondary
     }
+    val shape = RoundedCornerShape(Radius.surface)
     Box(
         Modifier.fillMaxWidth().height(Size.chrome).hoverable(hoverSrc).plainClick(onClick),
         contentAlignment = Alignment.Center,
     ) {
-        if (selected) {
-            Box(
-                Modifier
-                    .align(if (side == RailSide.LEFT) Alignment.CenterStart else Alignment.CenterEnd)
-                    .width(2.dp).height(16.dp).background(Palette.accent)
-            )
-        }
         Box(
             Modifier
                 .size(Size.iconButton)
-                .background(
-                    if (hovered) Palette.hoverOverlay else Color.Transparent,
-                    RoundedCornerShape(Radius.surface),
-                ),
+                .background(if (selected) Palette.accentSubtle else Color.Transparent, shape)
+                // over the selection, not instead of it: a selected button still lights up
+                .background(if (hovered) Palette.hoverOverlay else Color.Transparent, shape),
             contentAlignment = Alignment.Center,
         ) {
             icon(tint)

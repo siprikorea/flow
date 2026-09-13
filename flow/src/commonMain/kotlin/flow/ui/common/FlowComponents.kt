@@ -161,14 +161,18 @@ fun FlowListRow(
         modifier
             .fillMaxWidth()
             .height(Size.row)
-            .background(bg)
+            // The selection is a rounded band inset from the panel's edges, the way an IDE draws a
+            // selected file: a shape that belongs to the row rather than a wash running into the
+            // panel's own border. The bar that used to mark it is gone — it said the same thing
+            // twice and moved the label 2dp every time a row was picked.
+            .padding(horizontal = 4.dp)
+            .background(bg, RoundedCornerShape(Radius.control))
             .hoverable(hoverSrc)
             .then(if (onClick != null) Modifier.plainClick(onClick) else Modifier)
-            .padding(start = if (selected) 10.dp else 12.dp, end = 8.dp),
+            .padding(start = 8.dp, end = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        if (selected) Box(Modifier.size(2.dp, 14.dp).background(Palette.accent))
         if (icon != null) LucideIcon(icon, iconTint, Size.icon)
         Txt(label, FlowType.body, if (selected) Palette.textPrimary else Palette.textSecondary, modifier = Modifier.weight(1f), maxLines = 1)
         trailing?.invoke(this)

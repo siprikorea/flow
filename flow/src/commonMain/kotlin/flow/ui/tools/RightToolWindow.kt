@@ -7,7 +7,6 @@ import flow.core.Workspace
 import flow.ui.common.ActivityButton
 import flow.ui.common.ActivityRail
 import flow.ui.common.LucideIcon
-import flow.ui.common.RailSide
 import flow.ui.theme.Size
 
 // The rail on the right window edge. The properties panel it toggles is docked inside the content
@@ -16,7 +15,7 @@ import flow.ui.theme.Size
 @Composable
 fun RightRail(ws: Workspace) {
     ActivityRail {
-        ActivityButton(RailSide.RIGHT, selected = ws.showProps, onClick = { ws.showProps = !ws.showProps }) { tint ->
+        ActivityButton(selected = ws.showProps, onClick = { ws.showProps = !ws.showProps }) { tint ->
             LucideIcon(Lucide.PanelRight, tint, Size.iconLarge)
         }
     }
