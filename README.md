@@ -45,9 +45,9 @@ flow_editor/
 
 ## Layout (single editor screen, 100vh)
 1. **Menu bar** — logo, File/Edit/Window dropdowns, Start / Run Selection / Stop buttons, KO/EN toggle
-2. **Left activity rail** — Project / Extensions buttons; each opens its panel, and pressing the button of the panel already showing collapses it
+2. **Left activity rail** — Project / Modules buttons; each opens its panel, and pressing the button of the panel already showing collapses it
 3. **Project panel** — the flows folder as a tree (see below)
-4. **Module palette** — installed extension cards (drag onto the canvas)
+4. **Module palette** — installed module cards (drag onto the canvas)
 5. **Canvas** — dotted grid background, nodes/edges/packets, minimap in the bottom-right
 6. **Properties panel** — selected node (edit name/ID/params/ports) or edge (from → to, delete)
 7. **Right activity rail** — Settings / Properties buttons, same toggle behaviour as the left rail
@@ -76,9 +76,9 @@ Files and folders work as they do in a code editor. Nothing is open at startup: 
 - **Pan / zoom**: Space + drag to pan, wheel to zoom about the cursor (0.3–2.5)
 - **Undo / Redo**: Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (snapshot stack, up to 60)
 - **Run simulation**: starts from source nodes (no incoming edges) → run a node → activate outgoing edges (packet animation) → next node. Every node gets the same step, from the animation-time setting: what a module does with its own options is the module's business, so the host never paces a particular one. A node with input ports but no incoming connection becomes `error`. "Run Selection" starts directly from the selected node (input check skipped). The run ends automatically once no timers remain
-- **Independent branches run at the same time**: a node starts as soon as the nodes feeding it are done, so a slow module holds up only what comes after it — a sleep on one branch no longer stalls an unrelated one. Modules are therefore called concurrently and must keep no state between calls, which the extension contract already requires
+- **Independent branches run at the same time**: a node starts as soon as the nodes feeding it are done, so a slow module holds up only what comes after it — a sleep on one branch no longer stalls an unrelated one. Modules are therefore called concurrently and must keep no state between calls, which the module contract already requires
 - **Stop reaches the modules**: it cancels the engine pass as well as the animation, and a module is run where cancellation interrupts its thread — so one parked in a sleep, a wait, or interruptible IO gives up rather than finishing in the background and delivering its result afterwards. A module spinning in a loop that never checks cannot be reached by anything
-- **An extension cannot take the run down with it**: whatever a module throws — or returns, including nothing at all — is attributed to its node and stops that branch. A value that feeds more than one node is copied per consumer, so a module that writes through the array it was handed cannot alter what another branch reads. A component that is missing, fails inside, or nests into itself fails the node that referenced it instead of returning empty output or exhausting the process
+- **An module cannot take the run down with it**: whatever a module throws — or returns, including nothing at all — is attributed to its node and stops that branch. A value that feeds more than one node is copied per consumer, so a module that writes through the array it was handed cannot alter what another branch reads. A component that is missing, fails inside, or nests into itself fails the node that referenced it instead of returning empty output or exhausting the process
 - **A failing node stops its branch**: the node is marked red and nothing downstream of it runs, since its output was never produced. Branches that do not depend on it carry on and produce their results, and only the node that actually failed reports an error — the ones waiting on it are simply never reached
 - **Auto-layout** (Edit menu): BFS depth-based column layout (x = 60 + depth·280)
 - **Localization**: KO/EN toggle for the whole UI, selected language is persisted
@@ -140,11 +140,11 @@ Besides the UI, a component can be executed from the terminal: pick a component 
 
 Components are read from the open folder (by name) or a file path. The engine evaluates nodes in topological order; `map`/`filter` expressions are handled by a small evaluator (arithmetic, comparisons, variable `x`/`value`), and nested `comp:` nodes are expanded recursively.
 
-## Extensions
+## Modules
 
-Extensions provide **modules only** — components are built inside the Flow tool and added there. A module extension is identified by a **package-format id**, declares input/output ids, and may declare typed options (text / number / select) shown in the property panel. Its ports carry **bytes**. Both the ports and the options on show can depend on the current option values (`inputsFor` / `outputsFor` / `optionsFor`) — `flow.keyfactory` swaps its ports between `password`+`salt` and `key`, and hides the options its algorithm doesn't use. The `flow-extension-api` module defines the contract:
+A module is code you install; a component is a flow file built inside the Flow tool and added there. A module is identified by a **package-format id**, declares input/output ids, and may declare typed options (text / number / select) shown in the property panel. Its ports carry **bytes**. Both the ports and the options on show can depend on the current option values (`inputsFor` / `outputsFor` / `optionsFor`) — `flow.keyfactory` swaps its ports between `password`+`salt` and `key`, and hides the options its algorithm doesn't use. The `flow-module-api` module defines the contract:
 
-- **Module extension** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code, registered under `META-INF/services/flow.extension.ModuleExtension`. The file is a jar and the class loader reads it by content, but it carries a `.flowext` suffix so it is recognisable as a Flow extension rather than as any other library; `.jar` still loads, so anything installed earlier keeps working.
+- **Module** (`ModuleExtension`) — the implementation: `process(inputs: bytes, options) → outputs: bytes`. Distributed as code, registered under `META-INF/services/flow.extension.ModuleExtension`. The file is a jar and the class loader reads it by content, but it carries a `.flowmod` suffix so it is recognisable as a Flow module rather than as any other library; the older `.flowext` and a plain `.jar` still load, so anything installed earlier keeps working.
 
 Nothing ships with the app — the palette starts empty and every module arrives by being installed
 from **Settings ▸ Modules**. The published set covers the JCA facilities plus a few utilities:
@@ -156,55 +156,55 @@ certificate, public key), `flow.securerandom`, `flow.base64` (standard or URL-sa
 or without padding), `flow.slice` (a byte range and the remainder — how a prepended IV is taken
 off a ciphertext), `flow.merge`, `flow.split`, `flow.sleep` and `flow.mcp`.
 
-First-party extensions live under `flow-extensions/` using `flow.*` package ids. They are built the
+First-party modules live under `flow-modules/` using `flow.*` package ids. They are built the
 same way anyone else's would be and published to the registry — the app has no privileged set. Their
 registry entries (id, version, description, ports, category) are hand-kept in
-`flow-extensions/registry.json`; a release build fails if it drifts from the jars actually built.
+`flow-modules/registry.json`; a release build fails if it drifts from the jars actually built.
 
-An extension also declares its own `category` ("crypto", "ai", "messaging", "other"), which is what
-groups it in the palette — the registry's copy groups the Extensions screen, and a test holds the two
+An module also declares its own `category` ("crypto", "ai", "messaging", "other"), which is what
+groups it in the palette — the registry's copy groups the Modules screen, and a test holds the two
 to the same answer. One that declares nothing, or a category this build has not heard of, is listed
 under Other rather than dropped.
 
 ### Storage & sandbox (installed, read-only)
-Everything installed lives under `~/.flow/extensions/<id>/`, keyed by id, each in **its own folder**
-with its dependency JARs bundled alongside — either a module extension's jar(s), or a component's
+Everything installed lives under `~/.flow/modules/<id>/`, keyed by id, each in **its own folder**
+with its dependency JARs bundled alongside — either a module's jar(s), or a component's
 `component.json` plus the module jars it depends on. What makes a folder a component is the presence
 of `component.json`; without that distinction a component's bundled dependency would register itself
 as an installed module. Each runs in a **sandbox**: an isolated classloader over just its own
-folder's JARs, so one extension's dependencies never clash with another's.
+folder's JARs, so one module's dependencies never clash with another's.
 
-Each extension runs in **its own process**. The app starts a worker JVM per extension the first
-time it is used and keeps it for later calls; its classpath is the extension contract, the Kotlin
-runtime and that extension's own jars, and nothing else. So an extension's dependencies cannot meet
-the app's or another extension's, it cannot reach `flow.core` or `flow.platform`, and what it does
-to its own JVM stays there — an extension calling `Runtime.halt` takes down only its worker, and the
+Each module runs in **its own process**. The app starts a worker JVM per module the first
+time it is used and keeps it for later calls; its classpath is the module contract, the Kotlin
+runtime and that module's own jars, and nothing else. So an module's dependencies cannot meet
+the app's or another module's, it cannot reach `flow.core` or `flow.platform`, and what it does
+to its own JVM stays there — an module calling `Runtime.halt` takes down only its worker, and the
 next call starts a fresh one.
 
 It is also what makes **Stop** unconditional: a module spinning in a loop that ignores interruption
 cannot be stopped inside a shared JVM by any means the platform offers, but a process can be ended.
 
-The cost is a JVM per extension: the first scan pays their startup (about a second for fifteen), and
+The cost is a JVM per module: the first scan pays their startup (about a second for fifteen), and
 port data crosses a pipe, so a very large payload is copied on the way in and out.
 
 Installed items are read-only; editing one and saving writes a **separate file** into `flows/`.
 
-`~/.flow` holds only what belongs to the app — installed extensions, `settings.json` for the
+`~/.flow` holds only what belongs to the app — installed modules, `settings.json` for the
 preferences Settings edits, and `session.json` for the window layout. It sits under the user's home
 on every platform, and is not where flows live: those are wherever the open folder is.
 
 ### Installing
-**Extensions** (logo menu) lists what the registry offers with **Install**, or **Update** when it
+**Modules** (logo menu) lists what the registry offers with **Install**, or **Update** when it
 carries a newer `version` than the installed one, and **Uninstall** on anything already installed.
 The same list covers what was installed from a file rather than the registry, so nothing becomes
-unremovable; **Install extension…** above it takes a jar. **Settings ▸ Flows** lists the open folder's flows — the same
+unremovable; **Install module…** above it takes a jar. **Settings ▸ Flows** lists the open folder's flows — the same
 folder the project panel and the module palette read, so a flow appears in one place rather than
 needing to be registered somewhere else. **Install flow…** copies a `.flow` from
 elsewhere into it, and removing a row deletes the file after a confirmation. If an id already
 exists you're asked to **overwrite**.
 
 A flow whose module is not installed now fails on that node rather than passing its input through
-untouched, so a missing hash extension reports the problem instead of returning the plaintext.
+untouched, so a missing hash module reports the problem instead of returning the plaintext.
 
 The registry is a JSON manifest served over HTTPS — by default the `extensions.json` asset on the
 latest [siprikorea/flow release](https://github.com/siprikorea/flow/releases/latest), alongside the
@@ -213,12 +213,12 @@ every tagged release). `registryUrl` in `settings.json` points anywhere else tha
 shape. From the terminal:
 
 ```bash
-./gradlew :flow-extensions:base64-extension:jar
-./gradlew :flow:cli --args="--install /abs/path/base64-extension.jar"   # add --force to overwrite
+./gradlew :flow-modules:base64-module:jar
+./gradlew :flow:cli --args="--install /abs/path/base64-module.jar"   # add --force to overwrite
 ./gradlew :flow:cli --args="--mcp"                                     # MCP server on stdio
 ```
 
-Modules: `flow-extension-api` (contract), `flow` (editor + CLI + install/registry), `flow-mcp` (the MCP protocol, over the official Java SDK), `flow-extensions/base64-extension` (`flow.base64`, with an encode/decode option), `flow-extensions/mcp-extension` (`flow.mcp`, calls a tool on an external MCP server) and `flow-extensions/sample-extension` (`com.example.mul3`, `com.example.upper`).
+Modules: `flow-module-api` (contract), `flow` (editor + CLI + install/registry), `flow-mcp` (the MCP protocol, over the official Java SDK), `flow-modules/base64-module` (`flow.base64`, with an encode/decode option), `flow-modules/mcp-module` (`flow.mcp`, calls a tool on an external MCP server) and `flow-modules/sample-module` (`com.example.mul3`, `com.example.upper`).
 
 ## MCP
 
@@ -292,10 +292,10 @@ That one task runs all three steps: `mcpbStage` lays out `flow/build/mcpb` (mani
 then the zip itself is done by `npx -y @anthropic-ai/mcpb pack` — so Node has to be on `PATH`.
 
 Install the resulting `.mcpb` from **Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension…**.
-Without Node, run `:flow:mcpbStage` alone and point **Install Unpacked Extension** at
+Without Node, run `:flow:mcpbStage` alone and point **Install Unpacked Module** at
 `flow/build/mcpb` — same layout, just not zipped. That directory is build output, so `./gradlew
 clean` removes it.
-The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carries no extensions of
+The manifest and the launcher live in [flow/mcpb/](flow/mcpb); the bundle carries no modules of
 its own, reading both flows and installed extensions out of `~/.flow` as the app does. Claude Desktop bundles a Node runtime but no JVM,
 so the launcher resolves a JDK 25+ from `JAVA_HOME`, then `/usr/libexec/java_home`, then `PATH` — one
 has to be installed on the machine. Only the jars the MCP path actually loads are staged (no Compose

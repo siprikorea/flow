@@ -58,7 +58,8 @@ import flow.core.Shortcut
 import flow.core.FocusRegion
 import flow.core.Workspace
 import flow.model.KIND_VIEW
-import flow.model.KIND_PROCESSOR
+import flow.model.KIND_MODULE
+import flow.model.kindOf
 import flow.model.CATEGORIES
 import flow.model.CATEGORY_OTHER
 import flow.model.KIND_VIEW
@@ -416,31 +417,31 @@ private fun SaveErrorDialog(ws: Workspace, message: String) {
     }
 }
 
-// Processors: the extensions that do the work in the middle of a flow. Inputs and outputs have
+// Modules: the modules that do the work in the middle of a flow. Inputs and outputs have
 // their own pages, since what you can do with one of those is different.
 @Composable
-private fun ExtensionsSettings(ws: Workspace) = ExtensionMarket(ws, KIND_PROCESSOR)
+private fun ModulesSettings(ws: Workspace) = ModuleMarket(ws, KIND_MODULE)
 
 // Views, as a Settings page: the viewers that open a window of their own. Text and hex are the
 // app's own and are not listed here — there is nothing to install or remove about them.
 @Composable
-private fun ViewsSettings(ws: Workspace) = ExtensionMarket(ws, KIND_VIEW)
+private fun ViewsSettings(ws: Workspace) = ModuleMarket(ws, KIND_VIEW)
 
 /**
- * The extensions screen: what there is, what is installed, and what each one is set to.
+ * The modules screen: what there is, what is installed, and what each one is set to.
  *
  * Laid out the way an IDE lays out its plugins, because the job is the same one and that layout is
  * the answer to it: a list is for finding something, and everything else — what it does, what it
  * costs to install, what it can be configured with — belongs to whichever one is being looked at
  * rather than being crammed into every row. So the list is names and a button, and the pane beside
- * it is the whole of one extension.
+ * it is the whole of one module.
  *
  * Marketplace and Installed are the same list twice over, filtered: what can be had, and what is
- * here. The second is not merely a subset — it is where an extension installed from a file lives,
+ * here. The second is not merely a subset — it is where an module installed from a file lives,
  * which no registry knows about.
  */
 @Composable
-private fun ExtensionMarket(ws: Workspace, kind: String) {
+private fun ModuleMarket(ws: Workspace, kind: String) {
     LaunchedEffect(Unit) { if (ws.registry.isEmpty()) ws.loadRegistry() }
     var tab by remember { mutableStateOf(TAB_MARKETPLACE) }
     var query by remember { mutableStateOf("") }
@@ -513,7 +514,7 @@ private fun ExtensionMarket(ws: Workspace, kind: String) {
 private const val TAB_MARKETPLACE = "marketplace"
 private const val TAB_INSTALLED = "installed"
 
-/** One extension, however it got here: offered by the registry, installed, or both. */
+/** One module, however it got here: offered by the registry, installed, or both. */
 private class MarketItem(
     val id: String,
     val name: String,
@@ -528,13 +529,13 @@ private class MarketItem(
 /**
  * Everything of one kind, registry and installed folded together by id.
  *
- * An extension can be in either or both, and the row is the same row: the difference is what the
+ * An module can be in either or both, and the row is the same row: the difference is what the
  * button offers. Installed-only entries are the ones put there from a file, which would otherwise
  * have nowhere to be listed and no way to be removed.
  */
 @Composable
 private fun marketItems(ws: Workspace, kind: String): List<MarketItem> {
-    val offered = ws.registry.filter { it.kind == kind }
+    val offered = ws.registry.filter { kindOf(it) == kind }
     val installedIds = if (kind == KIND_VIEW) ws.installedViews.map { it.id } else ws.installedModules.map { it.id }
     val fromRegistry = offered.map { entry ->
         val module = ws.installedModules.find { it.id == entry.id }
@@ -585,7 +586,7 @@ private fun MarketRow(ws: Workspace, item: MarketItem, selected: Boolean, onClic
     }
 }
 
-/** One extension in full: what it is, what it does, and what it can be set to. */
+/** One module in full: what it is, what it does, and what it can be set to. */
 @Composable
 private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
     val state = item.entry?.let { ws.registryState(it) }
@@ -629,11 +630,11 @@ private fun ExtensionDetail(ws: Workspace, item: MarketItem) {
             }
         }
 
-        // The extension's own settings, the way a plugin has a settings page: declared by the
-        // extension, kept by the app, and handed to it underneath a node's own options — so this
+        // The module's own settings, the way a plugin has a settings page: declared by the
+        // module, kept by the app, and handed to it underneath a node's own options — so this
         // is where a value that every node of it should share is set once, an API key included.
         //
-        // The list is asked of the extension rather than taken from what it declared, because one
+        // The list is asked of the module rather than taken from what it declared, because one
         // setting can decide another: pick a provider and the models that provider has become the
         // choices for the next one. That is a question it may have to go and answer, so it is asked
         // off this thread and remembered — see Workspace.refreshExtensionSettings.
@@ -759,7 +760,7 @@ private fun ExtensionRow(
     onToggle: (() -> Unit)? = null,
     toggleLabel: String = "",
     onUninstall: (() -> Unit)? = null,
-    // what the destructive action is called. On the Extensions page it removes an installed copy;
+    // what the destructive action is called. On the Modules page it removes an installed copy;
     // on Flows it deletes the user's own file, and a button reading "Uninstall" there invites
     // someone to unregister something and lose the file instead.
     uninstallLabel: String = ws.t("uninstall"),
@@ -844,15 +845,17 @@ fun SettingsScreen(ws: Workspace) {
         Category("appearance", ws.t("setAppearance")),
         Category("ai", ws.t("setAi")),
         Category("keymap", ws.t("setKeymap")),
-        Category("processors", ws.t("setProcessors")),
+        Category("modules", ws.t("setModules")),
         Category("views", ws.t("setViews")),
         Category("flows", ws.t("setFlows")),
     )
     val shown = categories.filter { query.isBlank() || it.label.contains(query, ignoreCase = true) }
     val selectable = shown
-    // "extensions" is the id the rest of the app still asks to be taken to — the menu item, the
+    // "modules" is the id the rest of the app still asks to be taken to — the menu item, the
     // install flow — and the modules page is where that means
-    val requested = if (category == "extensions") "processors" else category
+    // "extensions" and "processors" are what this page used to be called: a session saved under
+    // either still opens it rather than falling back to the first page in the list
+    val requested = if (category in listOf("extensions", "processors")) "modules" else category
     val current = selectable.find { it.key == requested } ?: selectable.firstOrNull()
 
     fun apply() {
@@ -1094,7 +1097,7 @@ fun SettingsScreen(ws: Workspace) {
                         }
                     }
                     "views" -> ViewsSettings(ws)
-                    "processors" -> ExtensionsSettings(ws)
+                    "modules" -> ModulesSettings(ws)
                     "flows" -> FlowsSettings(ws)
                 }
             }
@@ -1262,7 +1265,7 @@ private fun Segmented(options: List<Pair<String, String>>, selected: String, onS
     }
 }
 
-// Esc closes a secondary window (Settings / Extensions)
+// Esc closes a secondary window (Settings / Modules)
 fun closeOnEscape(ev: KeyEvent, close: () -> Unit): Boolean {
     if (ev.type != KeyEventType.KeyDown || ev.key != Key.Escape) return false
     close()

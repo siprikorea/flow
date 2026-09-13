@@ -41,7 +41,7 @@ data class DragModule(
     val type: String,
     val pos: Offset,
     val params: Map<String, String> = emptyMap(),
-    // what the palette called it. Worth carrying rather than looking up: an installed extension is
+    // what the palette called it. Worth carrying rather than looking up: an installed module is
     // not in the app's own registry, so looking it up by type finds nothing and falls back to the
     // id — which is a package name, not a name.
     val label: String = type,
@@ -343,7 +343,7 @@ class EditorState(
             label = moduleInfo.name
             params = moduleInfo.options.associate { it.name to it.default } // seed extension option defaults
             // ports for a module can depend on its (default) option values (e.g. flow.signature's
-            // "signature" input only applies to verify) — ask the extension, not the static list
+            // "signature" input only applies to verify) — ask the module, not the static list
             ins = Platform.moduleInputsFor(type, params) ?: moduleInfo.inputs
             outs = Platform.moduleOutputsFor(type, params) ?: moduleInfo.outputs
             idBase = type.substringAfterLast('.').ifBlank { "mod" }
@@ -492,7 +492,7 @@ class EditorState(
         updateNode(nodeId) { if (kind == "in") it.copy(inputs = list + Port(name)) else it.copy(outputs = list + Port(name)) }
     }
 
-    // Sets an extension module option and, if that option changes which ports the module declares
+    // Sets an module module option and, if that option changes which ports the module declares
     // (e.g. flow.signature's "signature" input only applies when operation=verify), resyncs the
     // node's actual ports to match — adding newly-relevant ports, dropping ones that no longer
     // apply (and any edge wired to them). Ports on module nodes are never user-added/renamed/removed
@@ -511,7 +511,7 @@ class EditorState(
         val newInNames = Platform.moduleInputsFor(node.type, newParams)
         val newOutNames = Platform.moduleOutputsFor(node.type, newParams)
         if (newInNames == null || newOutNames == null) {
-            // not a recognized extension module — just record the value, no ports to resync
+            // not a recognized module module — just record the value, no ports to resync
             updateNode(nodeId) { it.copy(params = newParams) }
             return
         }
@@ -623,7 +623,7 @@ class EditorState(
         setStatus(id, "running")
         // per-step animation duration in ms (from the seconds setting; larger = slower). Every
         // node gets the same step: what a module does with its own options is the module's
-        // business, and naming particular ids here made the host carry one extension's behaviour.
+        // business, and naming particular ids here made the host carry one module's behaviour.
         val stepMs = (ws.animSeconds.coerceIn(0.05f, 10f) * 1000).toLong()
         val job = scope.launch {
             // stay on "running" until the engine has actually finished this node, so a module that

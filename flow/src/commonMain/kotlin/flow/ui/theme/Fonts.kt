@@ -11,7 +11,7 @@ import androidx.compose.ui.text.font.FontFamily
  * type line and the ASN.1 view's offsets are all drawn on the assumption that a digit is exactly
  * as wide as the digit above it. Shipping the face is what makes that assumption true everywhere.
  *
- * The file lives in the extension contract's jar, which is the one thing the app and every
- * extension worker both have on their classpath; see the loader for why that matters.
+ * The file lives in the module contract's jar, which is the one thing the app and every
+ * module worker both have on their classpath; see the loader for why that matters.
  */
 expect val Mono: FontFamily

@@ -46,7 +46,7 @@ class OllamaLiveTest {
         val streamed = StringBuilder()
         val reply = Agents.ask(
             "Call list_nodes, then reply with the single word CALLED followed by the id of " +
-                "any one processor it listed. If you cannot call it, reply with only NOTOOL.",
+                "any one module it listed. If you cannot call it, reply with only NOTOOL.",
             null,
             setup(model = model),
             FlowPrompt.systemPrompt(null),

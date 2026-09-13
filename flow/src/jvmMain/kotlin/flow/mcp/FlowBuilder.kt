@@ -15,8 +15,8 @@ import flow.platform.Platform
 
 // Turning the node/edge spec the MCP tools accept into a real flow file.
 //
-// A client describes what the flow *does* — which processors, wired in what order — and everything
-// mechanical is worked out here: each node's port list (which for a processor depends on its option
+// A client describes what the flow *does* — which modules, wired in what order — and everything
+// mechanical is worked out here: each node's port list (which for a module depends on its option
 // values), the edge ids, the node sizes, and the coordinates. That is what lets "hash this input
 // and base64 the result" arrive as a handful of names rather than hand-assembled JSON.
 
@@ -51,8 +51,8 @@ internal class TypePorts(val ins: List<String>, val outs: List<String>, val labe
 /**
  * The ports and default label for [type] under [params], or null if the type isn't known.
  *
- * A processor's ports can depend on its options (flow.signature only takes "signature" when
- * operation=verify), so the processor is asked rather than read off its static list.
+ * A module's ports can depend on its options (flow.signature only takes "signature" when
+ * operation=verify), so the module is asked rather than read off its static list.
  */
 internal fun portsOf(type: String, params: Map<String, String>): TypePorts? {
     // cin/cout boundary nodes
@@ -75,7 +75,7 @@ internal fun portsOf(type: String, params: Map<String, String>): TypePorts? {
 }
 
 /**
- * What is wrong with [params] for a node of [type]: an option the processor doesn't have, or a value
+ * What is wrong with [params] for a node of [type]: an option the module doesn't have, or a value
  * outside a choice list. Empty when the params are sound. Types with no option list of their own
  * (cin/cout carry editor-set params, a sub-component carries none) are left alone.
  */
@@ -96,7 +96,7 @@ internal fun paramProblems(type: String, params: Map<String, String>): List<Stri
     return problems
 }
 
-/** Option values a node of [type] carries: the processor's defaults with [params] applied over them. */
+/** Option values a node of [type] carries: the module's defaults with [params] applied over them. */
 private fun paramsFor(type: String, params: Map<String, String>): Map<String, String> {
     val info = Platform.installedModuleInfos().find { it.id == type } ?: return params
     return info.options.associate { it.name to it.default } + params
@@ -233,7 +233,7 @@ internal fun buildFlow(nodes: List<NodeSpec>, edges: List<EdgeSpec>): FlowFile {
  * Wiring faults in a finished flow — what "review this flow's connections" answers.
  *
  * These are all structural, so they can be stated with certainty: whether a port is fed, whether
- * it is fed twice, whether the graph can be evaluated at all. Whether the *right* processor was
+ * it is fed twice, whether the graph can be evaluated at all. Whether the *right* module was
  * chosen is a judgement for the caller, and is deliberately not guessed at here.
  */
 internal fun flowProblems(flow: FlowFile): List<String> {
@@ -271,9 +271,9 @@ internal fun flowProblems(flow: FlowFile): List<String> {
  * Everything checkable about a flow already on disk — the answer to "verify this flow".
  *
  * On top of the wiring faults in [flowProblems], this catches what only a saved file can drift
- * into: a node whose processor is no longer installed, an option value that is no longer valid, and
+ * into: a node whose module is no longer installed, an option value that is no longer valid, and
  * a port list that no longer matches what the node's own options say it should have (which happens
- * when a flow is hand-edited, or a processor's ports change between versions).
+ * when a flow is hand-edited, or a module's ports change between versions).
  */
 internal fun validateFlow(flow: FlowFile): List<String> {
     val problems = mutableListOf<String>()

@@ -1,6 +1,6 @@
 package flow.io
 
-import flow.qr.QrExtension
+import flow.qr.QrModule
 import java.io.ByteArrayInputStream
 import javax.imageio.ImageIO
 import kotlin.test.Test
@@ -21,7 +21,7 @@ class QrTest {
 
     /** The decoded pixels of a code, at one pixel per module, with the quiet zone taken off. */
     private fun modules(text: String, ecc: String = "L", quiet: Int = 4): Array<BooleanArray> {
-        val png = QrExtension().process(
+        val png = QrModule().process(
             mapOf("in" to text.encodeToByteArray()),
             mapOf("correction" to ecc, "moduleSize" to "1", "quietZone" to quiet.toString()),
         )["out"]!!
@@ -74,7 +74,7 @@ class QrTest {
     @Test
     fun `the quiet zone is left clear all the way round`() {
         val quiet = 4
-        val png = QrExtension().process(
+        val png = QrModule().process(
             mapOf("in" to "flow".encodeToByteArray()),
             mapOf("correction" to "L", "moduleSize" to "1", "quietZone" to quiet.toString()),
         )["out"]!!
@@ -109,7 +109,7 @@ class QrTest {
     @Test
     fun `the module size scales the image and nothing else`() {
         fun width(scale: Int): Int {
-            val png = QrExtension().process(
+            val png = QrModule().process(
                 mapOf("in" to "flow".encodeToByteArray()),
                 mapOf("correction" to "L", "moduleSize" to scale.toString(), "quietZone" to "4"),
             )["out"]!!
@@ -121,7 +121,7 @@ class QrTest {
     @Test
     fun `empty input is refused rather than encoded as nothing`() {
         val failure = assertFailsWith<IllegalArgumentException> {
-            QrExtension().process(mapOf("in" to ByteArray(0)), emptyMap())
+            QrModule().process(mapOf("in" to ByteArray(0)), emptyMap())
         }
         assertTrue(failure.message!!.contains("no data"), failure.message!!)
     }
@@ -129,7 +129,7 @@ class QrTest {
     @Test
     fun `more data than a QR code holds is refused with the limit`() {
         val failure = assertFailsWith<IllegalStateException> {
-            QrExtension().process(mapOf("in" to ByteArray(4000) { 65 }), mapOf("correction" to "L"))
+            QrModule().process(mapOf("in" to ByteArray(4000) { 65 }), mapOf("correction" to "L"))
         }
         assertTrue(failure.message!!.contains("more than a QR code holds"), failure.message!!)
     }

@@ -15,14 +15,14 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Every processor as a tool of its own, and the schema a caller is handed for it.
+ * Every module as a tool of its own, and the schema a caller is handed for it.
  *
  * A model reads JSON Schema literally and calls exactly what it says, so the schema is the
  * interface — a port marked required that is not costs a failed call every time, and an enum that
  * lists a value the module rejects costs one every time it is picked.
  *
  * The schema rules are checked as pure functions against a made-up module, so they hold wherever
- * this runs; the calls that need a real installed extension say so and step aside where there is
+ * this runs; the calls that need a real installed module say so and step aside where there is
  * none, which is the case on a fresh CI runner.
  */
 class ModuleToolsTest {
@@ -171,7 +171,7 @@ class ModuleToolsTest {
     /**
      * The kind of failure survives the process the module ran in.
      *
-     * An extension runs in a worker, so its exception reaches this server as text — and "Tag
+     * An module runs in a worker, so its exception reaches this server as text — and "Tag
      * mismatch" is the whole of what GCM says for itself. Without the type crossing with it, the
      * one failure an authenticated mode exists to report arrived as INTERNAL, indistinguishable
      * from something this server broke. This runs a real worker, which is the only way to tell.

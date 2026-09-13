@@ -7,8 +7,8 @@ import androidx.compose.ui.text.platform.Font
 /**
  * JetBrains Mono, read out of the classpath.
  *
- * It is packaged in flow-extension-api rather than here on purpose. A view extension draws its
- * window in its own process, whose classpath is the worker, the extension contract, the Kotlin
+ * It is packaged in flow-module-api rather than here on purpose. A view module draws its
+ * window in its own process, whose classpath is the worker, the module contract, the Kotlin
  * runtime and the lent Compose — the app's own jar is deliberately not on it. The contract jar is
  * the only place both sides can see, so that is where the face lives and both sides name the same
  * path.

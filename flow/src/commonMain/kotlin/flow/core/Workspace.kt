@@ -135,9 +135,9 @@ class Workspace(private val scope: CoroutineScope) {
     var geminiKey by mutableStateOf(Platform.loadSecret(AI_KEY_GEMINI).orEmpty())
     var claudeKey by mutableStateOf(Platform.loadSecret(AI_KEY_CLAUDE).orEmpty())
     /**
-     * What each installed extension's own settings are set to, by extension id.
+     * What each installed module's own settings are set to, by module id.
      *
-     * The extension declares which settings it has (ModuleInfo.settings); this is what they are.
+     * The module declares which settings it has (ModuleInfo.settings); this is what they are.
      * Writing it pushes the whole lot to the platform, which is what a run reads — the alternative,
      * reading a file per node, would charge every run for a setting almost nothing uses.
      */
@@ -156,9 +156,9 @@ class Workspace(private val scope: CoroutineScope) {
     /**
      * Hands the platform what a run should see, secrets included.
      *
-     * They are kept apart on disk and put back together here: an extension asked to do its work
+     * They are kept apart on disk and put back together here: an module asked to do its work
      * needs the key as much as the rest, and the place they are kept apart is a storage decision,
-     * not something a processor should have to know about.
+     * not something a module should have to know about.
      */
     private fun pushExtensionSettings() {
         val full = installedModules.associate { module ->
@@ -167,16 +167,16 @@ class Workspace(private val scope: CoroutineScope) {
         Platform.setExtensionSettings(full)
     }
 
-    /** Where an extension's secret setting is kept, namespaced so two extensions cannot collide. */
+    /** Where an module's secret setting is kept, namespaced so two modules cannot collide. */
     private fun extensionSecretName(extensionId: String, name: String) = "ext:$extensionId:$name"
 
     /**
-     * The settings an extension offers right now, and what they are set to.
+     * The settings an module offers right now, and what they are set to.
      *
-     * Asked of the extension rather than read off what it declared, because it may answer with a
+     * Asked of the module rather than read off what it declared, because it may answer with a
      * list it had to fetch — which is what makes a model a menu rather than a box to type a name
-     * into. Cached per extension and re-asked whenever a value changes, off the UI thread; secret
-     * values are filled in from where they are kept, so the extension is asked with the key it
+     * into. Cached per module and re-asked whenever a value changes, off the UI thread; secret
+     * values are filled in from where they are kept, so the module is asked with the key it
      * would actually use.
      */
     var extensionSettingSpecs by mutableStateOf<Map<String, List<OptDef>>>(emptyMap())
@@ -189,14 +189,14 @@ class Workspace(private val scope: CoroutineScope) {
             val offered = Platform.extensionSettingsFor(extensionId, values)
             if (offered.isNotEmpty()) {
                 extensionSettingSpecs = extensionSettingSpecs + (extensionId to offered)
-                // a setting the extension only offers once it knows the others — a model list, say
+                // a setting the module only offers once it knows the others — a model list, say
                 // — is one a run has to be given too
                 pushExtensionSettings()
             }
         }
     }
 
-    /** What one extension's settings are set to, secrets included, ready to hand to it. */
+    /** What one module's settings are set to, secrets included, ready to hand to it. */
     fun settingValues(extensionId: String, specs: List<OptDef>): Map<String, String> {
         val stored = extensionSettings[extensionId] ?: emptyMap()
         return specs.associate { spec ->
@@ -373,7 +373,7 @@ class Workspace(private val scope: CoroutineScope) {
     /**
      * Bumped whenever the install store has been read again.
      *
-     * What is installed is read once and kept, so anything showing a list of extensions needs to
+     * What is installed is read once and kept, so anything showing a list of modules needs to
      * be told when that list has moved.
      */
     var extensionsRevision by mutableStateOf(0)
@@ -419,7 +419,7 @@ class Workspace(private val scope: CoroutineScope) {
         files = Platform.listProjectFiles()
         folders = Platform.listFlowDirs()
         // sorted here rather than in each place that lists them: the install store hands them back
-        // in whatever order the filesystem walked, which shuffles as extensions come and go
+        // in whatever order the filesystem walked, which shuffles as modules come and go
         installedModules = Platform.installedModuleInfos().sortedBy { it.name.lowercase() }
         installedViews = Platform.installedViewInfos().sortedBy { it.name.lowercase() }
         extensionsRevision++
@@ -428,7 +428,7 @@ class Workspace(private val scope: CoroutineScope) {
         pushExtensionSettings()
         // Components on offer as a building block (the palette, comp:<ref> autocomplete-ish spots)
         // are the installed ones only — a flow that merely lives in the open folder isn't one until
-        // explicitly installed (Settings ▸ Modules ▸ Flows), the same as a processor or view
+        // explicitly installed (Settings ▸ Modules ▸ Flows), the same as a module or view
         // isn't on the palette just because its jar exists somewhere. It can still be *referenced*
         // as comp:<path> directly (the engine resolves either store), just not auto-discovered.
         components = Platform.listInstalledComponents().mapNotNull { name ->
@@ -756,7 +756,7 @@ class Workspace(private val scope: CoroutineScope) {
      * Opens a view on [data], in the view's own window.
      *
      * The theme goes with it so the window can open in the same colours as the app that opened it,
-     * and this window's bounds so it can open centred on it (see ViewWindow in the extension API).
+     * and this window's bounds so it can open centred on it (see ViewWindow in the module API).
      * Nothing comes back: a window belongs to the process that opened it, and lives as long as it
      * likes.
      */
@@ -790,7 +790,7 @@ class Workspace(private val scope: CoroutineScope) {
         } else refreshFiles()
     }
 
-    /* ───────── extension registry ───────── */
+    /* ───────── module registry ───────── */
 
     var registry by mutableStateOf<List<RegistryEntry>>(emptyList())
     var registryLoading by mutableStateOf(false)
@@ -1245,7 +1245,7 @@ class Workspace(private val scope: CoroutineScope) {
             // an older session file has no such field; keep the root open
             expandedDirs = s.expandedDirs.toSet() + ""
             expandedSections = s.expandedSections.toSet().let { saved ->
-                // The palette's one Processors section became one per category. Someone who had it
+                // The palette's one Modules section became one per category. Someone who had it
                 // open had it open for a reason, so the sections that replaced it open with it
                 // rather than the panel coming back looking empty.
                 if ("modules" in saved) saved + CATEGORIES.map { "modules:$it" } else saved

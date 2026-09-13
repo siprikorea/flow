@@ -1,0 +1,397 @@
+{
+  "extensions": [
+    {
+      "id": "flow.slack",
+      "name": "Slack",
+      "version": "1.0.3",
+      "description": "Post the input to a Slack channel, with a bot token or an incoming webhook; the message id comes out so another can reply in thread.",
+      "file": "slack-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "messaging"
+    },
+    {
+      "id": "flow.telegram",
+      "name": "Telegram",
+      "version": "1.0.3",
+      "description": "Send the input to a Telegram chat through a bot; the message id comes out so another can reply to it.",
+      "file": "telegram-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "messaging"
+    },
+    {
+      "id": "flow.ai",
+      "name": "AI",
+      "version": "1.2.4",
+      "description": "Send the input to a model with a role to play, and put its answer on the output — chain two to make each one a step.",
+      "file": "ai-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "ai"
+    },
+    {
+      "id": "flow.base64",
+      "name": "Base64",
+      "version": "1.0.2",
+      "description": "Base64 encode or decode, standard or URL-safe alphabet, padding optional.",
+      "file": "base64-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "other"
+    },
+    {
+      "id": "flow.cipher",
+      "name": "Cipher",
+      "version": "1.1.1",
+      "description": "Symmetric and RSA encryption/decryption — AES, DES, DESede, Blowfish, RSA; GCM with additional authenticated data.",
+      "file": "cipher-module.jar",
+      "inputs": [
+        "in",
+        "key",
+        "iv",
+        "aad"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.hash",
+      "name": "Hash",
+      "version": "1.0.2",
+      "description": "Message digest: MD5, SHA-1, SHA-256, SHA-512.",
+      "file": "hash-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.hotp",
+      "name": "HOTP",
+      "version": "1.1.2",
+      "description": "Counter-based one-time password (RFC 4226). Takes a raw or base32 secret.",
+      "file": "hotp-module.jar",
+      "inputs": [
+        "secret",
+        "counter"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.json",
+      "name": "JSON",
+      "version": "1.1.1",
+      "description": "Take one field out of a JSON document with a path, or re-format the whole thing.",
+      "file": "json-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "other"
+    },
+    {
+      "id": "flow.jwt",
+      "name": "JWT",
+      "version": "1.0.2",
+      "description": "Verify a JWT against a secret and split out its header, payload and signature.",
+      "file": "jwt-module.jar",
+      "inputs": [
+        "jwt",
+        "secret"
+      ],
+      "outputs": [
+        "header",
+        "payload",
+        "signature"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.keyfactory",
+      "name": "Key Factory",
+      "version": "1.0.2",
+      "description": "Derive a key from a password (PBKDF2) or rebuild one from encoded key bytes.",
+      "file": "keyfactory-module.jar",
+      "inputs": [
+        "password",
+        "salt",
+        "key"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.keygen",
+      "name": "Key Generator",
+      "version": "1.0.2",
+      "description": "Generate a symmetric key for AES, DES, Blowfish, HMAC and friends.",
+      "file": "keygen-module.jar",
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.keypairgen",
+      "name": "Key Pair Generator",
+      "version": "1.0.2",
+      "description": "Generate an RSA, DSA or EC key pair.",
+      "file": "keypairgen-module.jar",
+      "inputs": [],
+      "outputs": [
+        "publicKey",
+        "privateKey"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.keystore",
+      "name": "Key Store",
+      "version": "1.0.2",
+      "description": "Read a private key, certificate and public key out of a PKCS12 or JKS store.",
+      "file": "keystore-module.jar",
+      "inputs": [
+        "store",
+        "password"
+      ],
+      "outputs": [
+        "privateKey",
+        "certificate",
+        "publicKey"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.mac",
+      "name": "MAC",
+      "version": "1.0.2",
+      "description": "Keyed message authentication code (HMAC) over the input.",
+      "file": "mac-module.jar",
+      "inputs": [
+        "in",
+        "key"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.mcp",
+      "name": "MCP Tool",
+      "version": "1.0.2",
+      "description": "Call a tool on an external MCP server, or list the tools it offers.",
+      "file": "mcp-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "ai"
+    },
+    {
+      "id": "flow.branch",
+      "name": "Branch",
+      "version": "1.0.1",
+      "kind": "module",
+      "category": "other",
+      "description": "Send the value one way or the other: the side not taken carries nothing, so what hangs off it does not run.",
+      "file": "branch-module.jar",
+      "inputs": [
+        "in",
+        "compare"
+      ],
+      "outputs": [
+        "then",
+        "else"
+      ]
+    },
+    {
+      "id": "flow.merge",
+      "name": "Merge",
+      "version": "1.0.2",
+      "description": "Join two inputs into one, with an optional separator.",
+      "file": "merge-module.jar",
+      "inputs": [
+        "a",
+        "b"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "other"
+    },
+    {
+      "id": "flow.securerandom",
+      "name": "Secure Random",
+      "version": "1.0.2",
+      "description": "Random bytes from a named SecureRandom algorithm.",
+      "file": "securerandom-module.jar",
+      "inputs": [],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.signature",
+      "name": "Signature",
+      "version": "1.0.2",
+      "description": "Sign data or verify a signature — RSA, DSA, ECDSA.",
+      "file": "signature-module.jar",
+      "inputs": [
+        "in",
+        "key",
+        "signature"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.sleep",
+      "name": "Sleep",
+      "version": "1.1.2",
+      "description": "Pass the input through after a delay; useful for pacing a flow.",
+      "file": "sleep-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "other"
+    },
+    {
+      "id": "flow.slice",
+      "name": "Slice",
+      "version": "1.0.2",
+      "description": "Take a byte range out of the input and pass the remainder on separately.",
+      "file": "slice-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out",
+        "rest"
+      ],
+      "kind": "module",
+      "category": "other"
+    },
+    {
+      "id": "flow.split",
+      "name": "Split",
+      "version": "1.0.2",
+      "description": "Split the input on a separator into two outputs.",
+      "file": "split-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "a",
+        "b"
+      ],
+      "kind": "module",
+      "category": "other"
+    },
+    {
+      "id": "flow.totp",
+      "name": "TOTP",
+      "version": "1.1.2",
+      "description": "Time-based one-time password (RFC 6238), with a configurable step and digit count.",
+      "file": "totp-module.jar",
+      "inputs": [
+        "secret"
+      ],
+      "outputs": [
+        "out"
+      ],
+      "kind": "module",
+      "category": "crypto"
+    },
+    {
+      "id": "flow.qr",
+      "name": "QR Code",
+      "version": "1.0.2",
+      "kind": "module",
+      "category": "other",
+      "description": "Encode the input as a QR code image, ready for the Image View.",
+      "file": "qr-module.jar",
+      "inputs": [
+        "in"
+      ],
+      "outputs": [
+        "out"
+      ]
+    },
+    {
+      "id": "flow.view.asn1",
+      "name": "ASN.1",
+      "version": "3.4.0",
+      "kind": "view",
+      "category": "crypto",
+      "description": "Read DER — certificates, keys, PKCS — as a tree beside its bytes.",
+      "file": "asn1view-module.jar"
+    },
+    {
+      "id": "flow.view.image",
+      "name": "Image",
+      "version": "2.3.0",
+      "kind": "view",
+      "category": "other",
+      "description": "Show a result as a picture, for processors that produce an image.",
+      "file": "imageview-module.jar"
+    }
+  ]
+}

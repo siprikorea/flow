@@ -26,7 +26,7 @@ import kotlinx.serialization.json.jsonPrimitive
 actual object Platform {
     private val baseDir = File(System.getProperty("user.home"), ".flow")
     // No folder is open until one is chosen, so this starts null and every path operation below
-    // reads as empty. ~/.flow keeps only what belongs to the app itself — installed extensions,
+    // reads as empty. ~/.flow keeps only what belongs to the app itself — installed modules,
     // the session and the settings — under the user's home on every platform.
     @Volatile
     private var projectDir: File? = null
@@ -84,21 +84,21 @@ actual object Platform {
         return runCatching { File(path).writeText(json); true }.getOrDefault(false)
     }
 
-    // ── installed modules/components (delegated to ExtensionLoader) ──
-    actual fun installedModuleInfos(): List<ModuleInfo> = ExtensionLoader.moduleInfos()
+    // ── installed modules/components (delegated to ModuleLoader) ──
+    actual fun installedModuleInfos(): List<ModuleInfo> = ModuleLoader.moduleInfos()
     // runInterruptible so cancelling the run interrupts the thread the module is on. That reaches
     // a module parked in sleep, wait or interruptible IO — most of what a module blocks on —
     // though nothing can reach one spinning in a loop that never checks.
     actual suspend fun moduleProcess(id: String, inputs: Map<String, ByteArray?>, options: Map<String, String>): Map<String, ByteArray?> =
-        runInterruptible(Dispatchers.Default) { ExtensionLoader.process(id, inputs, options) }
-    actual fun moduleInputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.inputsFor(id, options)
-    actual fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>? = ExtensionLoader.outputsFor(id, options)
-    actual fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>? = ExtensionLoader.optionsFor(id, values)
-    actual fun installedViewInfos(): List<ViewInfo> = ExtensionLoader.viewInfos()
+        runInterruptible(Dispatchers.Default) { ModuleLoader.process(id, inputs, options) }
+    actual fun moduleInputsFor(id: String, options: Map<String, String>): List<String>? = ModuleLoader.inputsFor(id, options)
+    actual fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>? = ModuleLoader.outputsFor(id, options)
+    actual fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>? = ModuleLoader.optionsFor(id, values)
+    actual fun installedViewInfos(): List<ViewInfo> = ModuleLoader.viewInfos()
     actual suspend fun openView(id: String, data: ByteArray, options: Map<String, String>) =
-        runInterruptible(Dispatchers.Default) { ExtensionLoader.openView(id, data, options) }
+        runInterruptible(Dispatchers.Default) { ModuleLoader.openView(id, data, options) }
     actual suspend fun focusView(id: String) =
-        runInterruptible(Dispatchers.Default) { ExtensionLoader.focusView(id) }
+        runInterruptible(Dispatchers.Default) { ModuleLoader.focusView(id) }
     actual fun cliPath(provider: String): String? = flow.ai.CliAgent.path(provider)
 
     actual suspend fun askAi(prompt: String, sessionId: String?, ai: AiSetup, onText: (String) -> Unit): AiReply =
@@ -207,24 +207,24 @@ actual object Platform {
     private val CHARSETS = listOf("UTF-8", "US-ASCII", "ISO-8859-1", "UTF-16", "UTF-16BE", "UTF-16LE", "EUC-KR")
 
     actual fun setExtensionSettings(values: Map<String, Map<String, String>>) =
-        ExtensionLoader.setExtensionSettings(values)
+        ModuleLoader.setExtensionSettings(values)
 
     actual suspend fun extensionSettingsFor(id: String, values: Map<String, String>): List<OptDef> =
-        runInterruptible(Dispatchers.IO) { ExtensionLoader.settingsFor(id, values).orEmpty() }
+        runInterruptible(Dispatchers.IO) { ModuleLoader.settingsFor(id, values).orEmpty() }
 
-    actual fun listInstalledComponents(): List<String> = ExtensionLoader.listComponents()
-    actual fun readInstalledComponent(name: String): String? = ExtensionLoader.readComponent(name)
-    actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ExtensionLoader.runComponent(id, inputs)
-    actual fun installJar(path: String, overwrite: Boolean): InstallResult = ExtensionLoader.installJar(path, overwrite)
-    actual fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult = ExtensionLoader.installComponent(id, flowJson, overwrite)
-    actual fun uninstallModule(id: String) = ExtensionLoader.uninstallModule(id)
-    actual fun uninstallComponent(id: String) = ExtensionLoader.uninstallComponent(id)
+    actual fun listInstalledComponents(): List<String> = ModuleLoader.listComponents()
+    actual fun readInstalledComponent(name: String): String? = ModuleLoader.readComponent(name)
+    actual fun runComponent(id: String, inputs: Map<String, ByteArray?>): Map<String, ByteArray?> = ModuleLoader.runComponent(id, inputs)
+    actual fun installJar(path: String, overwrite: Boolean): InstallResult = ModuleLoader.installJar(path, overwrite)
+    actual fun installComponent(id: String, flowJson: String, overwrite: Boolean): InstallResult = ModuleLoader.installComponent(id, flowJson, overwrite)
+    actual fun uninstallModule(id: String) = ModuleLoader.uninstallModule(id)
+    actual fun uninstallComponent(id: String) = ModuleLoader.uninstallComponent(id)
 
     actual fun pickJar(): String? {
-        val dlg = FileDialog(null as Frame?, "Install Flow Extension", FileDialog.LOAD)
-        // .jar too: an extension built elsewhere may not have been renamed yet
+        val dlg = FileDialog(null as Frame?, "Install Flow Module", FileDialog.LOAD)
+        // the older suffix and a plain .jar too: a module built elsewhere may carry either
         dlg.setFilenameFilter { _, name ->
-            name.endsWith(ExtensionLoader.EXTENSION_SUFFIX) || name.endsWith(".jar")
+            name.endsWith(ModuleLoader.MODULE_SUFFIX) || name.endsWith(".flowext") || name.endsWith(".jar")
         }
         dlg.isVisible = true
         val dir = dlg.directory ?: return null
@@ -232,7 +232,7 @@ actual object Platform {
         return File(dir, name).absolutePath
     }
 
-    // ── extension registry ──
+    // ── module registry ──
     // java.net.http is in the JDK, so fetching costs the MCP/CLI bundle no extra jar.
     private val http: java.net.http.HttpClient by lazy {
         java.net.http.HttpClient.newBuilder()
@@ -265,7 +265,7 @@ actual object Platform {
             tmpDir.mkdirs()
             val tmp = File.createTempFile("download", ".jar", tmpDir).apply { deleteOnExit() }
             res.body().use { input -> tmp.outputStream().use { input.copyTo(it) } }
-            val result = ExtensionLoader.installJar(tmp.absolutePath, overwrite)
+            val result = ModuleLoader.installJar(tmp.absolutePath, overwrite)
             tmp.delete()
             result
         }.getOrDefault(InstallResult())

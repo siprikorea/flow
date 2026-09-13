@@ -44,7 +44,7 @@ object Fixtures {
     val effects: MutableList<String> = java.util.Collections.synchronizedList(mutableListOf())
 
     /**
-     * Stand-in modules. Deliberately includes ones that misbehave: an extension is arbitrary code
+     * Stand-in modules. Deliberately includes ones that misbehave: an module is arbitrary code
      * and the engine's job is to survive it, so the tests need code that does what a bad one does.
      */
     fun modules(): suspend (String, Map<String, ByteArray?>, Map<String, String>) -> Map<String, ByteArray?> =

@@ -1,7 +1,7 @@
 package flow.io
 
-import flow.extension.host.Wire
-import flow.platform.ExtensionProcess
+import flow.module.host.Wire
+import flow.platform.ModuleProcess
 import java.io.ByteArrayInputStream
 import java.io.DataInputStream
 import java.io.File
@@ -22,15 +22,15 @@ import kotlin.test.assertTrue
 class ViewProcessTest {
 
     private fun jarFor(module: String): File =
-        File("../flow-extensions/$module-extension/build/libs/$module-extension.jar")
-            .let { if (it.isFile) it else File("flow-extensions/$module-extension/build/libs/$module-extension.jar") }
+        File("../flow-modules/$module-module/build/libs/$module-module.jar")
+            .let { if (it.isFile) it else File("flow-modules/$module-module/build/libs/$module-module.jar") }
 
-    private val workers = mutableMapOf<String, ExtensionProcess>()
+    private val workers = mutableMapOf<String, ModuleProcess>()
 
-    private fun worker(module: String): ExtensionProcess = workers.getOrPut(module) {
+    private fun worker(module: String): ModuleProcess = workers.getOrPut(module) {
         val jar = jarFor(module)
-        assertTrue(jar.isFile, "run :flow-extensions:$module-extension:jar first — ${jar.absolutePath}")
-        ExtensionProcess(jar.parentFile, listOf(jar))
+        assertTrue(jar.isFile, "run :flow-modules:$module-module:jar first — ${jar.absolutePath}")
+        ModuleProcess(jar.parentFile, listOf(jar))
     }
 
     @AfterTest
@@ -54,7 +54,7 @@ class ViewProcessTest {
 
     @Test
     fun `each jar provides exactly the one view it is named for`() {
-        // a jar with two extensions in it cannot be installed by halves: the store keeps a folder
+        // a jar with two modules in it cannot be installed by halves: the store keeps a folder
         // per id and would take both. One each is what makes a row in the list mean what it says.
         assertEquals(listOf("flow.view.asn1"), describe("asn1view").map { it[0] })
         assertEquals(listOf("flow.view.image"), describe("imageview").map { it[0] })
@@ -87,7 +87,7 @@ class ViewProcessTest {
             Wire.writeStringMap(o, emptyMap())
         }
         assertTrue(!reply.ok)
-        assertTrue(reply.payload.decodeToString().contains("not in this extension"), reply.payload.decodeToString())
+        assertTrue(reply.payload.decodeToString().contains("not in this install"), reply.payload.decodeToString())
         // and the worker is still there afterwards, which is the point of the isolation
         assertEquals(listOf("flow.view.asn1"), describe("asn1view").map { it[0] })
     }

@@ -19,7 +19,7 @@ import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
 import kotlin.test.Test
 
-/** Draws the extensions palette, to see the fold marks. Skipped unless RENDER_OUT is set. */
+/** Draws the modules palette, to see the fold marks. Skipped unless RENDER_OUT is set. */
 class PaletteProbe {
     @Test
     fun `draw the palette`() {

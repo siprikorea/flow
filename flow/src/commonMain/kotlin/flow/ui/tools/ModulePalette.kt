@@ -45,7 +45,7 @@ internal fun ModulePalette(ws: Workspace) {
             .padding(vertical = 4.dp),
     ) {
         // The two ends of a flow get a section each — they are what a flow is built between, and
-        // looking for the way in among a list of processors is looking in the wrong place.
+        // looking for the way in among a list of modules is looking in the wrong place.
         Section(ws, "inputs", ws.t("inputSection")) {
             IO_DEFS.filter { it.type == "cin" }.forEach {
                 PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.ins.size, it.outs.size)
@@ -56,18 +56,18 @@ internal fun ModulePalette(ws: Workspace) {
                 PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.ins.size, it.outs.size)
             }
         }
-        // Built-ins, installed extensions and the user's own components all read as one kind —
-        // "processor" — per the design guide's 3-colour category scheme; they stay split into
-        // sections because that grouping is what a list of two dozen processors is found by.
+        // Built-ins, installed modules and the user's own components all read as one kind —
+        // "module" — per the design guide's 3-colour category scheme; they stay split into
+        // sections because that grouping is what a list of two dozen modules is found by.
         //
-        // Processors are grouped by what they are for — the same categories the Extensions screen
+        // Modules are grouped by what they are for — the same categories the Modules screen
         // sorts by, from the same answer, so what was installed under "Crypto" is where "Crypto"
         // is here. A category nothing is installed under is not shown at all.
         //
-        // Built-ins are none at the moment (REGISTRY is empty — everything is an extension), so
+        // Built-ins are none at the moment (REGISTRY is empty — everything is an module), so
         // their section appears only if one is ever added back rather than heading an empty list.
         if (REGISTRY.isNotEmpty()) {
-            Section(ws, "modules", ws.t("processorSection")) {
+            Section(ws, "modules", ws.t("moduleSection")) {
                 REGISTRY.forEach { PaletteCard(ws, it.type, it.name[ws.lang] ?: it.type, it.ins.size, it.outs.size) }
             }
         }
@@ -108,7 +108,7 @@ private fun PaletteCard(
 ) {
     var origin by remember { mutableStateOf(Offset.Zero) }
     // category icon + colour by kind — input/output boundary get their own glyph, everything else
-    // (built-in processor, installed module, component) reads as a processor
+    // (built-in module, installed module, component) reads as a module
     val icon = when {
         type == "cin" -> Lucide.LogIn
         type == "cout" -> Lucide.LogOut

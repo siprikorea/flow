@@ -29,9 +29,9 @@ import flow.ui.common.rememberHover
 import flow.ui.theme.Palette
 
 /**
- * Picks which extension one end of a flow uses: how a value is written, or how a result is shown.
+ * Picks which module one end of a flow uses: how a value is written, or how a result is shown.
  *
- * [none] names the choice of no extension at all, where there is one. An output has it, because
+ * [none] names the choice of no module at all, where there is one. An output has it, because
  * seeing the bytes themselves is always a reasonable thing to want and no output should be able to
  * take that away. An input does not: a value has to be written as something.
  */

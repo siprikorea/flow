@@ -39,8 +39,8 @@ kotlin {
         jvmMain.dependencies {
             implementation(compose.desktop.currentOs)
             implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
-            implementation(project(":flow-extension-api"))
-            implementation(project(":flow-extension-host"))
+            implementation(project(":flow-module-api"))
+            implementation(project(":flow-module-host"))
             // The MCP protocol, kept in one module of its own — see :flow-mcp. The app depends on
             // it because the app is what starts the server: the CLI's --mcp, and the launchers the
             // AI panel writes for Claude Code/Codex/Gemini, all run out of this same classpath.
@@ -65,35 +65,35 @@ kotlin {
             implementation(kotlin("test"))
             // renders a composable to an image without a window, for looking at what a change did
             implementation(compose.desktop.uiTestJUnit4)
-            // the shipped extensions are tested against their specs here, where a failure is loud;
+            // the shipped modules are tested against their specs here, where a failure is loud;
             // in the app they are loaded from jars, so this is a compile dependency only
-            implementation(project(":flow-extensions:ai-extension"))
-            implementation(project(":flow-extensions:slack-extension"))
-            implementation(project(":flow-extensions:telegram-extension"))
-            implementation(project(":flow-extensions:base64-extension"))
-            implementation(project(":flow-extensions:branch-extension"))
-            implementation(project(":flow-extensions:cipher-extension"))
-            implementation(project(":flow-extensions:hash-extension"))
-            implementation(project(":flow-extensions:keyfactory-extension"))
-            implementation(project(":flow-extensions:keygen-extension"))
-            implementation(project(":flow-extensions:keypairgen-extension"))
-            implementation(project(":flow-extensions:keystore-extension"))
-            implementation(project(":flow-extensions:mac-extension"))
-            implementation(project(":flow-extensions:mcp-extension"))
-            implementation(project(":flow-extensions:merge-extension"))
-            implementation(project(":flow-extensions:securerandom-extension"))
-            implementation(project(":flow-extensions:signature-extension"))
-            implementation(project(":flow-extensions:slice-extension"))
-            implementation(project(":flow-extensions:sleep-extension"))
-            implementation(project(":flow-extensions:split-extension"))
-            implementation(project(":flow-extensions:hotp-extension"))
-            implementation(project(":flow-extensions:totp-extension"))
-            implementation(project(":flow-extensions:jwt-extension"))
-            implementation(project(":flow-extensions:json-extension"))
-            implementation(project(":flow-extensions:qr-extension"))
-            implementation(project(":flow-extensions:asn1view-extension"))
-            implementation(project(":flow-extensions:imageview-extension"))
-            implementation(project(":flow-extension-api"))
+            implementation(project(":flow-modules:ai-module"))
+            implementation(project(":flow-modules:slack-module"))
+            implementation(project(":flow-modules:telegram-module"))
+            implementation(project(":flow-modules:base64-module"))
+            implementation(project(":flow-modules:branch-module"))
+            implementation(project(":flow-modules:cipher-module"))
+            implementation(project(":flow-modules:hash-module"))
+            implementation(project(":flow-modules:keyfactory-module"))
+            implementation(project(":flow-modules:keygen-module"))
+            implementation(project(":flow-modules:keypairgen-module"))
+            implementation(project(":flow-modules:keystore-module"))
+            implementation(project(":flow-modules:mac-module"))
+            implementation(project(":flow-modules:mcp-module"))
+            implementation(project(":flow-modules:merge-module"))
+            implementation(project(":flow-modules:securerandom-module"))
+            implementation(project(":flow-modules:signature-module"))
+            implementation(project(":flow-modules:slice-module"))
+            implementation(project(":flow-modules:sleep-module"))
+            implementation(project(":flow-modules:split-module"))
+            implementation(project(":flow-modules:hotp-module"))
+            implementation(project(":flow-modules:totp-module"))
+            implementation(project(":flow-modules:jwt-module"))
+            implementation(project(":flow-modules:json-module"))
+            implementation(project(":flow-modules:qr-module"))
+            implementation(project(":flow-modules:asn1view-module"))
+            implementation(project(":flow-modules:imageview-module"))
+            implementation(project(":flow-module-api"))
         }
     }
 }
@@ -102,7 +102,7 @@ kotlin {
 // app is launched with — without it every test JVM prints JEP 472's restricted-method warning.
 tasks.withType<Test>().configureEach {
     jvmArgs("--enable-native-access=ALL-UNNAMED")
-    // Where the tests read the extension store from. A developer machine has extensions installed
+    // Where the tests read the module store from. A developer machine has modules installed
     // under ~/.flow and CI has none, so tests that touch one pass here and fail there — which is
     // how two of them reached main red. `-PflowTestHome=/tmp/empty` runs them the way CI sees them.
     providers.gradleProperty("flowTestHome").orNull?.let { systemProperty("user.home", it) }
@@ -144,7 +144,7 @@ compose.desktop {
             // from the .dmg while running perfectly from Gradle, where the whole JDK is present.
             //
             // :flow:suggestRuntimeModules lists what the app's own code reaches for. The rest are
-            // for the extensions, which run on this same runtime in a worker and are invisible to
+            // for the modules, which run on this same runtime in a worker and are invisible to
             // that analysis: EC keys, the XML the ASN.1 viewer's DER work leans on, and the
             // scripting-free crypto providers the key modules ask for by name.
             modules(
@@ -177,9 +177,9 @@ compose.desktop {
  *
  * jpackage builds the bundled runtime with jlink and strips its native commands, so the app image
  * ships a complete JVM with no way to start one. Everything Flow runs out of process needs exactly
- * that: every extension runs in a worker (ExtensionProcess), and so does the MCP server the AI
+ * that: every module runs in a worker (ModuleProcess), and so does the MCP server the AI
  * panel serves its tools from — all of them started with java.home/bin/java, which in an installed
- * app was a path to nothing. The result was an app where no extension worked at all and nothing
+ * app was a path to nothing. The result was an app where no module worked at all and nothing
  * said why, while everything ran perfectly from Gradle, where the JDK is whole.
  *
  * The launcher is the JDK's own and the runtime beside it is the one it was built from, so it finds
@@ -271,10 +271,10 @@ tasks.register<JavaExec>("cli") {
 // installable from Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension….
 //
 // The MCP/CLI path never touches Compose or Skiko, so only these dependency jars ship — keeping the
-// UI stack out takes the bundle well under 1MB now that no extension jars ride along either. A new
+// UI stack out takes the bundle well under 1MB now that no module jars ride along either. A new
 // runtime dependency on that path needs its prefix added here (mcpbBundleVerify below catches a miss).
 val mcpbServerJars = listOf(
-    "kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-extension-api", "flow-extension-host",
+    "kotlin-stdlib", "kotlinx-serialization", "annotations-", "flow-module-api", "flow-module-host",
     // the MCP server: :flow-mcp and the official SDK it wraps, with the JSON mapper the SDK finds
     // by ServiceLoader, the schema validator it checks tool schemas with, and Reactor underneath
     "flow-mcp", "mcp-core", "mcp-json-jackson3", "jackson-", "json-schema-validator", "itu-",
@@ -331,7 +331,7 @@ val mcpbBundleVerify = tasks.register("mcpbBundleVerify") {
         toServer.flush()
         val tools = ask("""{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}""")
         // nothing ships with the app any more, so what this proves is that the tool runs at all
-        // — it reaches the extension store and answers, whatever the machine happens to have
+        // — it reaches the module store and answers, whatever the machine happens to have
         val nodes = ask("""{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"list_nodes","arguments":{}}}""")
         toServer.close()
         val err = proc.errorStream.bufferedReader().readText()

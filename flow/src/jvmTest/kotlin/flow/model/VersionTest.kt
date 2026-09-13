@@ -3,7 +3,7 @@ package flow.model
 import kotlin.test.Test
 import kotlin.test.assertTrue
 
-/** Version comparison decides whether the Extensions page offers an update, so its edges matter. */
+/** Version comparison decides whether the Modules page offers an update, so its edges matter. */
 class VersionTest {
     private fun newer(a: String, b: String) = compareVersions(a, b) > 0
     private fun same(a: String, b: String) = compareVersions(a, b) == 0

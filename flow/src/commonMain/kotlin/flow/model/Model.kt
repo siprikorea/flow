@@ -103,7 +103,7 @@ data class Settings(
     // action id -> shortcut id ("meta+n"); missing actions use the default binding
     val keymap: Map<String, String> = emptyMap(),
     val animSeconds: Float = 0.25f,
-    // where the Extensions screen looks for installable extensions
+    // where the Modules screen looks for installable modules
     val registryUrl: String = DEFAULT_REGISTRY_URL,
     // which assistant the AI panel talks to: AI_CLAUDE or AI_OLLAMA. Each keeps its own model,
     // because they name nothing in common — one is a hosted model id, the other whatever the
@@ -130,8 +130,8 @@ data class Settings(
     // provider's own default — the CLI where it has one worth using, since a CLI that is installed
     // is already signed in and costs nothing to configure.
     val aiTransport: Map<String, String> = emptyMap(),
-    // What each extension's own settings are set to, by extension id — see
-    // ProcessorExtension.settings. Kept by id rather than by name so uninstalling one and putting
+    // What each module's own settings are set to, by module id — see
+    // ModuleExtension.settings. Kept by id rather than by name so uninstalling one and putting
     // it back finds what it was configured with.
     val extensionSettings: Map<String, Map<String, String>> = emptyMap(),
     // outputs and inputs the user has switched off. Kept as the exception rather than the list of
@@ -140,10 +140,10 @@ data class Settings(
     val disabledInputs: List<String> = emptyList(),
 )
 
-// The manifest the Extensions screen reads by default. It rides along on the same release the app
+// The manifest the Modules screen reads by default. It rides along on the same release the app
 // itself ships from (siprikorea/flow): the jars sit as release assets beside it, and this URL's
 // "latest" alias always resolves to the newest tagged release, never a prerelease/nightly build —
-// so publishing an extension update is part of cutting a release, not a separate deployment.
+// so publishing an module update is part of cutting a release, not a separate deployment.
 const val DEFAULT_REGISTRY_URL =
     "https://github.com/siprikorea/flow/releases/latest/download/extensions.json"
 

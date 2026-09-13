@@ -12,7 +12,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.sp
-import flow.extension.ProcessorExtension
+import flow.extension.ModuleExtension
 import flow.ui.theme.Mono
 import org.jetbrains.skia.EncodedImageFormat
 import java.io.File
@@ -57,12 +57,12 @@ class MonoFontTest {
 
     @Test
     fun `the font ships in the jar an extension worker gets`() {
-        // A view extension draws its window in another process, whose classpath is the worker, the
+        // A view module draws its window in another process, whose classpath is the worker, the
         // contract and the lent Compose — not the app. So the font has to travel in the contract's
         // jar; moving it into the app's resources would leave every view falling back silently.
-        val contract = File(ProcessorExtension::class.java.protectionDomain.codeSource.location.toURI())
+        val contract = File(ModuleExtension::class.java.protectionDomain.codeSource.location.toURI())
         weights.forEach { weight ->
-            val fromContract = ProcessorExtension::class.java.classLoader
+            val fromContract = ModuleExtension::class.java.classLoader
                 .getResource("flow/fonts/JetBrainsMono-$weight.ttf")
             assertNotNull(fromContract, "JetBrainsMono-$weight.ttf is not reachable at all")
             // the whole path, not the name: "build/resources/main" beside the classes would also

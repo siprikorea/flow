@@ -17,8 +17,8 @@ internal val runnerJson = Json { ignoreUnknownKeys = true }
 internal class RunnableComponent(val ref: String, val comp: CompDef, val installed: Boolean)
 
 // load a flow by name (project/installed component) or by file path.
-// project flow files are ".flow"; installed components are always ".json" (see ExtensionLoader) —
-// try both when no extension was given.
+// project flow files are ".flow"; installed components are always ".json" (see ModuleLoader) —
+// try both when no module was given.
 internal fun loadFlow(ref: String): FlowFile? {
     val names = if (ref.endsWith(".flow") || ref.endsWith(".json")) listOf(ref) else listOf("$ref.flow", "$ref.json")
     val raw = File(ref).takeIf { it.isFile }?.readText()
@@ -48,8 +48,8 @@ internal fun isInstalledComponent(ref: String): Boolean {
 }
 
 // every component available as a comp: node — installed ones only. A project flow becomes one of
-// these by being explicitly installed (Settings ▸ Modules ▸ Flows), same as a processor or
-// view; merely existing in the open folder does not, any more than a processor is on the palette
+// these by being explicitly installed (Settings ▸ Modules ▸ Flows), same as a module or
+// view; merely existing in the open folder does not, any more than a module is on the palette
 // just because its jar is somewhere on disk. Running a flow directly by path (run_flow, the CLI's
 // own positional-arg mode) is unaffected — this list is only what's offered as a *building block*.
 internal fun listComponents(): List<RunnableComponent> {

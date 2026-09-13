@@ -1,7 +1,7 @@
 package flow.io
 
-import flow.extension.host.Wire
-import flow.platform.ExtensionProcess
+import flow.module.host.Wire
+import flow.platform.ModuleProcess
 import java.awt.GraphicsEnvironment
 import java.io.File
 import java.security.KeyPairGenerator
@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
  */
 class UiClasspathTest {
 
-    private var worker: ExtensionProcess? = null
+    private var worker: ModuleProcess? = null
 
     @AfterTest
     fun stop() {
@@ -44,11 +44,11 @@ class UiClasspathTest {
     fun `a view opens a window with what the app lends it`() {
         if (!hasDisplay()) return
 
-        val jar = File("../flow-extensions/asn1view-extension/build/libs/asn1view-extension.jar")
-            .let { if (it.isFile) it else File("flow-extensions/asn1view-extension/build/libs/asn1view-extension.jar") }
-        assertTrue(jar.isFile, "run :flow-extensions:asn1view-extension:jar first — ${jar.absolutePath}")
+        val jar = File("../flow-modules/asn1view-module/build/libs/asn1view-module.jar")
+            .let { if (it.isFile) it else File("flow-modules/asn1view-module/build/libs/asn1view-module.jar") }
+        assertTrue(jar.isFile, "run :flow-modules:asn1view-module:jar first — ${jar.absolutePath}")
 
-        val proc = ExtensionProcess(jar.parentFile, listOf(jar)).also { worker = it }
+        val proc = ModuleProcess(jar.parentFile, listOf(jar)).also { worker = it }
         val key = KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair().public.encoded
         val reply = proc.request(Wire.VIEW_OPEN) { o ->
             Wire.writeString(o, "flow.view.asn1")

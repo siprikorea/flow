@@ -22,7 +22,7 @@ expect object Platform {
     fun moduleOutputsFor(id: String, options: Map<String, String>): List<String>?
     // options to show for the given values (a module may hide options another option makes moot)
     fun moduleOptionsFor(id: String, values: Map<String, String>): List<OptDef>?
-    // ── installed views (the same extension store; a jar may provide processors, views or both) ──
+    // ── installed views (the same module store; a jar may provide modules, views or both) ──
     fun installedViewInfos(): List<ViewInfo>
     // Asks a view to open a window on [data]. Returns once the window has been asked for — a window
     // belongs to the process that opened it, and the app neither waits for it nor closes it.
@@ -63,12 +63,12 @@ expect object Platform {
     fun decodeText(bytes: ByteArray, charset: String): String
     fun charsetNames(): List<String>
 
-    // What Settings ▸ Modules was set to, by extension id — handed to a processor underneath the
+    // What Settings ▸ Modules was set to, by module id — handed to a module underneath the
     // node's own options. Pushed in when it changes rather than read per run.
     fun setExtensionSettings(values: Map<String, Map<String, String>>)
 
-    // The settings an extension offers for the values it currently holds — asked rather than taken
-    // from what it declared, because an extension may answer with something it had to go and find
+    // The settings an module offers for the values it currently holds — asked rather than taken
+    // from what it declared, because an module may answer with something it had to go and find
     // out (the models a server has, for the key just entered). Suspending for that reason.
     suspend fun extensionSettingsFor(id: String, values: Map<String, String>): List<OptDef>
 
@@ -84,7 +84,7 @@ expect object Platform {
     fun uninstallComponent(id: String)
     fun pickJar(): String? // JAR file picker dialog
 
-    // ── extension registry (a manifest served over HTTPS; see flow.model.RegistryIndex) ──
+    // ── module registry (a manifest served over HTTPS; see flow.model.RegistryIndex) ──
     fun fetchText(url: String): String?  // null on any network/HTTP failure
     // Download the jar at [url] and install it. Same conflict rules as installJar.
     fun installFromUrl(url: String, overwrite: Boolean): InstallResult

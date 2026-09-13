@@ -2,7 +2,7 @@ package flow.io
 
 import androidx.compose.ui.ImageComposeScene
 import androidx.compose.ui.unit.Density
-import flow.qr.QrExtension
+import flow.qr.QrModule
 import flow.view.Asn1Panel
 import flow.view.ImagePanel
 import java.security.KeyPairGenerator
@@ -55,8 +55,8 @@ class ViewRenderTest {
 
     @Test
     fun `the image viewer draws, and says so when the bytes are not a picture`() {
-        // a real picture, made the way the app makes one: a processor's output
-        val png = QrExtension().process(
+        // a real picture, made the way the app makes one: a module's output
+        val png = QrModule().process(
             mapOf("in" to "flow".encodeToByteArray()),
             mapOf("correction" to "M", "moduleSize" to "6", "quietZone" to "4"),
         )["out"]!!

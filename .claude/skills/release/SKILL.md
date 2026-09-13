@@ -24,8 +24,8 @@ Run all four. The third is the one that fails the deploy in CI, minutes in, afte
 git status --short | grep -v '^??'          # must be empty
 ./gradlew build                              # tests included
 # CI's own check: every built jar is listed, and every listed jar is built
-built=$(cd flow-extensions && ls */build/libs/*.jar | xargs -n1 basename | sort)
-listed=$(jq -r '.extensions[].file' flow-extensions/registry.json | sort)
+built=$(cd flow-modules && ls */build/libs/*.jar | xargs -n1 basename | sort)
+listed=$(jq -r '.extensions[].file' flow-modules/registry.json | sort)
 [ "$built" = "$listed" ] && echo OK || diff <(echo "$listed") <(echo "$built")
 git log --oneline origin/main..main          # what is about to go
 ```
@@ -35,15 +35,15 @@ git log --oneline origin/main..main          # what is about to go
 Its version lives in **two** places and both must move, or the app offers no update and users keep
 the old jar:
 
-1. `flow-extensions/<name>-extension/src/main/kotlin/.../XExtension.kt` — `override val version`
-2. `flow-extensions/registry.json` — that entry's `"version"`
+1. `flow-modules/<name>-extension/src/main/kotlin/.../XExtension.kt` — `override val version`
+2. `flow-modules/registry.json` — that entry's `"version"`
 
 An extension whose behaviour changed but whose version did not is invisible: `registryState`
 compares the two numbers, finds them equal, and offers nothing.
 
 ### If the extension API changed
 
-`flow-extension-api` is an ABI. Extensions are jars users already have, compiled against whatever
+`flow-module-api` is an ABI. Extensions are jars users already have, compiled against whatever
 it looked like then.
 
 - **Additive only**: a new interface member with a default. Never a new parameter on
@@ -127,8 +127,8 @@ ls "$APP/Contents/runtime/Contents/Home/bin/java"        # the stripped launcher
 codesign --verify --deep --strict "$APP" && echo "signature ok"
 cp -R "$APP" /tmp/ && hdiutil detach /tmp/flowmnt -quiet
 /tmp/Flow.app/Contents/MacOS/Flow &                       # must stay up
-sleep 14; pgrep -f ExtensionWorker | wc -l                # must be > 0, or no extension works
-kill %1; pkill -f ExtensionWorker
+sleep 14; pgrep -f ModuleWorker | wc -l                # must be > 0, or no extension works
+kill %1; pkill -f ModuleWorker
 ```
 
 `~/.flow/app.pid` is shared with any running instance — back it up and restore it if a test launch

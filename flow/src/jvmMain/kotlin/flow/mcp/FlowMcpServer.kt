@@ -16,9 +16,9 @@ import kotlinx.serialization.json.JsonObject
  * them.
  *
  * The tool list is settled when the server starts. It used to be rebuilt per request, which read
- * as though a processor installed while the server ran would be picked up; it never was — this
- * process scans the extension folder once and caches it, and an install happens in the app's
- * process, not this one. A client that wants a newly installed processor restarts the server,
+ * as though a module installed while the server ran would be picked up; it never was — this
+ * process scans the module folder once and caches it, and an install happens in the app's
+ * process, not this one. A client that wants a newly installed module restarts the server,
  * which is what a client does anyway.
  */
 object FlowMcpServer {

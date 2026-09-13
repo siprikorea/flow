@@ -8,7 +8,7 @@ import kotlin.test.assertTrue
 /**
  * The registry manifest, as the app reads it.
  *
- * `kind` was added after extensions were already published, so both directions have to keep
+ * `kind` was added after modules were already published, so both directions have to keep
  * working: an entry without one is a module, and an entry naming a kind this build has never heard
  * of is a module too rather than disappearing from the list.
  */
@@ -17,19 +17,31 @@ class RegistryKindTest {
     private val json = Json { ignoreUnknownKeys = true }
 
     @Test
-    fun `an entry with no kind is a processor`() {
+    fun `an entry with no kind is a module`() {
         val index = json.decodeFromString<RegistryIndex>(
-            """{"extensions":[{"id":"flow.base64","name":"Base64","file":"extensions/flow.base64.flowext"}]}""",
+            """{"extensions":[{"id":"flow.base64","name":"Base64","file":"modules/flow.base64.flowmod"}]}""",
         )
-        assertEquals(KIND_PROCESSOR, index.extensions.single().kind)
+        assertEquals(KIND_MODULE, kindOf(index.extensions.single()))
+    }
+
+    /**
+     * The word a manifest used before this one. Every manifest published so far says it, and they
+     * are read by builds newer than the one that wrote them — so it has to keep meaning a module.
+     */
+    @Test
+    fun `the older word for a module still reads as one`() {
+        val index = json.decodeFromString<RegistryIndex>(
+            """{"extensions":[{"id":"flow.hash","name":"Hash","kind":"module","file":"x"}]}""",
+        )
+        assertEquals(KIND_MODULE, kindOf(index.extensions.single()))
     }
 
     @Test
     fun `a view says so`() {
         val index = json.decodeFromString<RegistryIndex>(
-            """{"extensions":[{"id":"flow.view.asn1","name":"ASN.1","kind":"view","file":"x.flowext"}]}""",
+            """{"extensions":[{"id":"flow.view.asn1","name":"ASN.1","kind":"view","file":"x.flowmod"}]}""",
         )
-        assertEquals(KIND_VIEW, index.extensions.single().kind)
+        assertEquals(KIND_VIEW, kindOf(index.extensions.single()))
     }
 
     @Test
@@ -42,17 +54,17 @@ class RegistryKindTest {
     }
 
     @Test
-    fun `a kind this build does not know is treated as a processor`() {
+    fun `a kind this build does not know is treated as a module`() {
         val index = json.decodeFromString<RegistryIndex>(
             """{"extensions":[{"id":"flow.future","name":"F","kind":"gadget","file":"x"}]}""",
         )
         // only KIND_VIEW moves an entry out of the modules list, so anything else stays visible
-        assertTrue(index.extensions.single().kind != KIND_VIEW)
+        assertEquals(KIND_MODULE, kindOf(index.extensions.single()))
     }
 
     @Test
     fun `the published manifest parses, and every entry points somewhere`() {
-        // a copy of what the app actually downloads: a typo here breaks the Extensions screen for
+        // a copy of what the app actually downloads: a typo here breaks the Modules screen for
         // everyone at once, and nothing else in the build would notice
         val index = json.decodeFromString<RegistryIndex>(manifest())
         assertTrue(index.extensions.size >= 20, "only ${index.extensions.size} entries")
@@ -60,19 +72,19 @@ class RegistryKindTest {
             assertTrue(e.id.isNotBlank(), "an entry has no id")
             assertTrue(e.file.isNotBlank(), "${e.id} names no file")
             assertTrue(e.version.isNotBlank(), "${e.id} has no version")
-            assertTrue(e.kind in listOf(KIND_PROCESSOR, KIND_VIEW), "${e.id} has kind '${e.kind}'")
+            assertTrue(e.kind in listOf(KIND_MODULE, KIND_VIEW), "${e.id} has kind '${e.kind}'")
         }
         assertEquals(
             index.extensions.map { it.id }.distinct().size, index.extensions.size,
             "the manifest lists the same id twice",
         )
-        assertEquals(2, index.extensions.count { it.kind == KIND_VIEW })
+        assertEquals(2, index.extensions.count { kindOf(it) == KIND_VIEW })
     }
 
     @Test
     fun `no two entries are the same jar`() {
-        // The install store keeps a folder per extension a jar provides, so installing a jar that
-        // provides three installs all three. That is right for a jar meant as one extension in
+        // The install store keeps a folder per module a jar provides, so installing a jar that
+        // provides three installs all three. That is right for a jar meant as one module in
         // three parts — and wrong for a manifest that lists them as three rows, because then
         // clicking Install on one row silently installs the other two. Two rows, two jars.
         val index = json.decodeFromString<RegistryIndex>(manifest())
@@ -108,7 +120,7 @@ class RegistryKindTest {
      *
      * CI publishes this file verbatim as `extensions.json`, which is what every installed app
      * downloads. A fixture beside the test would be a second copy to keep in step — and the one
-     * that used to be here had gone stale enough to be missing two extensions entirely, which is
+     * that used to be here had gone stale enough to be missing two modules entirely, which is
      * exactly the drift these tests exist to catch.
      */
     private fun manifest(): String = java.io.File("$EXTENSIONS/registry.json").readText()
@@ -116,7 +128,7 @@ class RegistryKindTest {
     private companion object {
         /** From wherever the test happens to be run: Gradle starts it in the module directory. */
         val EXTENSIONS: String =
-            if (java.io.File("../flow-extensions").isDirectory) "../flow-extensions" else "flow-extensions"
+            if (java.io.File("../flow-modules").isDirectory) "../flow-modules" else "flow-modules"
     }
     /* ───────── categories ───────── */
 
@@ -154,15 +166,15 @@ class RegistryKindTest {
     }
 
     /**
-     * The shipped manifest says what each extension is for.
+     * The shipped manifest says what each module is for.
      *
      * A typo would not fail anything — the entry would quietly appear under Other — so the check
      * that every category is one the app knows belongs here rather than being left to notice.
      */
     @Test
     fun `every extension in the shipped registry has a category this build knows`() {
-        val file = java.io.File("../flow-extensions/registry.json")
-            .let { if (it.isFile) it else java.io.File("flow-extensions/registry.json") }
+        val file = java.io.File("../flow-modules/registry.json")
+            .let { if (it.isFile) it else java.io.File("flow-modules/registry.json") }
         assertTrue(file.isFile, "registry.json not found at ${file.absolutePath}")
         val index = json.decodeFromString<RegistryIndex>(file.readText())
         assertTrue(index.extensions.isNotEmpty())
@@ -176,7 +188,7 @@ class RegistryKindTest {
         ModuleInfo(id, id, listOf("in"), listOf("out"), category = category)
 
     @Test
-    fun `installed processors group by what the extension says it is`() {
+    fun `installed modules group by what the extension says it is`() {
         val groups = modulesByCategory(
             listOf(module("a", "other"), module("b", "crypto"), module("c", "ai"), module("d", "crypto")),
         )
@@ -186,7 +198,7 @@ class RegistryKindTest {
     }
 
     /**
-     * An extension installed before categories existed, or from a newer build than this one, still
+     * An module installed before categories existed, or from a newer build than this one, still
      * has a row in the palette — under Other, which is the whole of what an unknown category costs.
      */
     @Test

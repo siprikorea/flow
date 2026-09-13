@@ -7,11 +7,11 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 /**
- * Every published version is the version the extension actually reports.
+ * Every published version is the version the module actually reports.
  *
  * These are two different files — the manifest a registry serves, and the Kotlin that declares
- * `version` — and only the second one reaches the machine an extension is installed on. Raising the
- * manifest without raising the source produces an extension that installs perfectly and then still
+ * `version` — and only the second one reaches the machine an module is installed on. Raising the
+ * manifest without raising the source produces an module that installs perfectly and then still
  * says it is the older one, so the update is offered again, and again: the button never goes away
  * and nothing the user does makes it. That happened twice before this test existed.
  */
@@ -19,14 +19,14 @@ class PublishedVersionTest {
 
     private val json = Json { ignoreUnknownKeys = true }
 
-    /** Where the extension sources live, from wherever the test happens to be run. */
+    /** Where the module sources live, from wherever the test happens to be run. */
     private fun extensionRoot(): File =
-        File("../flow-extensions").takeIf { it.isDirectory } ?: File("flow-extensions")
+        File("../flow-modules").takeIf { it.isDirectory } ?: File("flow-modules")
 
     /**
-     * The version each extension declares, by id.
+     * The version each module declares, by id.
      *
-     * An extension that does not declare one takes the interface's default, so a missing
+     * An module that does not declare one takes the interface's default, so a missing
      * declaration is 1.0.0 rather than an omission.
      */
     private fun declaredVersions(): Map<String, String> {
@@ -62,7 +62,7 @@ class PublishedVersionTest {
      *
      * The source saying 2.2.0 is no help if the jar beside it was built before the edit — and it is
      * the jar that gets published. Only the ones this module already builds are here, which is
-     * every extension whose behaviour is under test.
+     * every module whose behaviour is under test.
      */
     private fun builtVersions(): Map<String, String> {
         val jars = extensionRoot().listFiles().orEmpty()
@@ -70,7 +70,7 @@ class PublishedVersionTest {
         return buildMap {
             jars.forEach { jar ->
                 val loader = java.net.URLClassLoader(arrayOf(jar.toURI().toURL()), javaClass.classLoader)
-                java.util.ServiceLoader.load(flow.extension.ProcessorExtension::class.java, loader)
+                java.util.ServiceLoader.load(flow.extension.ModuleExtension::class.java, loader)
                     .forEach { put(it.id, it.version) }
                 java.util.ServiceLoader.load(flow.extension.ViewExtension::class.java, loader)
                     .forEach { put(it.id, it.version) }
@@ -104,7 +104,7 @@ class PublishedVersionTest {
     }
 
     /**
-     * The category each extension declares, by id. None declared is the interface's default of "",
+     * The category each module declares, by id. None declared is the interface's default of "",
      * which reads as Other.
      */
     private fun declaredCategories(): Map<String, String> {
@@ -121,20 +121,20 @@ class PublishedVersionTest {
     }
 
     /**
-     * The group an extension is listed under is the same in both places it is written down.
+     * The group an module is listed under is the same in both places it is written down.
      *
-     * The manifest's category sorts the Extensions screen; the source's sorts the palette, because
+     * The manifest's category sorts the Modules screen; the source's sorts the palette, because
      * the palette groups what is installed and has no manifest to consult. They are the same piece
      * of information written twice, and a category raised in one and not the other puts an
-     * extension in two different groups depending on which screen you are looking at.
+     * module in two different groups depending on which screen you are looking at.
      */
     @Test
     fun `an extension is in the same category wherever it is listed`() {
         val declared = declaredCategories()
         val wrong = published().mapNotNull { entry ->
             val source = declared[entry.id] ?: return@mapNotNull null
-            // a view has no palette row to group, so only processors have to agree
-            if (entry.kind != KIND_PROCESSOR || source == categoryOf(entry)) null
+            // a view has no palette row to group, so only modules have to agree
+            if (kindOf(entry) != KIND_MODULE || source == categoryOf(entry)) null
             else "${entry.id}: source '$source', manifest '${entry.category}'"
         }
         assertEquals(emptyList(), wrong, "the palette and the Extensions screen would group these differently")

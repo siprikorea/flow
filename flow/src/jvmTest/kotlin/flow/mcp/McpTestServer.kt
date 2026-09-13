@@ -15,7 +15,7 @@ import java.io.PipedOutputStream
  * initialize handshake included.
  *
  * One server serves the whole suite: it is started on first use and lives for the JVM, because
- * starting one costs a scan of the extension store and the tests are sequential anyway.
+ * starting one costs a scan of the module store and the tests are sequential anyway.
  */
 internal object McpTestServer {
 

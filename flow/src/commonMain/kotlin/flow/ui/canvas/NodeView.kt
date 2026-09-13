@@ -116,7 +116,7 @@ internal fun NodeView(state: EditorState, node: flow.model.Node, timeMs: Long) {
     val bottomMsg = if (processError != null) state.t("stError") else statusText ?: validationError
     val bottomColor = if (processError != null) Palette.danger else if (statusText != null) statusColor else Palette.danger
     // kind icon (top-left): the two ends of a flow read as different things — input/output get
-    // their own glyph and colour; every other kind (built-in, installed, component) is a processor
+    // their own glyph and colour; every other kind (built-in, installed, component) is a module
     val kindIcon = when {
         node.type == "cin" -> Lucide.LogIn
         node.type == "cout" -> Lucide.LogOut

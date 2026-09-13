@@ -15,14 +15,14 @@ import kotlinx.serialization.json.putJsonObject
 import java.util.Base64
 
 /**
- * Each installed processor, as a tool of its own.
+ * Each installed module, as a tool of its own.
  *
  * The flow tools next door are for building a graph: describe nodes and edges, save the file, run
  * it. That is the right shape for a person at a canvas, and the wrong one for a model that wants a
  * hash of some bytes — which would otherwise have to author a two-node flow, save it, run it, and
  * read the output back.
  *
- * So every processor is also callable directly. The schema is generated from what the module
+ * So every module is also callable directly. The schema is generated from what the module
  * declares, which is what makes this worth doing: a model reads JSON Schema literally, so the
  * enums are the module's real choices, the required list is only what is really required, and each
  * port says what encoding it expects rather than leaving it to be guessed.
@@ -149,7 +149,7 @@ internal object ModuleTools {
             }
         }
 
-        val out = runCatching { flow.platform.ExtensionLoader.process(module.id, inputs, options) }
+        val out = runCatching { flow.platform.ModuleLoader.process(module.id, inputs, options) }
             .getOrElse { throw ToolFailure.fromCrypto(unwrap(it), module.name) }
 
         if (out.isEmpty()) return "(no output)"
@@ -243,7 +243,7 @@ internal object ModuleTools {
     /**
      * The exception the module actually threw.
      *
-     * It crossed a process boundary, so what arrives is an ExtensionFailure carrying the original
+     * It crossed a process boundary, so what arrives is an ModuleFailure carrying the original
      * message and the original class name. Rebuilding the exception from the name is what lets
      * ToolFailure classify it as precisely as it would have in-process — a GCM tag mismatch as a
      * failed decryption rather than as something this server broke.
@@ -253,7 +253,7 @@ internal object ModuleTools {
      */
     private fun unwrap(e: Throwable): Throwable {
         val failure = generateSequence(e) { it.cause }
-            .filterIsInstance<flow.platform.ExtensionFailure>().firstOrNull()
+            .filterIsInstance<flow.platform.ModuleFailure>().firstOrNull()
         if (failure != null && failure.type.isNotEmpty()) {
             val message = failure.message.orEmpty()
             return when (failure.type) {

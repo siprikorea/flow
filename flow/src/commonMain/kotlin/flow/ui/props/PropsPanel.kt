@@ -159,12 +159,12 @@ private fun NodeProps(state: EditorState, node: Node, onFocusChange: (Boolean) -
 
     // node ids are managed internally (unique within the component) and not shown
 
-    // an installed extension module (not a component, not a built-in cin/cout) — its ports are
-    // fixed by the extension, not user-editable, though they may vary with its option values
+    // an installed module module (not a component, not a built-in cin/cout) — its ports are
+    // fixed by the module, not user-editable, though they may vary with its option values
     val isModule = !comp && def == null && state.ws.moduleInfo(node.type) != null
 
     // module options: typed editors (text / number / select) for the module's
-    // predefined option names. Built-ins come from the registry; extensions from
+    // predefined option names. Built-ins come from the registry; modules from
     // their ModuleInfo. Components have no options (excluded).
     val options = when {
         comp -> emptyList()

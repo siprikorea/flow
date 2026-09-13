@@ -63,7 +63,7 @@ class RenderProbe {
         listOf(Theme.DARK, Theme.LIGHT).forEach { theme ->
             // one image per theme, with the second node of each row selected so the ring can be
             // judged against a plain node beside it and against every status colour
-            listOf("b" to "selected-processor", "f" to "selected-failed").forEach { (selectedId, name) ->
+            listOf("b" to "selected-module", "f" to "selected-failed").forEach { (selectedId, name) ->
                 val scene = ImageComposeScene(1400, 700, density = Density(2f)) {
                     ApplyTheme(theme)
                     val ws = Workspace(CoroutineScope(Dispatchers.Unconfined))

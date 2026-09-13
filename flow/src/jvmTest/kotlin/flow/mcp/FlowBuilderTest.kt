@@ -10,7 +10,7 @@ import kotlin.test.assertTrue
  * What build_flow does with a spec: work out the ports, the wiring and the coordinates, and refuse
  * a spec it cannot make sense of rather than writing a file that opens wrong.
  *
- * These use cin/cout only, so they hold whatever extensions happen to be installed on the machine.
+ * These use cin/cout only, so they hold whatever modules happen to be installed on the machine.
  */
 class FlowBuilderTest {
 

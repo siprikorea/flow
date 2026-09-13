@@ -131,7 +131,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
 
     // Text or hex, and which encoding when it is text. Both ends read and write the same two ways
     // — an output is the same bytes, only not editable — and anything richer than this is a view
-    // extension, which opens a window of its own rather than living in this panel.
+    // module, which opens a window of its own rather than living in this panel.
     val format = node.params[FORMAT_PARAM]?.takeIf { it in Builtin.ALL } ?: Builtin.STRING
     val charset = node.params[CHARSET_PARAM] ?: "UTF-8"
     val writing = remember(format, charset) { Writing(format, charset) }
@@ -173,7 +173,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
             } else {
                 ToolButton(ws.t("dataReadFile")) { Platform.pickFileRead()?.let { setParam("dataFile", it) } }
             }
-            // A view extension is not one of these: it is a viewer of its own, opened beside the
+            // A view module is not one of these: it is a viewer of its own, opened beside the
             // editor rather than swapped into it. Output only — a viewer reads what a run produced,
             // while an input is bytes being authored, which the editor itself is for.
             if (isOut && ws.installedViews.isNotEmpty()) {
@@ -257,7 +257,7 @@ fun DataEditor(ws: Workspace, tab: DataTab) {
 // How a value is written: text in some encoding, or hex.
 //
 // Both are the app's own, so this is a plain call — no process, no round trip, nothing to wait for.
-// Typing used to go out to an extension and come back, which is why the editor had a settle delay;
+// Typing used to go out to an module and come back, which is why the editor had a settle delay;
 // it does not any more.
 private class Writing(val format: String, val charset: String) {
     val charsPerByte: Int get() = Builtin.charsPerByte(format)
@@ -281,7 +281,7 @@ private class Writing(val format: String, val charset: String) {
 // window's absolute offset, and an oversized paste is committed in full but the displayed field
 // snaps back to a bounded slice (starting where the paste landed) rather than staying huge.
 //
-// Reading and writing the text both cross into the input extension's process, so they happen off
+// Reading and writing the text both cross into the input module's process, so they happen off
 // the keystroke: what is typed appears at once and is turned into bytes a moment later. Without
 // that, every character would wait on a round trip.
 @Composable
@@ -383,7 +383,7 @@ private fun EditableField(
     var pasting by remember(tab) { mutableStateOf(false) }
 
     // Reads the clipboard in bounded chunks so it is never asked for as one string, but the text
-    // is assembled before being converted: only the input extension knows how its writing decodes,
+    // is assembled before being converted: only the input module knows how its writing decodes,
     // and a chunk boundary could fall in the middle of a byte. PASTE_TEXT_LIMIT is what keeps that
     // assembly bounded — past it the paste is cut short rather than allowed to grow without end.
     fun handlePaste() {

@@ -22,7 +22,7 @@ import flow.model.FlowFile
 import flow.model.Node
 import flow.model.Port
 import flow.model.PortRef
-import flow.qr.QrExtension
+import flow.qr.QrModule
 import flow.ui.canvas.CanvasView
 import flow.ui.data.DataEditor
 import flow.ui.props.PropsPanel
@@ -116,7 +116,7 @@ class DocShots {
     private fun rsaKey() =
         KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.generateKeyPair().public.encoded
 
-    private fun qrPng() = QrExtension().process(
+    private fun qrPng() = QrModule().process(
         mapOf("in" to "https://flow.app/sign-a-message".encodeToByteArray()),
         mapOf("correction" to "M", "moduleSize" to "8", "quietZone" to "4"),
     )["out"]!!

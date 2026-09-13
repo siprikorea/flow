@@ -457,7 +457,7 @@ object Palette {
         else -> catTransform
     }
 
-    /** The guide's 3-way category colour: input / output boundary nodes, everything else a processor. */
+    /** The guide's 3-way category colour: input / output boundary nodes, everything else a module. */
     fun catColor3(cat: String) = when (cat) {
         "io" -> catInput
         "out" -> catOutput

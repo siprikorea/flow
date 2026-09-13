@@ -6,12 +6,12 @@ import flow.platform.Platform
  * The two ways of reading and writing bytes that Flow always has.
  *
  * Everything else about the app is installed, and that is the right default — but a flow with no
- * extensions at all still has to let a value be typed and a result be read, or there is nothing to
- * install extensions *for*. Text and hex are the two that need nothing: hex can carry any byte, and
+ * modules at all still has to let a value be typed and a result be read, or there is nothing to
+ * install modules *for*. Text and hex are the two that need nothing: hex can carry any byte, and
  * text is what most values are.
  *
- * They are the app's own code rather than extensions, so there is no process, no jar and no round
- * trip: typing goes straight to bytes. Anything richer than these is a view extension, which is a
+ * They are the app's own code rather than modules, so there is no process, no jar and no round
+ * trip: typing goes straight to bytes. Anything richer than these is a view module, which is a
  * different thing — it opens its own window rather than living in this panel.
  */
 object Builtin {

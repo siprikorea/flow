@@ -18,7 +18,7 @@ import kotlinx.coroutines.sync.withLock
  * binary module output (e.g. Crypto ciphertext) flows between nodes without any risk of corruption.
  *
  * @param loadFlow loader used to expand nested components (comp:<file>)
- * @param moduleIds set of installed module extension ids (nodes of that type are evaluated via process)
+ * @param moduleIds set of installed module module ids (nodes of that type are evaluated via process)
  * @param moduleProcess processing function of installed modules (id, inputs, options -> outputs)
  */
 class FlowEngine(
@@ -52,7 +52,7 @@ class FlowEngine(
      * everything ordered behind it whether or not anything depended on it — a sleep on one branch
      * stalled an unrelated branch that had no reason to wait.
      *
-     * This calls [moduleProcess] from several threads at once, which the extension contract already
+     * This calls [moduleProcess] from several threads at once, which the module contract already
      * expects: process() is handed everything it needs and keeps nothing between calls.
      */
     private suspend fun evaluate(flow: FlowFile, inputs: Map<String, ByteArray>): Map<Pair<String, String>, ByteArray?> = coroutineScope {
@@ -69,7 +69,7 @@ class FlowEngine(
         // nulls. Branches that never touched the failure are unaffected.
         val blocked = HashSet<String>()
 
-        // Ports whose value goes to more than one input. Extensions are arbitrary code and some
+        // Ports whose value goes to more than one input. Modules are arbitrary code and some
         // write through the arrays they are given; handing the same array to two nodes let one of
         // them corrupt the other's input, differently on each run now that they overlap in time.
         // Copying only where a value is actually shared keeps the common straight chain free of it.
@@ -162,7 +162,7 @@ class FlowEngine(
             node.type == "cin" -> mapOf((node.outputs.firstOrNull()?.name ?: "out") to (externalInputs[node.id] ?: externalInputs[node.label]))
             node.type == "cout" -> emptyMap()
             node.type in moduleIds -> {
-                // declared non-null, but an extension is arbitrary code — one written in Java can
+                // declared non-null, but an module is arbitrary code — one written in Java can
                 // hand back null, and letting that through took the whole run down with an NPE
                 // instead of failing the one node that broke its contract
                 val out: Map<String, ByteArray?>? = moduleProcess(node.type, inVals, node.params)

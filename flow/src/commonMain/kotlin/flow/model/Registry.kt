@@ -11,7 +11,7 @@ data class OptDef(
     val default: String = "",
     val choices: List<String> = emptyList(),
     // an API key: masked where it is typed, and kept where keys are kept rather than in the
-    // settings file. Only an extension's settings can be one; a node's options travel in the flow
+    // settings file. Only an module's settings can be one; a node's options travel in the flow
     // file, which is a document the user shares.
     val secret: Boolean = false,
 )
@@ -28,8 +28,8 @@ data class ModuleDef(
     fun defaultParams(): Map<String, String> = options.associate { it.name to it.default }
 }
 
-// Built-in modules, beyond the io boundary nodes below, are provided entirely by extensions
-// (flow-extensions/*) now — this stays declared (rather than removed) so palette/props code that
+// Built-in modules, beyond the io boundary nodes below, are provided entirely by modules
+// (flow-modules/*) now — this stays declared (rather than removed) so palette/props code that
 // iterates it keeps working unchanged if a true built-in is ever added again.
 val REGISTRY = emptyList<ModuleDef>()
 
@@ -55,7 +55,7 @@ data class CompDef(
     val installed: Boolean = false, // installed copy under components/ (read-only)
 )
 
-// Installed module extension info (palette / node creation / engine)
+// Installed module module info (palette / node creation / engine)
 data class ModuleInfo(
     val id: String,
     val name: String,
@@ -63,8 +63,8 @@ data class ModuleInfo(
     val outputs: List<String>,
     val options: List<OptDef> = emptyList(),
     val version: String = "1.0.0",
-    // what the extension asks to be configured once, rather than on every node — see
-    // ProcessorExtension.settings
+    // what the module asks to be configured once, rather than on every node — see
+    // ModuleExtension.settings
     val settings: List<OptDef> = emptyList(),
     // what a generated tool schema needs beyond the names: which inputs may be left out, and one
     // line saying what each port and option is for
@@ -73,8 +73,8 @@ data class ModuleInfo(
     val optionDescriptions: Map<String, String> = emptyMap(),
     // ports carrying a key, a password or a token — kept out of anything echoed back
     val sensitiveInputs: List<String> = emptyList(),
-    // what the extension says it is for, which is the group the palette lists it under. Blank from
-    // an extension built before the contract had it — see categoryOf(ModuleInfo).
+    // what the module says it is for, which is the group the palette lists it under. Blank from
+    // an module built before the contract had it — see categoryOf(ModuleInfo).
     val category: String = "",
 )
 

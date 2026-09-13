@@ -25,13 +25,13 @@ import kotlinx.serialization.json.putJsonObject
 import kotlinx.serialization.json.Json
 
 /**
- * Everything Flow offers an assistant, as tools: see what processors are available, draft a flow
+ * Everything Flow offers an assistant, as tools: see what modules are available, draft a flow
  * from a description, read one back, review its wiring, write the edit out again, and run it for
  * real to check the output rather than just the wiring.
  *
  * Everything mechanical about the file format (port lists, edge ids, node sizes, and coordinates
  * when they aren't given) is worked out here, so a caller only ever describes what the flow does
- * and how its processors connect. list_nodes/list_flows/read_flow/validate_flow/build_flow/
+ * and how its modules connect. list_nodes/list_flows/read_flow/validate_flow/build_flow/
  * save_flow/run_flow are pure file I/O and the CLI's own headless engine — they work whether or
  * not the app itself is running.
  *
@@ -113,7 +113,7 @@ object FlowTools {
         return ToolAnswer(prettyJson.encodeToString(JsonObject.serializer(), detail), detail)
     }
 
-    // Rebuilt per request so flows and processors added while the server runs are seen without a restart.
+    // Rebuilt per request so flows and modules added while the server runs are seen without a restart.
     private fun tools(): List<Tool> = listOf(
         Tool(
             name = "list_nodes",
@@ -232,9 +232,9 @@ object FlowTools {
     )
 
     /**
-     * The flow tools, plus one per installed processor.
+     * The flow tools, plus one per installed module.
      *
-     * Rebuilt per request like the rest, so a processor installed while the server runs is callable
+     * Rebuilt per request like the rest, so a module installed while the server runs is callable
      * without a restart — and so a client that lists tools twice sees what is actually there.
      */
     private fun allTools(): List<Tool> = tools() + moduleTools()

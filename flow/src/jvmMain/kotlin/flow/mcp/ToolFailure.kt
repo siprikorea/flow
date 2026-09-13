@@ -64,7 +64,7 @@ internal class ToolFailure(
         /** An option set to a value it does not accept. */
         const val INVALID_OPTION = "INVALID_OPTION"
 
-        /** Named something that is not there: a flow, a processor, a port. */
+        /** Named something that is not there: a flow, a module, a port. */
         const val NOT_FOUND = "NOT_FOUND"
 
         /** The app has to be running for this, and is not. */

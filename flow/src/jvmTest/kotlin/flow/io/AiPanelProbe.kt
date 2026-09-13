@@ -85,9 +85,9 @@ class AiPanelProbe {
     }
 
     /**
-     * The detail pane with an extension's own settings in it.
+     * The detail pane with an module's own settings in it.
      *
-     * They only appear for an installed extension that declares some, and what is installed on this
+     * They only appear for an installed module that declares some, and what is installed on this
      * machine is whatever jar happens to be there — so the module list is seeded here rather than
      * left to it, which is also the only way this is the same picture twice.
      */
@@ -98,7 +98,7 @@ class AiPanelProbe {
         val scene = ImageComposeScene(1400, 1000, density = Density(1.4f), coroutineContext = Dispatchers.Unconfined) {
             ApplyTheme(Theme.DARK)
             val ws = workspace()
-            ws.settingsCategory = "processors"
+            ws.settingsCategory = "modules"
             ws.installedModules = listOf(
                 flow.model.ModuleInfo(
                     id = "flow.ai", name = "AI", inputs = listOf("in"), outputs = listOf("out"),
@@ -118,7 +118,7 @@ class AiPanelProbe {
         scene.close()
     }
 
-    /** The Extensions page, where the registry's categories become headings. */
+    /** The Modules page, where the registry's categories become headings. */
     @Test
     fun `draw the extensions settings`() {
         val dir = System.getenv("RENDER_OUT")?.let { File(it) } ?: return
@@ -126,7 +126,7 @@ class AiPanelProbe {
         val scene = ImageComposeScene(1400, 1000, density = Density(1.4f), coroutineContext = Dispatchers.Unconfined) {
             ApplyTheme(Theme.DARK)
             val ws = workspace()
-            ws.settingsCategory = "processors"
+            ws.settingsCategory = "modules"
             SettingsScreen(ws)
         }
         repeat(30) { scene.render(); Thread.sleep(50) }
