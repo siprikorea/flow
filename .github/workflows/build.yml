@@ -25,7 +25,16 @@ jobs:
   build:
     # macOS because the .dmg can only be built here, and because it is the OS the
     # tests are written on: the view tests start real JVMs and load Skiko.
-    runs-on: macos-latest
+    #
+    # Self-hosted: a Mac of our own, registered to this repo. GitHub's macOS runners
+    # bill at ten times the rate of Linux ones, and a day of releases exhausted the
+    # allowance — after which a job is refused before it starts, with no runner, no
+    # steps, and nothing to read. A self-hosted runner costs nothing and leaves the
+    # release path as it is: push a tag, get a release.
+    #
+    # It has to be awake when a tag is pushed. If it is not, or if that Mac is gone,
+    # put `macos-latest` back here — everything below runs on either.
+    runs-on: [self-hosted, macOS, ARM64]
 
     steps:
       - uses: actions/checkout@v7
@@ -98,25 +107,13 @@ jobs:
       # A repo's own GITHUB_TOKEN cannot write to another repo, so this needs a
       # personal access token with `contents: write` on siprikorea/flow, stored
       # here as the FLOW_RELEASE_TOKEN secret.
+      #
+      # Python rather than the GitHub CLI: a self-hosted runner is somebody's Mac and
+      # `gh` is not on it, so a build could finish and then fail on the upload alone.
+      # The script needs nothing but the standard library — and, unlike a shell
+      # one-liner, it can be run with --dry-run before it is trusted with a release.
       - name: Publish to ${{ env.TARGET_REPO }}
         if: env.DEPLOY == 'true'
         env:
-          GH_TOKEN: ${{ secrets.FLOW_RELEASE_TOKEN }}
-        run: |
-          set -euo pipefail
-          short="${GITHUB_SHA:0:7}"
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            # a v* tag is a real release, kept forever under its own version
-            tag="${GITHUB_REF#refs/tags/}"
-            notes="Built from ${GITHUB_REPOSITORY}@${short}."
-            gh release create "$tag" --repo "$TARGET_REPO" \
-              --title "Flow ${tag}" --notes "$notes" dist/* \
-            || gh release upload "$tag" --repo "$TARGET_REPO" --clobber dist/*
-          else
-            # main moves, so its build is one rolling prerelease rather than a
-            # new release per push — deleted and remade so stale assets go away
-            notes="Latest build of main — ${GITHUB_REPOSITORY}@${short}, $(date -u +%Y-%m-%d). Unreleased; use the newest v* release for a stable build."
-            gh release delete nightly --repo "$TARGET_REPO" --cleanup-tag --yes || true
-            gh release create nightly --repo "$TARGET_REPO" --target main \
-              --prerelease --title "Flow (latest build of main)" --notes "$notes" dist/*
-          fi
+          FLOW_RELEASE_TOKEN: ${{ secrets.FLOW_RELEASE_TOKEN }}
+        run: python3 .github/scripts/publish_release.py dist
