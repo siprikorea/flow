@@ -11,6 +11,9 @@ publishes to **`siprikorea/flow`** — the public download repo; the source repo
 - **push to `main`** → rolling `nightly` prerelease
 - **push a `v*` tag** → a real release, and `latest` moves to it
 
+If the build never starts — no runner, zero steps, ten seconds — that is not the code, and
+`release-local` is the way to get the same release out from this machine.
+
 **`latest` only moves on a tag.** The app reads its extension registry from
 `releases/latest/download/extensions.json`, and GitHub's `latest` alias skips prereleases — so a
 change to an extension or the manifest reaches users **only when a `v*` tag is cut**. A nightly is
