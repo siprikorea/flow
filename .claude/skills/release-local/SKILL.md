@@ -68,11 +68,31 @@ The second test run matters: tests that read `~/.flow` pass here and fail on a c
 which is exactly what CI would have caught.
 
 Then the packaging, with the version **passed in** — without it the bundle says `1.0.0`, the
-updater compares that against the release and offers an update to everyone forever:
+updater compares that against the release and offers an update to everyone forever — and on the
+same JDK CI uses, or the app ships a different JVM than every release before it:
 
 ```bash
-./gradlew :flow:packageDmg :flow:mcpbBundle -PflowVersion=X.Y.Z
+JAVA_HOME=/path/to/temurin-25 ./gradlew \
+  -Porg.gradle.java.installations.paths=/path/to/temurin-25 \
+  -Porg.gradle.java.installations.auto-detect=false \
+  :flow:packageDmg :flow:mcpbBundle -PflowVersion=X.Y.Z
 ```
+
+CI runs on Temurin 25 (`setup-java`, `temurin`); this machine's only Java 25 is the JetBrains
+Runtime that came with the IDE, and Gradle finds it through `JAVA_HOME`. The bundled runtime is
+jlinked from whichever JDK Gradle runs on and `bin/java` is copied from whichever the toolchain
+resolves, so leaving either to chance ships JBR inside the app — 10MB larger, and the JBR window
+decorations the app checks for suddenly active for the people on that one release. Get it from
+`https://api.adoptium.net/v3/binary/version/jdk-25.0.4.1%2B1/mac/aarch64/jdk/hotspot/normal/eclipse`
+and check what landed:
+
+```bash
+flow/build/compose/binaries/main/app/Flow.app/Contents/runtime/Contents/Home/bin/java -version
+# OpenJDK Runtime Environment Temurin-25.0.4.1+1 — not JBR
+```
+
+`rm -rf flow/build/compose` before a rebuild: the runtime image is up-to-date as far as Gradle is
+concerned, so a second attempt with a different JDK quietly reuses the first one's.
 
 ## 3. Collect and check before anything is uploaded
 
@@ -98,6 +118,7 @@ plutil -p /tmp/rel/Flow.app/Contents/Info.plist | grep -i shortversion   # says 
 codesign --verify --deep --strict /tmp/rel/Flow.app                      # signed
 ls /tmp/rel/Flow.app/Contents/runtime/Contents/Home/bin/java             # the launcher jpackage strips
 lipo -archs /tmp/rel/Flow.app/Contents/MacOS/Flow                        # arm64 — an Intel Mac ships the wrong app
+/tmp/rel/Flow.app/Contents/runtime/Contents/Home/bin/java -version       # Temurin, as every other release
 hdiutil detach /tmp/rel -quiet
 ```
 
