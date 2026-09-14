@@ -278,7 +278,9 @@ internal object ModuleLoader {
             Wire.writeBytes(o, data)
             Wire.writeStringMap(o, options)
         }
-        if (!reply.ok) error(reply.payload.decodeToString())
+        // the worker frames what it says, so read it the way everything else does — a view's
+        // failure reached the user as "\u0000\u0000\u00004the view did not open a window" otherwise
+        if (!reply.ok) throw failure(reply.payload)
     }
 
     /**

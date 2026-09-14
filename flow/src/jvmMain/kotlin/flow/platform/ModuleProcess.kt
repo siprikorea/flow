@@ -50,16 +50,9 @@ internal class ModuleProcess(private val dir: File, private val jars: List<File>
                 ).distinct().joinToString(File.pathSeparator)
             // A view opens a window from here, so this process has to be able to. UIElement is
             // what keeps it from looking like a second program: the window appears and can be used,
-            // but there is no dock icon and no menu bar of its own — an module is part of Flow,
+            // but there is no dock icon and no menu bar of its own — a module is part of Flow,
             // not something the user started. A worker that only computes never touches any of it.
-            val command = listOf(
-                java,
-                "-cp", classpath,
-                "-Djava.awt.headless=false",
-                "-Dapple.awt.UIElement=true",
-                "-Dapple.awt.application.name=Flow",
-                ModuleWorker::class.java.name,
-            ) + jars.map { it.absolutePath }
+            val command = workerCommand(java, classpath)
             val p = ProcessBuilder(command)
                 .redirectError(ProcessBuilder.Redirect.INHERIT) // the worker's own logs stay visible
                 .start()
@@ -68,6 +61,23 @@ internal class ModuleProcess(private val dir: File, private val jars: List<File>
             readerThread(p).start()
         }
     }
+
+    /**
+     * The command that starts one worker.
+     *
+     * Its own function because what is in it is the whole of what a worker can do: the three jars
+     * it is given, the window it is allowed to open, and where the native library for drawing one
+     * is. A test can read it; a running process cannot be asked.
+     */
+    internal fun workerCommand(java: String, classpath: String): List<String> = listOf(
+        java,
+        "-cp", classpath,
+        "-Djava.awt.headless=false",
+        "-Dapple.awt.UIElement=true",
+        "-Dapple.awt.application.name=Flow",
+    ) + nativeLibraryOptions() + listOf(
+        ModuleWorker::class.java.name,
+    ) + jars.map { it.absolutePath }
 
     // one thread drains the pipe and hands each reply to whoever asked for it
     private fun readerThread(p: Process) = Thread({
@@ -168,7 +178,26 @@ internal class ModuleProcess(private val dir: File, private val jars: List<File>
             .filterNot { it == own || File(it).isDirectory || declaresExtensions(File(it)) }
     }
 
-    /** Whether a jar announces an module — the one thing a lent library must not do. */
+    /**
+     * Where Skia's native library is, when the app was told.
+     *
+     * A view draws with Compose, which draws with Skia, which loads a dylib. Run from Gradle, the
+     * dylib is inside the skiko jar and Skia unpacks it itself — which is why every test passed.
+     * In the packaged app jpackage has already unpacked it, next to the jars, and the app is
+     * launched with `-Dskiko.library.path` pointing there; the jar it would otherwise unpack from
+     * no longer carries it. The worker is a JVM of its own and inherits none of that, so a view in
+     * an installed Flow could not draw at all:
+     *
+     *   LibraryLoadException: Cannot find libskiko-macos-arm64.dylib.sha256
+     *
+     * which surfaced as "the view did not open a window". Passing on what the app was told costs
+     * nothing when there is nothing to pass on.
+     */
+    private fun nativeLibraryOptions(): List<String> =
+        listOfNotNull(System.getProperty("skiko.library.path")?.takeIf { it.isNotBlank() })
+            .map { "-Dskiko.library.path=$it" }
+
+    /** Whether a jar announces a module — the one thing a lent library must not do. */
     private fun declaresExtensions(jar: File): Boolean = runCatching {
         java.util.zip.ZipFile(jar).use { zip ->
             zip.stream().anyMatch { it.name.startsWith("META-INF/services/flow.extension.") }
