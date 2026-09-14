@@ -48,6 +48,14 @@ jobs:
 
       # Two steps, because the tests read the extension jars off disk: a single
       # `build` may run :flow:jvmTest before the jar it looks for exists.
+      #
+      # If this fails with "Cannot find a Java installation ... matching
+      # {languageVersion=25}" right after a run of "Invalid Java installation
+      # found at ...", nothing is wrong with the JDK: setup-java installed it and
+      # JAVA_HOME points at it. Gradle's first probe of the installations on a
+      # cold daemon failed, and as it says, it re-checks on the next build — a
+      # re-run of the job goes green without a change. Only go looking if a
+      # re-run fails the same way.
       - name: Build every module
         run: ./gradlew assemble --stacktrace
 
