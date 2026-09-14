@@ -74,8 +74,19 @@ class EditorState(
     var cursorWorld by mutableStateOf(Offset(200f, 200f)) // last pointer position on the canvas (world dp), paste target
     var density by mutableStateOf(1f)
     var textEditing by mutableStateOf(false)
-    // once a component has been opened or saved, unconnected modules are flagged
-    // on the canvas (red border + message). New blank docs stay quiet until saved.
+    /**
+     * Whether the canvas is showing what the last check found.
+     *
+     * A check happens at a moment — a save, an open — and what it found is true of the flow as it
+     * was then. So the marks go up then, and come down the moment the flow changes: see
+     * [pushHistory], which every edit goes through.
+     *
+     * It used to be a mode instead. Once anything had been saved it stayed on, so the same two
+     * actions were checked differently depending on history nobody could see: placing an input and
+     * an output was quiet, and deleting the connector between them lit them both up red. That is
+     * the inconsistency this is written against — either an edit is checked or it is not, and while
+     * you are building, it is not.
+     */
     var showValidation by mutableStateOf(false)
 
     // delegated global UI — so components keep using state.xxx unchanged
@@ -295,10 +306,17 @@ class EditorState(
 
     fun snapshot(): String = json.encodeToString(FlowFile(1, nodes, edges, seq))
 
+    /**
+     * Records the state about to be replaced — and takes down the last check's marks with it.
+     *
+     * Every edit comes through here, which is what makes "the marks are what the last check found"
+     * true of all of them rather than of the ones somebody remembered to clear.
+     */
     fun pushHistory(snap: String? = null) {
         past.addLast(snap ?: snapshot())
         while (past.size > HISTORY_MAX) past.removeFirst()
         future.clear()
+        showValidation = false
     }
 
     private fun applySnapshot(s: String) {
@@ -307,6 +325,8 @@ class EditorState(
         edges = f.edges
         seq = f.seq
         clearSel()
+        // undo and redo change the flow too, and the marks were about neither of these states
+        showValidation = false
     }
 
     fun undo() {
