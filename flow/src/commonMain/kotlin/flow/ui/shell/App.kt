@@ -65,6 +65,8 @@ import flow.model.CATEGORY_OTHER
 import flow.model.KIND_VIEW
 import flow.model.OptDef
 import flow.model.OptType
+import flow.model.UNKNOWN_VERSION
+import flow.model.versionOfTag
 import flow.model.RegistryEntry
 import flow.model.RegistryState
 import flow.model.categoryOf
@@ -135,6 +137,9 @@ fun App(
     // program is the frame's, unbroken around all four corners. A tool window opened from the left
     // rail is a second sheet of exactly the same kind, laid beside the frame with that same margin
     // between them.
+    // Asked once, on the way in, and only if the user leaves it on: one request, and it says
+    // nothing at all unless there is something newer than what is running.
+    LaunchedEffect(Unit) { if (ws.checkUpdatesOnStart) ws.checkForUpdate(quiet = true) }
     Box(Modifier.fillMaxSize().background(Palette.windowGradient)) {
         Column(Modifier.fillMaxSize()) {
             MenuBar(ws, leadingInset, onTitleDoubleClick, onTitleBarPress)
@@ -536,6 +541,74 @@ private fun ModuleMarket(ws: Workspace, kind: String) {
     }
 }
 
+/**
+ * The app's own version, and the one on offer.
+ *
+ * Modules update from the same release this does, so the question is the same question and it is
+ * asked the same way — what the newest tag is, and whether it is newer than what is running. What
+ * differs is the answer: a module is a jar dropped into a folder, and this is the program itself,
+ * so it says what it is about to do and restarts when it has done it.
+ */
+@Composable
+private fun UpdateSettings(ws: Workspace) {
+    val release = ws.latestRelease
+    val available = ws.updateAvailable
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        SettingRow(ws.t("updateCurrent")) { Txt(ws.appVersion, FlowType.mono, Palette.text) }
+        if (release != null) {
+            SettingRow(ws.t("updateLatest")) { Txt(versionOfTag(release.tag), FlowType.mono, Palette.text) }
+        }
+
+        when {
+            ws.appVersion == UNKNOWN_VERSION -> Txt(ws.t("updateDev"), FlowType.body, Palette.faintText)
+            ws.updateInstalling -> Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Txt(
+                    ws.t("updateInstalling")
+                        .replace("{done}", megabytes(ws.updateDownloaded))
+                        .replace("{total}", megabytes(ws.updateSize)),
+                    FlowType.body, Palette.text,
+                )
+                Txt(ws.t("updateRestartNote"), FlowType.small, Palette.faintText)
+            }
+            available -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Txt(
+                    ws.t("updateFound").replace("{v}", versionOfTag(release!!.tag)),
+                    FlowType.bodyStrong, Palette.text,
+                )
+                if (release.body.isNotBlank()) {
+                    Txt(release.body.trim(), FlowType.small, Palette.subText, maxLines = 12)
+                }
+                Txt(ws.t("updateRestartNote"), FlowType.small, Palette.faintText)
+            }
+            release != null -> Txt(ws.t("updateUpToDate"), FlowType.body, Palette.faintText)
+        }
+        ws.updateError?.let { Txt(it, FlowType.body, Palette.errorSoft) }
+
+        SettingRow(ws.t("updateOnStart")) {
+            Segmented(
+                listOf("on" to ws.t("viewEnable"), "off" to ws.t("viewDisable")),
+                if (ws.checkUpdatesOnStart) "on" else "off",
+            ) { ws.checkUpdatesOnStart = it == "on" }
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (available && !ws.updateInstalling) {
+                DialogButton(ws.t("updateInstall"), Palette.accent, Color.White, filled = true) { ws.installUpdate() }
+            }
+            if (!ws.updateInstalling) {
+                DialogButton(
+                    if (ws.updateChecking) ws.t("updateChecking") else ws.t("updateCheck"),
+                    Palette.buttonBorder, Palette.menuText,
+                ) { ws.checkForUpdate() }
+            }
+        }
+    }
+}
+
+/** A size a person reads, since this is the one place the app downloads tens of megabytes. */
+private fun megabytes(bytes: Long): String =
+    if (bytes <= 0) "—" else "${(bytes / (1024.0 * 1024.0) * 10).toLong() / 10.0} MB"
+
 private const val TAB_MARKETPLACE = "marketplace"
 private const val TAB_INSTALLED = "installed"
 
@@ -873,6 +946,7 @@ fun SettingsScreen(ws: Workspace) {
         Category("modules", ws.t("setModules")),
         Category("views", ws.t("setViews")),
         Category("flows", ws.t("setFlows")),
+        Category("update", ws.t("setUpdate")),
     )
     val shown = categories.filter { query.isBlank() || it.label.contains(query, ignoreCase = true) }
     val selectable = shown
@@ -1113,6 +1187,7 @@ fun SettingsScreen(ws: Workspace) {
                     "views" -> ViewsSettings(ws)
                     "modules" -> ModulesSettings(ws)
                     "flows" -> FlowsSettings(ws)
+                    "update" -> UpdateSettings(ws)
                 }
             }
         }

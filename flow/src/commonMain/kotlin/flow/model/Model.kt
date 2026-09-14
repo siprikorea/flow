@@ -138,6 +138,9 @@ data class Settings(
     // enabled ones, so a newly installed one is usable without having to be turned on first.
     val disabledOutputs: List<String> = emptyList(),
     val disabledInputs: List<String> = emptyList(),
+    // whether to ask, on the way in, if a newer Flow has been published. One request, and it says
+    // nothing when there is nothing to say — but it is a request to somewhere, so it can be off.
+    val checkUpdatesOnStart: Boolean = true,
 )
 
 // The manifest the Modules screen reads by default. It rides along on the same release the app

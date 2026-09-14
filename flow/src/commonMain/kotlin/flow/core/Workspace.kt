@@ -40,6 +40,10 @@ import flow.model.DEFAULT_OPENAI_URL
 import flow.model.apiKeyEnvVar
 import flow.model.apiKeySecret
 import flow.model.DEFAULT_REGISTRY_URL
+import flow.model.ReleaseInfo
+import flow.model.DEFAULT_UPDATE_URL
+import flow.model.isNewer
+import flow.model.installerFor
 import flow.model.RegistryEntry
 import flow.model.RegistryIndex
 import flow.model.RegistryState
@@ -97,6 +101,15 @@ class Workspace(private val scope: CoroutineScope) {
     var lang by mutableStateOf("en") // default language: English
     var theme by mutableStateOf(Theme.SYSTEM) // system | dark | light
     var registryUrl by mutableStateOf(DEFAULT_REGISTRY_URL)
+
+    /**
+     * Whether the app asks, on the way in, whether a newer one has been published.
+     *
+     * Declared here with the rest of what settings.json carries, and above the init that reads it:
+     * a property assigned before its own state exists is a null the compiler does not warn about
+     * and a probe found for us.
+     */
+    var checkUpdatesOnStart by mutableStateOf(true)
     // Which assistant the AI panel talks to, and a model per provider — the two name nothing in
     // common, so switching provider and switching back finds the model it was left on rather than
     // an id the other one has never heard of.
@@ -792,6 +805,8 @@ class Workspace(private val scope: CoroutineScope) {
 
     /* ───────── module registry ───────── */
 
+    private val updateJson = Json { ignoreUnknownKeys = true }
+
     var registry by mutableStateOf<List<RegistryEntry>>(emptyList())
     var registryLoading by mutableStateOf(false)
     var registryError by mutableStateOf<String?>(null)
@@ -897,6 +912,88 @@ class Workspace(private val scope: CoroutineScope) {
             }
             bulkTotal = 0
             bulkDone = 0
+        }
+    }
+
+    /* ───────── the app's own updates ───────── */
+
+    /** What this build is. A build that was not packaged says so, and is never offered an update. */
+    val appVersion: String get() = Platform.appVersion()
+
+    /** The newest release, once it has been asked for. Null until then, and after a failure. */
+    var latestRelease by mutableStateOf<ReleaseInfo?>(null)
+        private set
+    var updateChecking by mutableStateOf(false)
+        private set
+    var updateError by mutableStateOf<String?>(null)
+        private set
+    var updateDownloaded by mutableStateOf(0L)
+        private set
+    var updateSize by mutableStateOf(0L)
+        private set
+    var updateInstalling by mutableStateOf(false)
+        private set
+
+    /** Whether what is published is newer than what is running. */
+    val updateAvailable: Boolean get() = latestRelease?.let { isNewer(it, appVersion) } == true
+
+    /**
+     * Asks where the app is published what the newest release is.
+     *
+     * [quiet] is the check made on the way in: nobody asked for it, so a machine with no network
+     * says nothing rather than opening with an error. The same check from the settings page says
+     * what went wrong, because somebody pressed a button and is owed an answer.
+     */
+    fun checkForUpdate(quiet: Boolean = false) {
+        if (updateChecking || updateInstalling) return
+        updateChecking = true
+        updateError = null
+        scope.launch {
+            val raw = withContext(Dispatchers.Default) { Platform.fetchText(DEFAULT_UPDATE_URL) }
+            val release = raw?.let { runCatching { updateJson.decodeFromString<ReleaseInfo>(it) }.getOrNull() }
+            latestRelease = release
+            updateError = when {
+                release != null -> null
+                quiet -> null
+                else -> t("updateCheckFailed")
+            }
+            updateChecking = false
+        }
+    }
+
+    /**
+     * Downloads the new app and puts it in place of this one.
+     *
+     * The app restarts itself at the end of it, so there is nothing after the call that matters —
+     * which is also why every reason it might not happen is reported before anything is replaced.
+     */
+    fun installUpdate() {
+        val release = latestRelease?.takeIf { isNewer(it, appVersion) } ?: return
+        val asset = installerFor(release, Platform.osName()) ?: run {
+            updateError = t("updateNoInstaller")
+            return
+        }
+        if (updateInstalling) return
+        updateInstalling = true
+        updateError = null
+        updateDownloaded = 0
+        updateSize = asset.size
+        scope.launch {
+            val downloaded = withContext(Dispatchers.Default) {
+                Platform.downloadUpdate(asset.url) { read, total ->
+                    updateDownloaded = read
+                    if (total > 0) updateSize = total
+                }
+            }
+            if (downloaded == null) {
+                updateError = t("updateDownloadFailed")
+                updateInstalling = false
+                return@launch
+            }
+            // Past here the app is replaced and restarted, so a return means it did not happen.
+            val failure = withContext(Dispatchers.Default) { Platform.applyUpdate(downloaded) }
+            if (failure != null) updateError = failure
+            updateInstalling = false
         }
     }
 
@@ -1255,6 +1352,7 @@ class Workspace(private val scope: CoroutineScope) {
             lang, theme, keymap.mapValues { it.value.id() }, animSeconds, registryUrl,
             aiProvider, aiModel, ollamaUrl, ollamaModel, openaiUrl, openaiModel, geminiUrl, geminiModel,
             claudeUrl, aiTransports, extensionSettings,
+            checkUpdatesOnStart = checkUpdatesOnStart,
         )
     )
 
@@ -1269,6 +1367,7 @@ class Workspace(private val scope: CoroutineScope) {
             theme = saved.theme.takeIf { it in Theme.ALL } ?: Theme.SYSTEM
             animSeconds = saved.animSeconds.coerceIn(0.05f, 10f)
             registryUrl = saved.registryUrl.ifBlank { DEFAULT_REGISTRY_URL }
+            checkUpdatesOnStart = saved.checkUpdatesOnStart
             // an id from an older build that's since been retired falls back to Auto rather than
             // silently passing something `claude --model` may no longer recognize
             aiModel = saved.aiModel.takeIf { id -> AI_MODELS.any { it.first == id } } ?: ""

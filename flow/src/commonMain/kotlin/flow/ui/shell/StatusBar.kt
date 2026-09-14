@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
+import flow.model.versionOfTag
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
 import flow.ui.theme.FlowType
@@ -56,6 +57,15 @@ fun StatusBar(ws: Workspace) {
                     )
                     Txt("+", FlowType.body, Palette.textSecondary, modifier = Modifier.plainClick { active.zoom = (active.zoom + 0.1f).coerceAtMost(2.5f) }.padding(horizontal = 6.dp))
                 }
+            }
+            // An update is worth one word down here and nothing more: it is news, not a task, and
+            // pressing it goes to the page that explains it rather than starting anything.
+            if (ws.updateAvailable) {
+                Txt(
+                    ws.t("updateStatus").replace("{v}", versionOfTag(ws.latestRelease?.tag ?: "")),
+                    FlowType.caption, Palette.accentHover,
+                    modifier = Modifier.plainClick { ws.openSettings("update") },
+                )
             }
             ws.saveTime?.let { Txt("${ws.t("autoSaved")} $it", FlowType.caption, Palette.autosave) }
         }

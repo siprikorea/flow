@@ -4,6 +4,7 @@ import flow.model.AI_VIA_CLI
 import flow.model.AiReply
 import flow.model.AiSetup
 import flow.model.InstallResult
+import flow.model.UNKNOWN_VERSION
 import flow.model.ModuleInfo
 import flow.model.OptDef
 import flow.model.ViewInfo
@@ -595,4 +596,128 @@ actual object Platform {
     private val isMac = osName.contains("mac")
     private val isWindows = osName.contains("win")
     actual fun metaKeyLabel(): String = if (isMac) "\u2318" else "Win+"
+
+    /* ───────── updating the app itself ───────── */
+
+    /**
+     * The version this build was packaged with.
+     *
+     * jpackage stamps it onto the launcher, which passes it in — so a packaged app knows what it
+     * is, and one run from Gradle honestly says it does not. Nothing offers an update to a build
+     * that does not know its own version: there would be nothing to compare, and the download
+     * would replace a developer's own build.
+     */
+    actual fun appVersion(): String =
+        System.getProperty("jpackage.app-version")?.takeIf { it.isNotBlank() } ?: UNKNOWN_VERSION
+
+    actual fun osName(): String = osName
+
+    /** Where this app is installed: the .app bundle on macOS, or null when it is not packaged. */
+    private fun appBundle(): File? {
+        if (!isMac) return null
+        // the launcher runs from Flow.app/Contents/MacOS/Flow, so the bundle is three up from the
+        // runtime's own home — java.home is Flow.app/Contents/runtime/Contents/Home
+        val home = File(System.getProperty("java.home"))
+        val bundle = home.parentFile?.parentFile?.parentFile?.parentFile
+        return bundle?.takeIf { it.name.endsWith(".app") && File(it, "Contents/MacOS").isDirectory }
+    }
+
+    actual fun downloadUpdate(url: String, onProgress: (Long, Long) -> Unit): String? {
+        val uri = httpsOnly(url) ?: return null
+        return runCatching {
+            val req = java.net.http.HttpRequest.newBuilder(uri)
+                .timeout(java.time.Duration.ofMinutes(10)).GET().build()
+            val res = http.send(req, java.net.http.HttpResponse.BodyHandlers.ofInputStream())
+            if (res.statusCode() !in 200..299) return null
+            val expected = res.headers().firstValueAsLong("content-length").orElse(-1L)
+            tmpDir.mkdirs()
+            val file = File(tmpDir, url.substringAfterLast('/').ifBlank { "update.dmg" })
+            var read = 0L
+            res.body().use { input ->
+                file.outputStream().use { output ->
+                    val buffer = ByteArray(1 shl 16)
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        output.write(buffer, 0, n)
+                        read += n
+                        onProgress(read, expected)
+                    }
+                }
+            }
+            file.absolutePath
+        }.getOrNull()
+    }
+
+    /**
+     * Puts the downloaded app in place of this one and starts it.
+     *
+     * Everything before the swap is a check, because the swap cannot be taken back: the image
+     * mounts, it holds one .app, that .app is signed and is this same application rather than
+     * something else that happens to be in a .dmg. Only then is the old bundle moved aside, and if
+     * putting the new one in place fails the old one goes back where it was.
+     *
+     * The relaunch is a detached `open`: this process is about to be replaced on disk, and the new
+     * one must not be a child of it.
+     */
+    actual fun applyUpdate(installerPath: String): String? {
+        if (!isMac) return "updating in place is only supported on macOS — download the new version instead"
+        val bundle = appBundle() ?: return "this build was not installed as an app, so there is nothing to replace"
+        val image = File(installerPath).takeIf { it.isFile } ?: return "the download is not where it was left"
+        val mount = File(tmpDir, "update-mount-${System.currentTimeMillis()}")
+        return runCatching {
+            mount.mkdirs()
+            if (!exec("hdiutil", "attach", image.absolutePath, "-nobrowse", "-quiet", "-mountpoint", mount.absolutePath)) {
+                return "the downloaded disk image could not be opened"
+            }
+            try {
+                val fresh = mount.listFiles()?.firstOrNull { it.name.endsWith(".app") }
+                    ?: return "the disk image holds no app"
+                identityOf(fresh)?.let { id ->
+                    if (id != identityOf(bundle)) return "the disk image holds a different application ($id)"
+                }
+                if (!exec("codesign", "--verify", "--deep", "--strict", fresh.absolutePath)) {
+                    return "the downloaded app is not signed as it should be"
+                }
+                val staged = File(tmpDir, "update-staged-${System.currentTimeMillis()}.app")
+                staged.deleteRecursively()
+                // ditto rather than a copy: a bundle is symlinks, permissions and extended
+                // attributes, and its signature is only valid while all three survive the move
+                if (!exec("ditto", fresh.absolutePath, staged.absolutePath)) {
+                    return "the new app could not be unpacked"
+                }
+                val aside = File(bundle.parentFile, "${bundle.name}.old-${System.currentTimeMillis()}")
+                if (!bundle.renameTo(aside)) {
+                    staged.deleteRecursively()
+                    return "the installed app could not be moved aside — is it in a folder you can write to?"
+                }
+                if (!staged.renameTo(bundle)) {
+                    aside.renameTo(bundle) // put it back: better the old app than no app
+                    return "the new app could not be put in place"
+                }
+                aside.deleteRecursively()
+                run("open", "-na", bundle.absolutePath)
+                null
+            } finally {
+                exec("hdiutil", "detach", mount.absolutePath, "-quiet")
+                mount.delete()
+                image.delete()
+            }
+        }.getOrElse { it.message ?: "the update could not be installed" }
+    }
+
+    /** What a bundle says it is, so an update cannot be some other app that shipped in a .dmg. */
+    private fun identityOf(bundle: File): String? = runCatching {
+        val plist = File(bundle, "Contents/Info.plist")
+        Regex("<key>CFBundleIdentifier</key>\\s*<string>([^<]+)</string>")
+            .find(plist.readText())?.groupValues?.get(1)
+    }.getOrNull()
+
+    /** Runs a command to completion; true when it said it worked. */
+    private fun exec(vararg command: String): Boolean = runCatching {
+        ProcessBuilder(*command).redirectErrorStream(true).start().let { p ->
+            p.inputStream.readBytes() // a pipe nobody drains is a process that never ends
+            p.waitFor() == 0
+        }
+    }.getOrDefault(false)
 }

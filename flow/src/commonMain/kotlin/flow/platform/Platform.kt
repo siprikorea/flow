@@ -175,6 +175,26 @@ expect object Platform {
 
     fun currentTimeHms(): String
 
+    // ── the app's own version, and replacing it with a newer one ──
+    /** What this build calls itself: the version it was packaged with, or "dev" when it was not. */
+    fun appVersion(): String
+    /** The operating system, as the release's assets are named for it. */
+    fun osName(): String
+    /**
+     * Downloads an installer to a file of its own and returns where it landed, or null.
+     *
+     * [onProgress] is called with how much has arrived and how much is expected, so the app can
+     * say so: this is tens of megabytes over someone's connection, not a request.
+     */
+    fun downloadUpdate(url: String, onProgress: (Long, Long) -> Unit): String?
+    /**
+     * Replaces the running app with the one in [installerPath] and restarts it.
+     *
+     * Returns why it could not, or null — in which case it does not return at all: the app it was
+     * called from has been replaced and relaunched.
+     */
+    fun applyUpdate(installerPath: String): String?
+
     // how the meta modifier is written in shortcuts: "⌘" on macOS, "Win+" elsewhere
     fun metaKeyLabel(): String
 }

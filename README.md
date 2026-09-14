@@ -140,6 +140,21 @@ Besides the UI, a component can be executed from the terminal: pick a component 
 
 Components are read from the open folder (by name) or a file path. The engine evaluates nodes in topological order; `map`/`filter` expressions are handled by a small evaluator (arithmetic, comparisons, variable `x`/`value`), and nested `comp:` nodes are expanded recursively.
 
+## Updating Flow itself
+
+The app checks its own release on the way in — one request to where it is published, which says
+nothing unless there is something newer than what is running — and **Settings ▸ Update** says what
+it found, with a button that installs it. The status bar carries one word when an update is waiting.
+
+Installing one downloads the `.dmg` for this platform, checks that the app inside it is signed and
+is this same application, and only then puts it in place of the running bundle and restarts. Every
+reason it might not work is reported before anything is replaced, and if putting the new one in
+place fails the old one goes back. A build run from Gradle knows it has no version and is never
+offered an update.
+
+The check can be turned off in the same place; it is off entirely for a build that was not
+packaged.
+
 ## Modules
 
 A module is code you install; a component is a flow file built inside the Flow tool and added there. A module is identified by a **package-format id**, declares input/output ids, and may declare typed options (text / number / select) shown in the property panel. Its ports carry **bytes**. Both the ports and the options on show can depend on the current option values (`inputsFor` / `outputsFor` / `optionsFor`) — `flow.keyfactory` swaps its ports between `password`+`salt` and `key`, and hides the options its algorithm doesn't use. The `flow-module-api` module defines the contract:
