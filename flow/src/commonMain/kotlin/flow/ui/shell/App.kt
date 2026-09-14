@@ -66,6 +66,7 @@ import flow.model.KIND_VIEW
 import flow.model.OptDef
 import flow.model.OptType
 import flow.model.RegistryEntry
+import flow.model.RegistryState
 import flow.model.categoryOf
 import flow.model.AI_CLAUDE
 import flow.model.AI_GEMINI
@@ -501,8 +502,36 @@ private fun ModuleMarket(ws: Workspace, kind: String) {
             }
         }
 
-        DialogButton(ws.t("installLocalJar"), Palette.buttonBorder, Palette.menuText) {
-            Platform.pickJar()?.let { ws.installJarFlow(it) }
+        // What the two buttons act on is the whole kind, not what the search happens to be
+        // showing: "all" is the word on them. Neither appears when there is nothing for it to do.
+        val offered = items.mapNotNull { it.entry }
+        val missing = offered.filter { ws.registryState(it) == RegistryState.AVAILABLE }
+        val outdated = offered.filter { ws.registryState(it) == RegistryState.UPDATABLE }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            DialogButton(ws.t("installLocalJar"), Palette.buttonBorder, Palette.menuText) {
+                Platform.pickJar()?.let { ws.installJarFlow(it) }
+            }
+            if (ws.bulkInstalling) {
+                Txt(
+                    ws.t("installingAll")
+                        .replace("{done}", ws.bulkDone.toString())
+                        .replace("{total}", ws.bulkTotal.toString()),
+                    FlowType.body, Palette.faintText,
+                )
+            } else {
+                if (outdated.isNotEmpty()) {
+                    DialogButton(
+                        ws.t("updateAll").replace("{n}", outdated.size.toString()),
+                        Palette.accent, Color.White, filled = true,
+                    ) { ws.installAll(outdated) }
+                }
+                if (missing.isNotEmpty()) {
+                    DialogButton(
+                        ws.t("installAll").replace("{n}", missing.size.toString()),
+                        Palette.buttonBorder, Palette.menuText,
+                    ) { ws.installAll(missing) }
+                }
+            }
         }
     }
 }

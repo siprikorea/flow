@@ -850,6 +850,56 @@ class Workspace(private val scope: CoroutineScope) {
         }
     }
 
+    /**
+     * How far a whole-list install has got, and whether one is running at all.
+     *
+     * One counter rather than a flag per module: what a person wants to know while twenty jars
+     * come down is how many are left, and the rows already say which one is being fetched.
+     */
+    var bulkDone by mutableStateOf(0)
+        private set
+    var bulkTotal by mutableStateOf(0)
+        private set
+    val bulkInstalling: Boolean get() = bulkTotal > 0
+
+    /**
+     * Install or update every one of [entries], one after another.
+     *
+     * Sequentially on purpose: these are downloads, and twenty at once is slower than twenty in a
+     * row on anything but a perfect connection — and impossible to report honestly. A failure does
+     * not stop the rest; what could not be fetched is named once at the end rather than as twenty
+     * dialogs.
+     */
+    fun installAll(entries: List<RegistryEntry>) {
+        if (bulkInstalling || entries.isEmpty()) return
+        bulkTotal = entries.size
+        bulkDone = 0
+        scope.launch {
+            val failed = mutableListOf<String>()
+            entries.forEach { entry ->
+                registryBusy = registryBusy + entry.id
+                val result = withContext(Dispatchers.Default) {
+                    Platform.installFromUrl(entryUrl(entry.file), overwrite = true)
+                }
+                registryBusy = registryBusy - entry.id
+                if (result.installed.isEmpty()) failed += entry.name.ifBlank { entry.id }
+                bulkDone += 1
+                refreshFiles() // the rows say "installed" as each one lands, not all at the end
+            }
+            // said before the counter stops, so that anything watching the run for "is it over"
+            // finds the outcome already there rather than a gap where it has not been said yet
+            if (failed.isNotEmpty()) {
+                showError(
+                    t("installAllFailed")
+                        .replace("{n}", failed.size.toString())
+                        .replace("{names}", failed.joinToString(", ")),
+                )
+            }
+            bulkTotal = 0
+            bulkDone = 0
+        }
+    }
+
     /** Install a .flow chosen from disk: it goes where flows live, alongside the rest of them. */
     fun installLocalFlow(path: String) {
         copyFlowIntoFolder(path, "")
