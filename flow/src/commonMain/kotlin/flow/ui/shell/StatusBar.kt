@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
+import flow.model.RUN_LIVE
 import flow.model.versionOfTag
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -57,6 +58,15 @@ fun StatusBar(ws: Workspace) {
                     )
                     Txt("+", FlowType.body, Palette.textSecondary, modifier = Modifier.plainClick { active.zoom = (active.zoom + 0.1f).coerceAtMost(2.5f) }.padding(horizontal = 6.dp))
                 }
+            }
+            // Live mode runs the flow on its own, and a result that changes with nobody pressing
+            // anything needs an explanation somewhere permanent. One word, and it goes to the
+            // setting that turned it on.
+            if (ws.runMode == RUN_LIVE) {
+                Txt(
+                    ws.t("runLive"), FlowType.caption, Palette.accentHover,
+                    modifier = Modifier.plainClick { ws.openSettings("run") },
+                )
             }
             // An update is worth one word down here and nothing more: it is news, not a task, and
             // pressing it goes to the page that explains it rather than starting anything.

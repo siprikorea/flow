@@ -45,6 +45,9 @@ import flow.model.DEFAULT_UPDATE_URL
 import flow.model.isNewer
 import flow.model.installerFor
 import flow.model.RegistryEntry
+import flow.model.RUN_LIVE
+import flow.model.RUN_MODES
+import flow.model.RUN_ONCE
 import flow.model.RegistryIndex
 import flow.model.RegistryState
 import flow.model.compareVersions
@@ -110,6 +113,25 @@ class Workspace(private val scope: CoroutineScope) {
      * and a probe found for us.
      */
     var checkUpdatesOnStart by mutableStateOf(true)
+
+    /**
+     * Whether a flow runs as it is edited ([RUN_LIVE]) or only when Start is pressed ([RUN_ONCE]).
+     *
+     * Declared here for the same reason as the field above: settings.json carries it, and the init
+     * that reads the file needs the state to exist by then.
+     */
+    var runMode by mutableStateOf(RUN_ONCE)
+
+    /**
+     * Bring the open flow's output up to date, now, if live mode is on.
+     *
+     * Switching the setting on is itself a reason to run: the point of live mode is that the output
+     * is what the current input produces, and waiting for the next keystroke to make that true
+     * would show a stale result — or none — in the meantime.
+     */
+    fun runLiveNow() {
+        if (runMode == RUN_LIVE) active?.liveRun()
+    }
     // Which assistant the AI panel talks to, and a model per provider — the two name nothing in
     // common, so switching provider and switching back finds the model it was left on rather than
     // an id the other one has never heard of.
@@ -1353,6 +1375,7 @@ class Workspace(private val scope: CoroutineScope) {
             aiProvider, aiModel, ollamaUrl, ollamaModel, openaiUrl, openaiModel, geminiUrl, geminiModel,
             claudeUrl, aiTransports, extensionSettings,
             checkUpdatesOnStart = checkUpdatesOnStart,
+            runMode = runMode,
         )
     )
 
@@ -1368,6 +1391,9 @@ class Workspace(private val scope: CoroutineScope) {
             animSeconds = saved.animSeconds.coerceIn(0.05f, 10f)
             registryUrl = saved.registryUrl.ifBlank { DEFAULT_REGISTRY_URL }
             checkUpdatesOnStart = saved.checkUpdatesOnStart
+            // an unknown mode is a file written by a later build, or edited by hand: run the way
+            // that only runs when asked, never the way that runs by itself
+            runMode = saved.runMode.takeIf { it in RUN_MODES } ?: RUN_ONCE
             // an id from an older build that's since been retired falls back to Auto rather than
             // silently passing something `claude --model` may no longer recognize
             aiModel = saved.aiModel.takeIf { id -> AI_MODELS.any { it.first == id } } ?: ""

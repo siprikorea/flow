@@ -68,6 +68,8 @@ import flow.model.OptType
 import flow.model.UNKNOWN_VERSION
 import flow.model.versionOfTag
 import flow.model.RegistryEntry
+import flow.model.RUN_LIVE
+import flow.model.RUN_MODES
 import flow.model.RegistryState
 import flow.model.categoryOf
 import flow.model.AI_CLAUDE
@@ -918,6 +920,7 @@ fun SettingsScreen(ws: Workspace) {
     var lang by remember { mutableStateOf(ws.lang) }
     var theme by remember { mutableStateOf(ws.theme) }
     var anim by remember { mutableStateOf(ws.animSeconds) }
+    var runMode by remember { mutableStateOf(ws.runMode) }
     var aiProvider by remember { mutableStateOf(ws.aiProvider) }
     var aiModel by remember { mutableStateOf(ws.aiModel) }
     var ollamaUrl by remember { mutableStateOf(ws.ollamaUrl) }
@@ -941,6 +944,7 @@ fun SettingsScreen(ws: Workspace) {
     // heading that repeats what one of them is already called.
     val categories = listOf(
         Category("appearance", ws.t("setAppearance")),
+        Category("run", ws.t("setRun")),
         Category("ai", ws.t("setAi")),
         Category("keymap", ws.t("setKeymap")),
         Category("modules", ws.t("setModules")),
@@ -961,6 +965,9 @@ fun SettingsScreen(ws: Workspace) {
         ws.lang = lang
         ws.theme = theme
         ws.animSeconds = anim
+        ws.runMode = runMode
+        // turning live mode on is itself a change to run on: see Workspace.runLiveNow
+        ws.runLiveNow()
         ws.aiProvider = aiProvider
         ws.aiModel = aiModel
         ws.ollamaUrl = ollamaUrl
@@ -1038,6 +1045,15 @@ fun SettingsScreen(ws: Workspace) {
                                 anim.toString(),
                             ) { anim = it.toFloat() }
                         }
+                    }
+                    "run" -> Column {
+                        SettingRow(ws.t("runMode")) {
+                            Segmented(
+                                RUN_MODES.map { it to ws.t(if (it == RUN_LIVE) "runLive" else "runOnce") },
+                                runMode,
+                            ) { runMode = it }
+                        }
+                        Txt(ws.t("runModeHint"), FlowType.small, Palette.faintText)
                     }
                     "ai" -> Column {
                         SettingRow(ws.t("aiProvider")) {

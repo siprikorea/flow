@@ -141,7 +141,27 @@ data class Settings(
     // whether to ask, on the way in, if a newer Flow has been published. One request, and it says
     // nothing when there is nothing to say — but it is a request to somewhere, so it can be off.
     val checkUpdatesOnStart: Boolean = true,
+    // RUN_LIVE or RUN_ONCE — see those.
+    val runMode: String = RUN_ONCE,
 )
+
+/**
+ * When a flow runs.
+ *
+ * [RUN_ONCE] is the flow as a thing you press Start on: it runs then, with the animation, and the
+ * result stands until you run it again. [RUN_LIVE] makes it a thing you turn a knob on — change an
+ * input and the flow is run again for you, and the output window shows what it produces now. There
+ * is no animation in live mode: it is the answer that is wanted, and stepping through the nodes for
+ * a quarter of a second each would put the animation between the typing and the result.
+ *
+ * One-time is the default: running a flow can send a message, call an API or write a file, and
+ * doing any of that on every keystroke is not something to opt out of after the fact.
+ */
+const val RUN_LIVE = "live"
+const val RUN_ONCE = "once"
+
+/** The order they are offered in: live first, then one-time. */
+val RUN_MODES: List<String> = listOf(RUN_LIVE, RUN_ONCE)
 
 // The manifest the Modules screen reads by default. It rides along on the same release the app
 // itself ships from (siprikorea/flow): the jars sit as release assets beside it, and this URL's

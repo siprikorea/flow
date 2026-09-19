@@ -12,6 +12,7 @@ import flow.model.Node
 import flow.model.OptType
 import flow.model.Port
 import flow.model.PortRef
+import flow.model.RUN_LIVE
 import flow.engine.FlowEngine
 import flow.model.compFile
 import flow.model.findDef
@@ -34,6 +35,12 @@ import kotlin.math.hypot
 
 private const val HISTORY_MAX = 60
 
+// A moment's pause after an edit before live mode runs the flow again. Nothing here types character
+// by character — the data editor settles the text into bytes before it writes them — but an edit
+// rarely arrives alone (a paste moves the value and the window; opening a file sets a param and
+// clears a port), and running once at the end of a burst beats running for each of them.
+private const val LIVE_RUN_DELAY_MS = 120L
+
 data class Wire(val node: String, val port: String, val pos: Offset)
 // pos: window coordinates (px). `params` seeds the dropped node — how an "Hex Input" card and a
 // plain "Input" card both make a cin node while landing on different ways of writing its value.
@@ -53,8 +60,18 @@ class EditorState(
     val ws: Workspace,
     var fileName: String,
 ) {
-    var nodes by mutableStateOf(listOf<Node>())
-    var edges by mutableStateOf(listOf<Edge>())
+    // Nodes and edges are read and written as plainly as any other state, but they go through
+    // setters rather than being state directly: every edit to the flow passes this way, and live
+    // mode listens here (see [flowEdited]). A new way to change the flow is then picked up by it
+    // without anyone having to remember to say so.
+    private val nodesState = mutableStateOf(listOf<Node>())
+    private val edgesState = mutableStateOf(listOf<Edge>())
+    var nodes: List<Node>
+        get() = nodesState.value
+        set(value) { nodesState.value = value; flowEdited() }
+    var edges: List<Edge>
+        get() = edgesState.value
+        set(value) { edgesState.value = value; flowEdited() }
     var seq by mutableStateOf(1)
     var pan by mutableStateOf(Offset.Zero)
     var zoom by mutableStateOf(1f)
@@ -668,6 +685,77 @@ class EditorState(
             simJobs.remove(job)
             if (running && simJobs.isEmpty()) running = false
         }
+    }
+
+    /* ───────── live run ───────── */
+
+    private var liveJob: Job? = null
+    private var liveSig: List<Any?>? = null
+
+    /**
+     * What the result of a run depends on: the values, the options, and how the nodes are wired.
+     *
+     * Not where the nodes are, how big they are, or what the last run left on them — a flow dragged
+     * across the canvas produces exactly what it produced before, and re-running it would be work
+     * nobody asked for. Status is the other half of that: a run writes status back onto the nodes,
+     * and counting that as a change would make live mode run itself in a circle.
+     *
+     * Port values compare by identity, which is what makes this cheap enough to do on every edit:
+     * an edit replaces the array, a run that leaves the value alone hands back the same one.
+     */
+    private fun runSignature(): List<Any?> = buildList {
+        nodes.forEach { n ->
+            add(n.id); add(n.type); add(n.params)
+            n.inputs.forEach { add(it.name); add(it.data) }
+            n.outputs.forEach { add(it.name); add(it.data) }
+        }
+        edges.forEach { e ->
+            add(e.id); add(e.from.node); add(e.from.port); add(e.to.node); add(e.to.port)
+        }
+    }
+
+    /**
+     * Every edit to the flow lands here. In live mode, one that changes the result runs it again.
+     *
+     * In one-time mode this costs a comparison of one string: the signature is not built at all,
+     * because nothing is going to be done with it.
+     */
+    private fun flowEdited() {
+        if (ws.runMode != RUN_LIVE) return
+        val sig = runSignature()
+        if (sig == liveSig) return
+        liveSig = sig
+        scheduleLiveRun()
+    }
+
+    /**
+     * Run the flow for its result alone — no animation, no status on the nodes.
+     *
+     * This is what live mode does on every change: the output editors read [runOutputs] and a
+     * failed node is bordered from [nodeErrors], so the result and anything that went wrong with it
+     * are both shown without a second of stepping through the canvas first.
+     */
+    private fun scheduleLiveRun() {
+        liveJob?.cancel()
+        liveJob = scope.launch {
+            delay(LIVE_RUN_DELAY_MS)
+            // A run started by hand owns the pass. An input changed while it plays is not dropped
+            // for that, though — it waits for the animation and then runs, which is what live mode
+            // promised: the output is what the input says now.
+            while (running) delay(LIVE_RUN_DELAY_MS)
+            if (nodes.isEmpty()) {
+                runOutputs = emptyMap()
+                nodeErrors = emptyMap()
+            } else {
+                computeOutputs()
+            }
+        }
+    }
+
+    /** Bring the output up to date now — what switching live mode on does. */
+    fun liveRun() {
+        liveSig = runSignature()
+        scheduleLiveRun()
     }
 
     private fun resetRun() {
