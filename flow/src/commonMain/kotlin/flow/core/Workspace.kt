@@ -122,15 +122,9 @@ class Workspace(private val scope: CoroutineScope) {
      */
     var runMode by mutableStateOf(RUN_ONCE)
 
-    /**
-     * Bring the open flow's output up to date, now, if live mode is on.
-     *
-     * Switching the setting on is itself a reason to run: the point of live mode is that the output
-     * is what the current input produces, and waiting for the next keystroke to make that true
-     * would show a stale result — or none — in the meantime.
-     */
-    fun runLiveNow() {
-        if (runMode == RUN_LIVE) active?.liveRun()
+    /** Tells the open flow that [runMode] changed — see EditorState.runModeChanged. */
+    fun runModeChanged() {
+        active?.runModeChanged()
     }
     // Which assistant the AI panel talks to, and a model per provider — the two name nothing in
     // common, so switching provider and switching back finds the model it was left on rather than

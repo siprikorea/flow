@@ -30,6 +30,53 @@ class EngineTest {
         assertTrue(errors.isEmpty(), "expected no errors, got $errors")
     }
 
+    /**
+     * A pass can be narrowed to part of the flow — which is what live mode runs on every edit.
+     *
+     * The rest is not merely skipped for speed: a module is arbitrary code and can have a
+     * consequence, so a branch the change never reached must not be called again at all. The value
+     * it produced last time is handed back for it, and test.effect records anything that ran.
+     */
+    @Test
+    fun `only the named nodes run, and the rest keep the values they had`() {
+        Fixtures.effects.clear()
+        val engine = Fixtures.engine()
+        val flow = Fixtures.load("two-branches.flow")
+        val inputs = mapOf("in" to "abc".encodeToByteArray())
+
+        val first = runBlocking { engine.values(flow, inputs) }
+        assertEquals("ABC", engine.coutValues(flow, first)["outU"]?.decodeToString())
+        assertEquals("cba", engine.coutValues(flow, first)["outR"]?.decodeToString())
+
+        // the same input, but only the upper branch is in this pass
+        val second = runBlocking {
+            engine.values(flow, mapOf("in" to "xyz".encodeToByteArray()), first, setOf("in", "u", "outU"))
+        }
+        val out = engine.coutValues(flow, first + second)
+        assertEquals("XYZ", out["outU"]?.decodeToString(), "the branch in the pass did not run")
+        assertEquals("cba", out["outR"]?.decodeToString(), "a branch outside the pass was run again")
+    }
+
+    /** And a module outside the pass is never called — not called and producing nothing differ. */
+    @Test
+    fun `a module outside the pass is not called`() {
+        Fixtures.effects.clear()
+        val engine = Fixtures.engine()
+        val flow = Fixtures.load("branch.flow")
+        // "no" is the side the effect module is on, so the first pass records it running
+        val inputs = mapOf("in" to "no".encodeToByteArray())
+
+        val first = runBlocking { engine.values(flow, inputs) }
+        val ran = Fixtures.effects.toList()
+        Fixtures.effects.clear()
+
+        // a pass that names nothing but the input node: everything else keeps what it had
+        runBlocking { engine.values(flow, inputs, first, setOf("in")) }
+
+        assertTrue(ran.isNotEmpty(), "the fixture never recorded a module running at all")
+        assertEquals(emptyList(), Fixtures.effects, "a module outside the pass ran anyway")
+    }
+
     @Test
     fun `branches that share only their input both produce results`() {
         val (out, errors) = run("two-branches.flow", "Text" to "abc")

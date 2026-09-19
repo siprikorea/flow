@@ -54,8 +54,19 @@ class FlowEngine(
      *
      * This calls [moduleProcess] from several threads at once, which the module contract already
      * expects: process() is handed everything it needs and keeps nothing between calls.
+     *
+     * [only] narrows the pass to the nodes named in it; every other node keeps the value [known]
+     * already has for it and is never called. That is what lets a change to one input re-run the
+     * modules it reaches and leave the rest of the flow alone — which matters beyond speed, because
+     * a module can send a message or write a file, and doing that again for a branch the change
+     * never touched would be wrong. Null runs everything, as it always did.
      */
-    private suspend fun evaluate(flow: FlowFile, inputs: Map<String, ByteArray>): Map<Pair<String, String>, ByteArray?> = coroutineScope {
+    private suspend fun evaluate(
+        flow: FlowFile,
+        inputs: Map<String, ByteArray>,
+        known: Map<Pair<String, String>, ByteArray?> = emptyMap(),
+        only: Set<String>? = null,
+    ): Map<Pair<String, String>, ByteArray?> = coroutineScope {
         val byId = flow.nodes.associateBy { it.id }
         // built up here and published at the end, so a caller reading errors never sees a
         // half-filled map and two runs cannot tread on each other's results
@@ -84,6 +95,12 @@ class FlowEngine(
             val waitFor = upstream.mapNotNull { started[it] }
             started[nid] = async(Dispatchers.Default) {
                 waitFor.forEach { it.await() }
+                if (only != null && nid !in only) {
+                    // outside this pass: what it produced last time is what it still produces
+                    lock.withLock { node.outputs.forEach { p -> outVals[nid to p.name] = known[nid to p.name] } }
+                    onNodeSettled(nid, null)
+                    return@async
+                }
                 val stopped = lock.withLock { upstream.any { it in blocked } }
                 if (stopped) {
                     lock.withLock { blocked += nid }
@@ -152,6 +169,23 @@ class FlowEngine(
         val outVals = evaluate(flow, inputs)
         return flow.nodes.filter { it.type == "cout" }.associate { it.id to coutValue(flow, it, outVals) }
     }
+
+    /**
+     * Every port's value, rather than only the flow's outputs — see [evaluate] for [known]/[only].
+     *
+     * The editor keeps what comes back, so the next change can be run as the part of the flow it
+     * reaches: the values on the way in are the ones the last pass produced.
+     */
+    suspend fun values(
+        flow: FlowFile,
+        inputs: Map<String, ByteArray>,
+        known: Map<Pair<String, String>, ByteArray?> = emptyMap(),
+        only: Set<String>? = null,
+    ): Map<Pair<String, String>, ByteArray?> = evaluate(flow, inputs, known, only)
+
+    /** What each cout node ends up showing, given every port's value. */
+    fun coutValues(flow: FlowFile, values: Map<Pair<String, String>, ByteArray?>): Map<String, ByteArray?> =
+        flow.nodes.filter { it.type == "cout" }.associate { it.id to coutValue(flow, it, values) }
 
     private suspend fun evalNode(node: Node, inVals: Map<String, ByteArray?>, externalInputs: Map<String, ByteArray?>): Map<String, ByteArray?> {
         return when {

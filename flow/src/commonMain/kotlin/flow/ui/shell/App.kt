@@ -966,8 +966,8 @@ fun SettingsScreen(ws: Workspace) {
         ws.theme = theme
         ws.animSeconds = anim
         ws.runMode = runMode
-        // turning live mode on is itself a change to run on: see Workspace.runLiveNow
-        ws.runLiveNow()
+        // turning live mode on is itself a change to run on: see Workspace.runModeChanged
+        ws.runModeChanged()
         ws.aiProvider = aiProvider
         ws.aiModel = aiModel
         ws.ollamaUrl = ollamaUrl
@@ -1451,7 +1451,8 @@ fun handleKey(ws: Workspace, ev: KeyEvent): Boolean {
             if (!active.spaceDown) {
                 active.spaceDown = true
                 when {
-                    active.running -> active.stopRun()
+                    // in live mode there is always a run to stop — that is what live mode is
+                    active.inProgress -> active.stopRun()
                     active.selNodes.isNotEmpty() -> active.runFromSelection()
                     else -> active.startRun()
                 }

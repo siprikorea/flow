@@ -690,52 +690,103 @@ class EditorState(
     /* ───────── live run ───────── */
 
     private var liveJob: Job? = null
-    private var liveSig: List<Any?>? = null
+    // per node: what a run of it depends on. Kept per node rather than as one signature for the
+    // whole flow because which nodes changed is what decides which ones have to run again.
+    private var liveNodeSigs: Map<String, List<Any?>>? = null
+    private var liveEdgeSig: List<Any?>? = null
+    // nodes edited since the last live pass; null means "something structural — run everything"
+    private var pendingChanged: Set<String>? = emptySet()
+    // every port's value as the last pass left it, so the next one can reuse what it doesn't re-run
+    private var lastValues: Map<Pair<String, String>, ByteArray?> = emptyMap()
 
     /**
-     * What the result of a run depends on: the values, the options, and how the nodes are wired.
+     * Whether live mode is on *and* running.
      *
-     * Not where the nodes are, how big they are, or what the last run left on them — a flow dragged
-     * across the canvas produces exactly what it produced before, and re-running it would be work
-     * nobody asked for. Status is the other half of that: a run writes status back onto the nodes,
-     * and counting that as a change would make live mode run itself in a circle.
+     * In live mode a flow is not something you start, it is something that is going: Start is
+     * spent and Stop is what there is to press. Stop puts this down — and then Start is there
+     * again, and picks it back up.
+     */
+    var liveOn by mutableStateOf(true)
+        private set
+
+    /** Live mode, running: a flow that runs itself as it is edited. */
+    val liveRunning: Boolean get() = ws.runMode == RUN_LIVE && liveOn
+
+    /** Whether a run is under way at all — an animated one, or live mode being live. */
+    val inProgress: Boolean get() = running || liveRunning
+
+    /**
+     * What a run of one node depends on: its options, and the values on its ports.
+     *
+     * Not where it sits, how big it is, or what the last run left on its status — a flow dragged
+     * across the canvas produces exactly what it produced before. Status is the other half of that:
+     * a run writes status back onto the nodes, and counting that as a change would have live mode
+     * running itself in a circle.
      *
      * Port values compare by identity, which is what makes this cheap enough to do on every edit:
-     * an edit replaces the array, a run that leaves the value alone hands back the same one.
+     * an edit replaces the array, a run that leaves a value alone hands back the same one.
      */
-    private fun runSignature(): List<Any?> = buildList {
-        nodes.forEach { n ->
-            add(n.id); add(n.type); add(n.params)
+    private fun nodeSignatures(): Map<String, List<Any?>> = nodes.associate { n ->
+        n.id to buildList {
+            add(n.type); add(n.params)
             n.inputs.forEach { add(it.name); add(it.data) }
             n.outputs.forEach { add(it.name); add(it.data) }
         }
-        edges.forEach { e ->
-            add(e.id); add(e.from.node); add(e.from.port); add(e.to.node); add(e.to.port)
-        }
     }
 
+    private fun edgeSignature(): List<Any?> = edges.map {
+        listOf(it.id, it.from.node, it.from.port, it.to.node, it.to.port)
+    }
+
+    /** The changed nodes and everything downstream of them — what a change actually reaches. */
+    private fun reachedBy(changed: Set<String>): Set<String> {
+        val reached = changed.toMutableSet()
+        var growing = true
+        while (growing) {
+            growing = false
+            edges.forEach { e ->
+                if (e.from.node in reached && reached.add(e.to.node)) growing = true
+            }
+        }
+        return reached
+    }
+
+    /** Whether the last pass left this node with a value, so a later one can stand on it. */
+    private fun hasValue(n: Node): Boolean =
+        if (n.outputs.isEmpty()) n.id in runOutputs else n.outputs.any { (n.id to it.name) in lastValues }
+
     /**
-     * Every edit to the flow lands here. In live mode, one that changes the result runs it again.
+     * Every edit to the flow lands here. While live mode is running, one that changes the result
+     * runs the part of the flow it reaches.
      *
-     * In one-time mode this costs a comparison of one string: the signature is not built at all,
-     * because nothing is going to be done with it.
+     * Otherwise this costs a comparison of one string: no signature is built, because nothing is
+     * going to be done with it.
      */
     private fun flowEdited() {
-        if (ws.runMode != RUN_LIVE) return
-        val sig = runSignature()
-        if (sig == liveSig) return
-        liveSig = sig
-        scheduleLiveRun()
+        if (!liveRunning) return
+        val sigs = nodeSignatures()
+        val edgeSig = edgeSignature()
+        if (sigs == liveNodeSigs && edgeSig == liveEdgeSig) return
+        val previous = liveNodeSigs
+        // rewiring, or a node arriving or leaving, changes what depends on what — that is not a
+        // change to a part of the flow, and it is run as a whole
+        val changed: Set<String>? =
+            if (previous == null || edgeSig != liveEdgeSig || previous.keys != sigs.keys) null
+            else sigs.filterKeys { previous[it] != sigs[it] }.keys
+        liveNodeSigs = sigs
+        liveEdgeSig = edgeSig
+        scheduleLiveRun(changed)
     }
 
     /**
-     * Run the flow for its result alone — no animation, no status on the nodes.
+     * Run what the change reached, after a moment in case more of it is coming.
      *
-     * This is what live mode does on every change: the output editors read [runOutputs] and a
-     * failed node is bordered from [nodeErrors], so the result and anything that went wrong with it
-     * are both shown without a second of stepping through the canvas first.
+     * Null means everything. Changes waiting together are taken together — one of them being
+     * structural makes the pass a whole one.
      */
-    private fun scheduleLiveRun() {
+    private fun scheduleLiveRun(changed: Set<String>?) {
+        val waiting = pendingChanged
+        pendingChanged = if (waiting == null || changed == null) null else waiting + changed
         liveJob?.cancel()
         liveJob = scope.launch {
             delay(LIVE_RUN_DELAY_MS)
@@ -743,19 +794,68 @@ class EditorState(
             // for that, though — it waits for the animation and then runs, which is what live mode
             // promised: the output is what the input says now.
             while (running) delay(LIVE_RUN_DELAY_MS)
-            if (nodes.isEmpty()) {
-                runOutputs = emptyMap()
-                nodeErrors = emptyMap()
-            } else {
-                computeOutputs()
-            }
+            val target = pendingChanged
+            pendingChanged = emptySet()
+            runLive(target)
         }
     }
 
-    /** Bring the output up to date now — what switching live mode on does. */
+    /**
+     * A live pass: the same run as pressing Start, over the part of the flow the change reached.
+     *
+     * It is animated like any other run — a result that changes on its own should be visibly
+     * produced, not just appear — and the nodes the change never reached are left standing at
+     * "done", which is what they are: their value is still their value, and it is what this pass
+     * feeds on where the two meet.
+     */
+    private fun runLive(changed: Set<String>?) {
+        if (nodes.isEmpty()) {
+            runOutputs = emptyMap()
+            nodeErrors = emptyMap()
+            lastValues = emptyMap()
+            return
+        }
+        // nothing to stand on yet (the flow has never run), or the change is structural: run it all
+        if (changed.isNullOrEmpty() || lastValues.isEmpty()) {
+            startRun()
+            return
+        }
+        val affected = reachedBy(changed)
+        computeJob?.cancel()
+        simJobs.toList().forEach { it.cancel() }
+        simJobs.clear()
+        showValidation = false
+        nodes = nodes.map { n ->
+            val status = if (n.id !in affected && hasValue(n)) "done" else "idle"
+            if (n.status == status) n else n.copy(status = status)
+        }
+        edges = edges.map { if (it.active) it.copy(active = false) else it }
+        running = true
+        computeOutputs(only = affected)
+        // start where the change entered the flow: a node in this pass with nothing upstream of it
+        // that is also in the pass
+        val starts = affected.filter { id -> edges.none { it.to.node == id && it.from.node in affected } }
+        later(0) { starts.forEach { runNode(it) } }
+    }
+
+    /**
+     * Live mode has just been switched on: it is on, and the flow runs now.
+     *
+     * Switching it on is itself a reason to run — the point of live mode is that the output is what
+     * the current input produces, and waiting for the next edit to make that true would leave a
+     * stale result, or none, standing in the meantime.
+     */
     fun liveRun() {
-        liveSig = runSignature()
-        scheduleLiveRun()
+        liveOn = true
+        liveNodeSigs = nodeSignatures()
+        liveEdgeSig = edgeSignature()
+        pendingChanged = null
+        scheduleLiveRun(null)
+    }
+
+    /** The run-mode setting changed: live picks up straight away, one-time stands down. */
+    fun runModeChanged() {
+        if (ws.runMode == RUN_LIVE) liveRun() else stopRun()
     }
 
     private fun resetRun() {
@@ -770,6 +870,13 @@ class EditorState(
 
     fun startRun() {
         if (nodes.isEmpty()) return
+        // In live mode Start is what picks live back up after Stop; the run it does is a whole one.
+        if (ws.runMode == RUN_LIVE) {
+            liveOn = true
+            liveNodeSigs = nodeSignatures()
+            liveEdgeSig = edgeSignature()
+            pendingChanged = emptySet()
+        }
         resetRun()
         showValidation = false // validation is only for open/save; run shows only run status
         running = true
@@ -785,7 +892,7 @@ class EditorState(
     // large file (or a slow module) doesn't freeze the canvas while it's read and processed.
     // Snapshots everything nodes/edges-derived synchronously first so a concurrent edit mid-run
     // can't tear the computation; a newer call cancels whatever the previous one had in flight.
-    private fun computeOutputs() {
+    private fun computeOutputs(only: Set<String>? = null) {
         computeJob?.cancel()
         settled.value = emptyMap()
         val flow = FlowFile(1, nodes, edges, seq)
@@ -814,9 +921,14 @@ class EditorState(
                 optionalInputsOf = { id -> installed.find { it.id == id }?.optionalInputs?.toSet() },
                 onNodeSettled = { nid, err -> settled.update { it + (nid to err) } },
             )
+            // Every port's value, not only the flow's outputs: what this pass produces is what
+            // the next one stands on where it does not run again (see [runLive]). `only` is the
+            // part of the flow this pass is; the rest keeps the value it already had.
+            val known = if (only == null) emptyMap() else lastValues
+            val outcome = runCatching { engine.values(flow, inputs, known, only) }
+            val values = known + outcome.getOrDefault(emptyMap())
             // key by cout node id (not label) so two outputs never share a value
-            val outcome = runCatching { engine.runByNode(flow, inputs) }
-            val result = outcome.getOrDefault(emptyMap())
+            val result = engine.coutValues(flow, values)
             // If the pass died before reaching some node, nothing would ever settle it and the
             // animation waiting on it would sit at "running" for good. Settle the remainder as
             // failed: the run did not produce their values, whatever the reason.
@@ -825,7 +937,12 @@ class EditorState(
                 done + flow.nodes.filter { it.id !in done }.associate { it.id to (reason ?: "run did not complete") }
             }
             withContext(Dispatchers.Main) {
-                nodeErrors = engine.errors
+                // a partial pass says nothing about the nodes it did not run: what they were last
+                // found to be wrong about, they are still wrong about
+                nodeErrors =
+                    if (only == null) engine.errors
+                    else nodeErrors.filterKeys { it !in only } + engine.errors
+                lastValues = values
                 runOutputs = coutIds.associateWith { id -> result[id] ?: ByteArray(0) }
             }
         }
@@ -842,7 +959,15 @@ class EditorState(
         later(0) { runNode(nodeId) }
     }
 
+    /**
+     * Stop: the animation, the pass behind it — and, in live mode, live itself.
+     *
+     * A flow that runs as you edit it is something that is going, so what Stop stops is that. It
+     * stays stopped until Start, which picks it back up.
+     */
     fun stopRun() {
+        liveOn = false
+        liveJob?.cancel()
         computeJob?.cancel()
         simJobs.toList().forEach { it.cancel() }
         simJobs.clear()

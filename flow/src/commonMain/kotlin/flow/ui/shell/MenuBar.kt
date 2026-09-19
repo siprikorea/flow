@@ -88,7 +88,9 @@ fun MenuBar(
             // One Primary per region (CLAUDE.md P4): Run is the only filled button in the title
             // bar. Stop is a borderless Ghost icon, active only while a run is in progress — and
             // only then does it read as danger (§5: red only appears while actually running).
-            val running = active?.running == true
+            // Live mode is a run that is already going: Start is spent and Stop is what there is
+            // to press, exactly as while an animation plays. Stop puts live down; Start picks it up.
+            val running = active?.inProgress == true
             // 28dp controls in a 32dp strip: 2dp of air top and bottom, which is what makes them
             // read as sitting in the bar rather than filling it
             FlowButton(ws.t("start"), FlowButtonVariant.Primary, enabled = active != null && !running, icon = Lucide.Play) {

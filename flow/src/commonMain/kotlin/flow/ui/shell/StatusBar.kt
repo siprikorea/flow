@@ -15,7 +15,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import flow.core.Workspace
-import flow.model.RUN_LIVE
 import flow.model.versionOfTag
 import flow.ui.common.Txt
 import flow.ui.common.plainClick
@@ -62,7 +61,7 @@ fun StatusBar(ws: Workspace) {
             // Live mode runs the flow on its own, and a result that changes with nobody pressing
             // anything needs an explanation somewhere permanent. One word, and it goes to the
             // setting that turned it on.
-            if (ws.runMode == RUN_LIVE) {
+            if (active?.liveRunning == true) {
                 Txt(
                     ws.t("runLive"), FlowType.caption, Palette.accentHover,
                     modifier = Modifier.plainClick { ws.openSettings("run") },
