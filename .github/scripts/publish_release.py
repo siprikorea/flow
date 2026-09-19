@@ -114,9 +114,9 @@ def main():
     token = os.environ.get("FLOW_RELEASE_TOKEN", "")
     ref = os.environ.get("GITHUB_REF", "")
     sha = os.environ.get("GITHUB_SHA", "")[:7]
-    source = os.environ.get("GITHUB_REPOSITORY", "siprikorea/dataflow-editor")
+    source = os.environ.get("GITHUB_REPOSITORY", "siprikorea/flow")
     if not token and not dry_run:
-        sys.exit("FLOW_RELEASE_TOKEN is not set — a repo's own token cannot write to another repo")
+        sys.exit("FLOW_RELEASE_TOKEN is not set — nothing to authenticate the release with")
 
     files = sorted(
         os.path.join(directory, f) for f in os.listdir(directory)

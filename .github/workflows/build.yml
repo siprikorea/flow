@@ -1,8 +1,8 @@
 name: Build
 
 # Every push runs the tests. A push to main or a v* tag also builds the app and
-# publishes it to siprikorea/flow, the public download repo — but only after the
-# tests in this same job have passed, so a red build never ships.
+# publishes it as a release of this same repo — but only after the tests in this
+# same job have passed, so a red build never ships.
 on:
   push:
     branches: ['**']
@@ -14,12 +14,15 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: write  # publish_release.py creates/updates releases on this repo
+
 env:
   # The deploy steps below are the ones guarded by this; a PR or a topic branch
   # runs the tests and stops there.
   DEPLOY: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
-  # Where the built app is published. Not this repo — the source stays private.
-  TARGET_REPO: siprikorea/flow
+  # Where the built app is published — this repo; see publish_release.py.
+  TARGET_REPO: ${{ github.repository }}
   # Written as a prefix so each call reads `$PIN_JDK="$JAVA_HOME"` — see the build step.
   PIN_JDK: >-
     -Porg.gradle.java.installations.auto-detect=false
@@ -38,6 +41,14 @@ jobs:
     #
     # It has to be awake when a tag is pushed. If it is not, or if that Mac is gone,
     # put `macos-latest` back here — everything below runs on either.
+    #
+    # Runner registration does not follow this file: it is a property of the repo the
+    # workflow runs in, set once on the physical Mac (`./config.sh --url
+    # https://github.com/<owner>/<repo> --token …`, from Settings ▸ Actions ▸ Runners ▸
+    # New self-hosted runner). If this file starts running in a different repo than the
+    # one the Mac is currently registered to, jobs here queue with no runner to pick
+    # them up until it is registered there too — the same machine can hold more than
+    # one registration, each in its own work folder.
     runs-on: [self-hosted, macOS, ARM64]
 
     steps:
@@ -138,9 +149,10 @@ jobs:
           cp flow-modules/registry.json dist/extensions.json
           ls -lh dist
 
-      # A repo's own GITHUB_TOKEN cannot write to another repo, so this needs a
-      # personal access token with `contents: write` on siprikorea/flow, stored
-      # here as the FLOW_RELEASE_TOKEN secret.
+      # The default GITHUB_TOKEN is scoped to this repo and, with the `contents: write`
+      # permission declared above, is enough to create a release and upload to it — this
+      # publishes to the repo the workflow runs in, so no personal access token is needed
+      # (unlike publishing across repos, which a repo's own token cannot do).
       #
       # Python rather than the GitHub CLI: a self-hosted runner is somebody's Mac and
       # `gh` is not on it, so a build could finish and then fail on the upload alone.
@@ -149,5 +161,5 @@ jobs:
       - name: Publish to ${{ env.TARGET_REPO }}
         if: env.DEPLOY == 'true'
         env:
-          FLOW_RELEASE_TOKEN: ${{ secrets.FLOW_RELEASE_TOKEN }}
+          FLOW_RELEASE_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: python3 .github/scripts/publish_release.py dist
