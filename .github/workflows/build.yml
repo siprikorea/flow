@@ -20,6 +20,10 @@ env:
   DEPLOY: ${{ github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')) }}
   # Where the built app is published. Not this repo — the source stays private.
   TARGET_REPO: siprikorea/flow
+  # Written as a prefix so each call reads `$PIN_JDK="$JAVA_HOME"` — see the build step.
+  PIN_JDK: >-
+    -Porg.gradle.java.installations.auto-detect=false
+    -Porg.gradle.java.installations.paths
 
 jobs:
   build:
@@ -39,9 +43,16 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # JetBrains Runtime, deliberately: it is the JVM jpackage bundles into the .dmg, and the app
+      # has code that only runs on it. Main.kt asks JBR for a CustomTitleBar so the native traffic
+      # lights centre on the title bar's real height; on a stock JDK that call returns nothing and
+      # AWT places them itself, higher and tighter into the corner. Every release up to v1.8.5
+      # shipped Temurin, so that code had never actually run for anyone.
+      #
+      # It is also what Compose Desktop is developed against.
       - uses: actions/setup-java@v6
         with:
-          distribution: temurin
+          distribution: jetbrains
           java-version: '25'
 
       - uses: gradle/actions/setup-gradle@v6
@@ -56,11 +67,17 @@ jobs:
       # cold daemon failed, and as it says, it re-checks on the next build — a
       # re-run of the job goes green without a change. Only go looking if a
       # re-run fails the same way.
+      #
+      # $PIN_JDK on every call: Gradle's toolchain asks for language version 25 from any vendor, and
+      # a self-hosted Mac has more than one — v1.9.0 shipped a JBR that Gradle found because
+      # IntelliJ had installed it, which was the right runtime by luck rather than by choice. These
+      # two options say: the JDK setup-java just installed, and nothing else that happens to be on
+      # the machine.
       - name: Build every module
-        run: ./gradlew assemble --stacktrace
+        run: ./gradlew assemble --stacktrace $PIN_JDK="$JAVA_HOME"
 
       - name: Test
-        run: ./gradlew build --stacktrace
+        run: ./gradlew build --stacktrace $PIN_JDK="$JAVA_HOME"
 
       - name: Keep the test report on a failure
         if: failure()
@@ -81,10 +98,19 @@ jobs:
           # a v* tag names the version both carry, so v1.2.3 ships Flow-1.2.3.dmg and
           # a bundle whose manifest says 1.2.3; a main build keeps what the source declares
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            ./gradlew :flow:packageDmg :flow:mcpbBundle -PflowVersion="${GITHUB_REF#refs/tags/v}" --stacktrace
+            ./gradlew :flow:packageDmg :flow:mcpbBundle -PflowVersion="${GITHUB_REF#refs/tags/v}" --stacktrace $PIN_JDK="$JAVA_HOME"
           else
-            ./gradlew :flow:packageDmg :flow:mcpbBundle --stacktrace
+            ./gradlew :flow:packageDmg :flow:mcpbBundle --stacktrace $PIN_JDK="$JAVA_HOME"
           fi
+
+          # What ends up inside the .dmg is the toolchain's JVM, so this is where a silent change of
+          # runtime would show — and the app's title bar depends on which one it is.
+          runtime=flow/build/compose/binaries/main/app/Flow.app/Contents/runtime/Contents/Home/bin/java
+          "$runtime" -version 2>&1 | head -2
+          "$runtime" -version 2>&1 | grep -qi "JBR" || {
+            echo "the packaged runtime is not JetBrains Runtime — see the setup-java step"
+            exit 1
+          }
 
       - name: Collect what gets published
         if: env.DEPLOY == 'true'
