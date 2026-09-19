@@ -2,15 +2,24 @@ package flow.view
 
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -39,8 +48,8 @@ import kotlin.concurrent.thread
 class ImageView : ViewExtension {
     override val id = "flow.view.image"
     override val displayName = "Image"
-    override val version = "2.3.0"
-    override val description = "Show a result as a picture, for modules that produce an image."
+    override val version = "2.4.0"
+    override val description = "Show a result as a picture, with what the file says about itself — size, format, EXIF."
 
     override fun open(data: ByteArray, options: Map<String, String>) {
         // The title bar is the system's, and its colour comes from the appearance the process is
@@ -93,8 +102,13 @@ fun ImagePanel(data: ByteArray, dark: Boolean = true) {
 
 @Composable
 private fun Content(data: ByteArray, background: Color, muted: Color) {
-    // decoded once: the bytes do not change while the window is up
+    // decoded once, and read once: neither the bytes nor what they say changes while the window is up
     val bitmap = remember(data) { decode(data) }
+    val sections = remember(data) { runCatching { ImageMeta.read(data) }.getOrDefault(emptyList()) }
+    // A picture is what the window is for, so the details start folded away — one line saying what
+    // there is, and the rest on a click. Anything with EXIF in it has more than fits beside an image.
+    var showDetails by remember(data) { mutableStateOf(false) }
+
     Column(Modifier.fillMaxSize().background(background).padding(12.dp)) {
         if (bitmap == null) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -105,17 +119,75 @@ private fun Content(data: ByteArray, background: Color, muted: Color) {
             }
             return@Column
         }
-        Text(
-            "${bitmap.width} × ${bitmap.height}",
-            color = muted, fontSize = 11.sp, fontFamily = JetBrainsMono,
-            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-        )
-        Image(
-            bitmap = bitmap,
-            contentDescription = null,
-            contentScale = ContentScale.Fit,
-            modifier = Modifier.fillMaxSize(),
-        )
+        Row(
+            Modifier.fillMaxWidth().padding(bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                summary(bitmap, data, sections),
+                color = muted, fontSize = 11.sp, fontFamily = JetBrainsMono,
+                modifier = Modifier.weight(1f),
+            )
+            if (sections.isNotEmpty()) {
+                Text(
+                    if (showDetails) "hide details" else "details",
+                    color = muted, fontSize = 11.sp, fontFamily = JetBrainsMono,
+                    modifier = Modifier
+                        .clickable { showDetails = !showDetails }
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                )
+            }
+        }
+        Row(Modifier.fillMaxSize()) {
+            Image(
+                bitmap = bitmap,
+                contentDescription = null,
+                contentScale = ContentScale.Fit,
+                modifier = Modifier.weight(1f).fillMaxHeight(),
+            )
+            if (showDetails) {
+                Box(Modifier.width(1.dp).fillMaxHeight().background(muted.copy(alpha = 0.25f)))
+                Details(sections, muted, Modifier.width(240.dp).fillMaxHeight())
+            }
+        }
+    }
+}
+
+/** The one line that is always there: what it is, how big, and whether there is more to see. */
+private fun summary(bitmap: ImageBitmap, data: ByteArray, sections: List<ImageMeta.Section>): String {
+    val format = ImageMeta.format(data)
+    val parts = listOfNotNull(
+        "${bitmap.width} × ${bitmap.height}",
+        format,
+        ImageMeta.size(data.size.toLong()),
+        "EXIF".takeIf { sections.any { section -> section.title == "camera" || section.title == "exposure" } },
+    )
+    return parts.joinToString(" · ")
+}
+
+/** Everything the file says, grouped as it was read: a heading, then label and value per line. */
+@Composable
+private fun Details(sections: List<ImageMeta.Section>, muted: Color, modifier: Modifier) {
+    Column(modifier.verticalScroll(rememberScrollState()).padding(start = 12.dp)) {
+        sections.forEach { section ->
+            Text(
+                section.title.uppercase(),
+                color = muted.copy(alpha = 0.7f), fontSize = 10.sp, fontFamily = JetBrainsMono,
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.padding(top = 10.dp, bottom = 4.dp),
+            )
+            section.rows.forEach { (label, value) ->
+                Row(Modifier.fillMaxWidth().padding(vertical = 1.dp)) {
+                    Text(
+                        label,
+                        color = muted.copy(alpha = 0.7f), fontSize = 11.sp, fontFamily = JetBrainsMono,
+                        modifier = Modifier.width(92.dp),
+                    )
+                    // a value is whatever the file said — a comment can be a paragraph, so it wraps
+                    Text(value, color = muted, fontSize = 11.sp, fontFamily = JetBrainsMono, modifier = Modifier.weight(1f))
+                }
+            }
+        }
     }
 }
 

@@ -516,10 +516,10 @@
     {
       "id": "flow.view.image",
       "name": "Image",
-      "version": "2.3.0",
+      "version": "2.4.0",
       "kind": "view",
       "category": "other",
-      "description": "Show a result as a picture, for processors that produce an image.",
+      "description": "Show a result as a picture, with what the file says about itself — size, format, EXIF.",
       "file": "imageview-module.jar"
     }
   ]
