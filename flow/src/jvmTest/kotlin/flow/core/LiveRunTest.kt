@@ -230,10 +230,13 @@ class LiveRunTest {
                 ),
             ),
         )
+        // both halves: the results are in (so the next pass has values to stand on) and the
+        // animation has settled. Waiting on only one of them is a race — and was one.
+        assertTrue(awaitOutput(doc, "A", "outA") && awaitOutput(doc, "B", "outB"), "the first pass produced nothing")
         assertTrue(
             runBlocking {
                 withTimeoutOrNull(5_000) {
-                    while (doc.nodeById("inB")?.status != "done") delay(20)
+                    while (doc.nodeById("inB")?.status != "done" || doc.running) delay(20)
                     true
                 } == true
             },

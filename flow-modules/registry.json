@@ -61,6 +61,135 @@
       "category": "other"
     },
     {
+      "id": "flow.cert",
+      "name": "Certificate",
+      "version": "1.0.0",
+      "description": "Make a self-signed X.509 certificate and the private key for it.",
+      "file": "cert-module.jar",
+      "inputs": [
+        "privateKey",
+        "publicKey",
+        "password"
+      ],
+      "outputs": [
+        "certificate",
+        "privateKey",
+        "publicKey",
+        "store"
+      ],
+      "kind": "module",
+      "category": "pki"
+    },
+    {
+      "id": "flow.csr",
+      "name": "Certificate Request",
+      "version": "1.0.0",
+      "description": "Make a PKCS#10 signing request for a key, to send to a CA.",
+      "file": "csr-module.jar",
+      "inputs": [
+        "privateKey",
+        "publicKey"
+      ],
+      "outputs": [
+        "request",
+        "privateKey",
+        "publicKey"
+      ],
+      "kind": "module",
+      "category": "pki"
+    },
+    {
+      "id": "flow.ca",
+      "name": "Certificate Authority",
+      "version": "1.0.0",
+      "description": "Issue a certificate from a signing request, signed by a CA key.",
+      "file": "ca-module.jar",
+      "inputs": [
+        "request",
+        "caCertificate",
+        "caPrivateKey"
+      ],
+      "outputs": [
+        "certificate",
+        "chain"
+      ],
+      "kind": "module",
+      "category": "pki"
+    },
+    {
+      "id": "flow.crl",
+      "name": "Revocation List",
+      "version": "1.0.0",
+      "description": "Publish a signed CRL of the certificates a CA has taken back.",
+      "file": "crl-module.jar",
+      "inputs": [
+        "caCertificate",
+        "caPrivateKey",
+        "revoked"
+      ],
+      "outputs": [
+        "crl"
+      ],
+      "kind": "module",
+      "category": "pki"
+    },
+    {
+      "id": "flow.certpath",
+      "name": "Certificate Path",
+      "version": "1.0.0",
+      "description": "Check a certificate against what you trust: chain, dates, and revocation.",
+      "file": "certpath-module.jar",
+      "inputs": [
+        "certificate",
+        "chain",
+        "trusted",
+        "crl"
+      ],
+      "outputs": [
+        "valid",
+        "problem",
+        "certificate"
+      ],
+      "kind": "module",
+      "category": "pki"
+    },
+    {
+      "id": "flow.pkcs7",
+      "name": "PKCS#7",
+      "version": "1.0.0",
+      "description": "Make a PKCS#7/CMS signature carrying the signer's certificate, or a .p7b bundle.",
+      "file": "pkcs7-module.jar",
+      "inputs": [
+        "data",
+        "certificate",
+        "privateKey",
+        "chain"
+      ],
+      "outputs": [
+        "pkcs7"
+      ],
+      "kind": "module",
+      "category": "pki"
+    },
+    {
+      "id": "flow.pkcs12",
+      "name": "PKCS#12",
+      "version": "1.0.0",
+      "description": "Pack a private key and its certificate chain into a password-protected .p12.",
+      "file": "pkcs12-module.jar",
+      "inputs": [
+        "privateKey",
+        "certificate",
+        "chain",
+        "password"
+      ],
+      "outputs": [
+        "store"
+      ],
+      "kind": "module",
+      "category": "pki"
+    },
+    {
       "id": "flow.cipher",
       "name": "Cipher",
       "version": "1.1.1",

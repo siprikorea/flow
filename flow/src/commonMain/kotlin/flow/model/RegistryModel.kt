@@ -47,13 +47,17 @@ fun kindOf(entry: RegistryEntry): String =
 // the manifest is shared with builds other than this one: a name from a newer registry has to
 // survive being read here, and does — as CATEGORY_OTHER.
 const val CATEGORY_CRYPTO = "crypto"
+// certificates and the things around them: requests, authorities, revocation lists, PKCS#7 and
+// PKCS#12. Apart from crypto because they are a different job — crypto transforms bytes, PKI says
+// who a key belongs to — and because there are now enough of them to bury the rest of the list.
+const val CATEGORY_PKI = "pki"
 const val CATEGORY_AI = "ai"
 // the ones that carry a result out to a person — Slack, Telegram, whatever comes next
 const val CATEGORY_MESSAGING = "messaging"
 const val CATEGORY_OTHER = "other"
 
 /** The order they are shown in, which is also the order they are listed to whoever registers one. */
-val CATEGORIES: List<String> = listOf(CATEGORY_CRYPTO, CATEGORY_AI, CATEGORY_MESSAGING, CATEGORY_OTHER)
+val CATEGORIES: List<String> = listOf(CATEGORY_CRYPTO, CATEGORY_PKI, CATEGORY_AI, CATEGORY_MESSAGING, CATEGORY_OTHER)
 
 /** Which section an entry belongs in: its own category, or Other for none and for one from the future. */
 fun categoryOf(entry: RegistryEntry): String =

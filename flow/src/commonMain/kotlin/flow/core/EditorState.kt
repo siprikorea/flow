@@ -936,13 +936,17 @@ class EditorState(
             settled.update { done ->
                 done + flow.nodes.filter { it.id !in done }.associate { it.id to (reason ?: "run did not complete") }
             }
+            // Recorded here rather than with the rest below: the animation follows `settled`, so a
+            // node reads as done the moment the engine finishes it, which is before this coroutine
+            // gets back to the UI thread. An edit arriving in that gap would find no values to
+            // stand on and run the whole flow — correct, but not what live mode promises.
+            lastValues = values
             withContext(Dispatchers.Main) {
                 // a partial pass says nothing about the nodes it did not run: what they were last
                 // found to be wrong about, they are still wrong about
                 nodeErrors =
                     if (only == null) engine.errors
                     else nodeErrors.filterKeys { it !in only } + engine.errors
-                lastValues = values
                 runOutputs = coutIds.associateWith { id -> result[id] ?: ByteArray(0) }
             }
         }

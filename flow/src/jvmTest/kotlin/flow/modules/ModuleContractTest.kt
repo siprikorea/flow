@@ -167,7 +167,9 @@ class ModuleContractTest {
         val vague = all.flatMap { e ->
             e.inputs.mapNotNull { port ->
                 val said = e.portDescriptions[port].orEmpty()
-                val saysEncoding = listOf("hex:", "b64:", "text", "base32", "JSON", "decimal", "base64")
+                // PEM and DER belong in this list for the same reason as the rest: they are how a
+                // caller is meant to hand over the bytes, and the two are told apart by looking
+                val saysEncoding = listOf("hex:", "b64:", "text", "base32", "JSON", "decimal", "base64", "PEM", "DER")
                     .any { said.contains(it, ignoreCase = true) }
                 if (saysEncoding) null else "${e.id}.$port"
             }
