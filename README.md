@@ -2,7 +2,7 @@
 
 ![Flow canvas: Message, KEY and IV feed a Cipher module wired to an Output node](https://siprikorea.github.io/flow/canvas.png)
 
-Place the modules you need on the canvas and wire them together — see more at [siprikorea.github.io/flow](https://siprikorea.github.io/flow/).
+Place the modules you need on the canvas and wire them together — [try one in the browser](https://siprikorea.github.io/flow/#try) without installing anything, or see more at [siprikorea.github.io/flow](https://siprikorea.github.io/flow/).
 
 A desktop workbench for wiring data through modules on a canvas. Only four kinds of thing go on a
 flow — **input**, **processor**, **output**, and a saved flow dropped back in as a **part** — and a
