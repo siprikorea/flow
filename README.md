@@ -1,8 +1,18 @@
 # Flow
 
-A visual data-transformation pipeline editor. Drag modules (sources, transforms, sinks) onto a canvas, connect output ports to input ports with bezier curves, and build a data flow. Start/stop a run simulation (packets animate along the curves while node statuses update), and persist flows via auto-save and JSON export/import.
+A desktop workbench for wiring data through modules on a canvas. Only four kinds of thing go on a
+flow — **input**, **processor**, **output**, and a saved flow dropped back in as a **part** — and a
+run animates packets along the wires while each node's status (idle / running / done / error)
+updates live, right on the canvas. Modules are installed from a registry (**Settings ▸ Modules**)
+rather than bundled with the app, extended by writing one against the module contract, and read back
+through pluggable result views — an ASN.1 tree beside the bytes, an image with its metadata, or one
+you wrote yourself — instead of only hex and strings. Describe a flow in the **AI** panel and it is
+assembled from the modules already installed, then editable by hand on the canvas like anything
+built that way. Flows persist via auto-save and JSON export/import.
 
-Built with **Compose Multiplatform** (Kotlin). All UI, state, and logic live in `commonMain`; `jvmMain` only provides the entry point and file I/O. It currently runs on the desktop (JVM) target.
+Built with **Compose Multiplatform** (Kotlin). All UI, state, and logic live in `commonMain`;
+`jvmMain` provides the entry point, file I/O, module process hosting, and the AI/MCP integrations.
+It currently runs on the desktop (JVM) target.
 
 ## Requirements
 - JDK 25 (the toolchain, and the Gradle daemon, are both pinned to 25)
@@ -20,37 +30,56 @@ Built with **Compose Multiplatform** (Kotlin). All UI, state, and logic live in 
 
 ```
 flow_editor/
-├── settings.gradle.kts          # rootProject "flow", includes :flow
+├── settings.gradle.kts          # rootProject "flow": flow, flow-mcp, flow-module-api,
+│                                 #   flow-module-host, and one flow-modules/* subproject per module
 ├── gradle.properties
-├── gradlew / gradlew.bat        # Gradle wrapper (9.3.1)
-└── flow/
+├── gradlew / gradlew.bat        # Gradle wrapper
+├── flow-module-api/             # the contract a module or view is written against
+│                                 #   (ModuleExtension / ViewExtension)
+├── flow-module-host/            # the worker process a module actually runs in
+├── flow-mcp/                    # the MCP protocol wrapper (official Java SDK), shared by the
+│                                 #   in-app assistant and `cli --mcp`
+├── flow-modules/                # first-party modules (flow.hash, flow.cipher, flow.base64, …),
+│                                 #   one Gradle subproject each — see registry.json and Modules below
+└── flow/                        # the app itself
     ├── build.gradle.kts         # Kotlin Multiplatform + Compose + serialization
     └── src/
         ├── commonMain/kotlin/flow/
-        │   ├── Model.kt         # Node / Edge / PortRef / FlowFile / SavedState / Sel
-        │   ├── Registry.kt      # Module definitions (plugin registry) + ModuleDef
-        │   ├── I18n.kt          # KO/EN dictionaries
-        │   ├── Geometry.kt      # Grid snapping, port positions, bezier, default sizes
-        │   ├── Palette.kt       # Design tokens (colors)
-        │   ├── Platform.kt      # expect: persistence / file I/O / time
-        │   ├── EditorState.kt   # State, history, simulation, wiring, auto-layout — all logic
-        │   ├── Widgets.kt       # Txt / DtxField / hover helpers
-        │   ├── App.kt           # Menu bar · sidebar · status bar · keyboard
-        │   ├── CanvasView.kt    # Canvas · nodes · ports · edges · packets · minimap
-        │   └── PropsPanel.kt    # Properties panel
+        │   ├── core/            # Workspace (top-level state), EditorState (history, wiring,
+        │   │                    #   simulation), Geometry, Keymap
+        │   ├── engine/          # Engine.kt — the UI-independent execution engine, also used by
+        │   │                    #   the CLI and MCP's run_flow
+        │   ├── model/           # Model (Node/Edge/FlowFile), Registry/RegistryModel (installed
+        │   │                    #   and available modules), Ai, Output (views), Update
+        │   ├── i18n/            # KO/EN dictionaries
+        │   ├── platform/        # expect: persistence, file I/O, module process hosting
+        │   └── ui/
+        │       ├── shell/       # App (top-level layout), MenuBar, EditorTabs, StatusBar
+        │       ├── canvas/      # CanvasView, NodeView, Minimap
+        │       ├── tools/       # ProjectPanel, ModulePalette, AiPanel, RightToolWindow
+        │       ├── props/       # PropsPanel — the selected node or edge
+        │       ├── data/        # DataEditor
+        │       ├── io/          # the built-in input/output boundary modules, EndPicker
+        │       ├── common/      # Widgets, hand-drawn icons, pickers, shared chrome
+        │       └── theme/       # Palette, type, dimens, fonts
         └── jvmMain/kotlin/flow/
             ├── Main.kt          # application entry point, window
-            └── Platform.jvm.kt  # actual: ~/.flow/flow.json, AWT file dialogs
+            ├── platform/        # actual: ~/.flow persistence, AWT dialogs, module process I/O
+            ├── ai/              # the in-app assistant: CLI- and HTTP-backed agents across
+            │                    #   providers (Claude, OpenAI, Gemini, Ollama), tools, prompt
+            ├── cli/             # terminal entry point (Cli.kt, FlowRunner.kt)
+            └── mcp/             # the MCP server side: FlowTools, ModuleTools, FlowBuilder
 ```
 
 ## Layout (single editor screen, 100vh)
 1. **Menu bar** — logo, File/Edit/Window dropdowns, Start / Run Selection / Stop buttons, KO/EN toggle
-2. **Left activity rail** — Project / Modules buttons; each opens its panel, and pressing the button of the panel already showing collapses it
+2. **Left activity rail** — Project / Modules / AI buttons; each opens its panel, and pressing the button of the panel already showing collapses it
 3. **Project panel** — the flows folder as a tree (see below)
-4. **Module palette** — installed module cards (drag onto the canvas)
-5. **Canvas** — dotted grid background, nodes/edges/packets, minimap in the bottom-right
-6. **Properties panel** — selected node (edit name/ID/params/ports) or edge (from → to, delete)
-7. **Right activity rail** — Settings / Properties buttons, same toggle behaviour as the left rail
+4. **Module palette** — installed module cards, grouped by category (drag onto the canvas)
+5. **AI panel** — a chat with an assistant that reads and writes flows through the same tools MCP exposes (see below)
+6. **Canvas** — dotted grid background, nodes/edges/packets, minimap in the bottom-right
+7. **Properties panel** — selected node (edit name/ID/params/ports) or edge (from → to, delete)
+8. **Right activity rail** — Settings / Properties buttons, same toggle behaviour as the left rail
 
 Both rails mark the cursor position with a faint wash on hover and keep the open one lit with an accent bar on the window edge.
 
@@ -66,7 +95,7 @@ Files and folders work as they do in a code editor. Nothing is open at startup: 
 - **Delete** — deleting a folder removes everything under it (after a confirmation) and closes any of its open tabs
 - Every file in the folder is listed; anything that isn't a `.flow` file is greyed out and opening it reports an error instead of showing an empty canvas
 - Files are addressed by their path relative to the flows root (`sub/dir/a.flow`), which is what open tabs, the session, and `comp:` component references all store
-5. **Status bar** — interaction hints, module/connection counts, zoom controls, last auto-save time
+9. **Status bar** — interaction hints, module/connection counts, zoom controls, last auto-save time
 
 ## Behavior
 - **Add a module**: drag a sidebar card onto the canvas — the drop point is converted to world coordinates and snapped to the grid
@@ -89,17 +118,11 @@ Files and folders work as they do in a code editor. Nothing is open at startup: 
 - Auto-save: state changes are debounced by 350ms and written to `~/.flow/flow.json`
 - JSON export: `{version, nodes, edges, seq}` / import via an AWT file dialog
 
-## Module Definitions (plugin registry)
-The `ModuleDef` array in [Registry.kt](flow/src/commonMain/kotlin/flow/Registry.kt) is the plugin list — external plugins appear in the sidebar once registered here.
-- Built-in: csv(0→1), filter(1→2: pass/fail), map(1→1), merge(2→1: a,b), split(1→2), agg(1→1), log(1→0), fout(1→0)
-- Example plugins: jflat (JSON flatten), regex (regex extract)
-- Categories: source / transform / sink
-
 ## Design Tokens
-Colors, spacing, and typography reproduce the original design spec pixel for pixel. Color tokens are defined in [Palette.kt](flow/src/commonMain/kotlin/flow/Palette.kt).
-- Backgrounds: app #14161B · panel #1B1E26 · canvas #101218 · node #1D212B
-- Accents: #5B8CFF · success #34C98E · error #FF5C5C · categories #22C3A6 / #B07BFF / #FF9D5C
-- Grid unit 20, node/card radius 7–9, button radius 5–6
+Colors, spacing, and typography come from [Palette.kt](flow/src/commonMain/kotlin/flow/ui/theme/Palette.kt) and [FlowDimens.kt](flow/src/commonMain/kotlin/flow/ui/theme/FlowDimens.kt) — light and dark are both full token sets, not one theme with overrides.
+- Backgrounds (dark): app #14161B · panel #202329 · canvas #17191D · node #1D212B
+- Accent #3574F0 · success #4E9E5F · error #DB5C5C · category dots: input #F2C94C · processor #B07BFF · output #4FA3FF · part #62C6FF
+- Grid unit 20; radius is semantic, not per-component — `control` 4, `surface` 6, `dialog` 8, `window` 10
 - Fonts: system sans-serif (UI) + monospace (ids and code values)
 
 ## Tests
@@ -306,7 +329,7 @@ That one task runs all three steps: `mcpbStage` lays out `flow/build/mcpb` (mani
 `mcpbBundleVerify` drives the server staged there and checks it answers,
 then the zip itself is done by `npx -y @anthropic-ai/mcpb pack` — so Node has to be on `PATH`.
 
-Install the resulting `.mcpb` from **Settings ▸ Extensions ▸ Advanced settings ▸ Install Extension…**.
+Install the resulting `.mcpb` from **Settings ▸ Modules ▸ Advanced settings ▸ Install Module…**.
 Without Node, run `:flow:mcpbStage` alone and point **Install Unpacked Module** at
 `flow/build/mcpb` — same layout, just not zipped. That directory is build output, so `./gradlew
 clean` removes it.
