@@ -1,6 +1,6 @@
 # Flow
 
-![Flow canvas: Message, KEY and IV feed a Cipher module wired to an Output node](https://siprikorea.github.io/flow/canvas.png)
+<img src="https://siprikorea.github.io/flow/canvas.png" width="78%" alt="Flow canvas: Message, KEY and IV feed a Cipher module wired to an Output node">
 
 Place the modules you need on the canvas and wire them together — [try one in the browser](https://siprikorea.github.io/flow/#try) without installing anything, or see more at [siprikorea.github.io/flow](https://siprikorea.github.io/flow/).
 
@@ -14,7 +14,7 @@ you wrote yourself — instead of only hex and strings. Describe a flow in the *
 assembled from the modules already installed, then editable by hand on the canvas like anything
 built that way. Flows persist via auto-save and JSON export/import.
 
-![The AI panel building an AES encryption flow from a one-line request, with the finished node graph on the canvas](https://siprikorea.github.io/flow/ai.png)
+<img src="https://siprikorea.github.io/flow/ai.png" width="100%" alt="The AI panel building an AES encryption flow from a one-line request, with the finished node graph on the canvas">
 
 Built with **Compose Multiplatform** (Kotlin). All UI, state, and logic live in `commonMain`;
 `jvmMain` provides the entry point, file I/O, module process hosting, and the AI/MCP integrations.
