@@ -180,6 +180,53 @@ compose.desktop {
 }
 
 /**
+ * Records the app's launcher as having been built against a current macOS SDK.
+ *
+ * macOS decides per process which window chrome to draw — the traffic lights among it — from the
+ * SDK version stamped into the app's main executable, and gives anything older the previous
+ * system's look. That executable is not ours: jpackage copies in its own launcher stub, and the
+ * JDK ships one built years ago (13.3 in JDK 25, 14.5 in JDK 26 — both checked), so an installed
+ * Flow kept macOS 26's chrome on macOS 27 while every app with a current launcher moved on. The
+ * bundled runtime is not what decides it: IntelliJ's AWT library carries the same old SDK as ours
+ * and its windows look current, because its launcher is JetBrains' own.
+ *
+ * So the one field is rewritten, which is all a launcher built against the new SDK would differ by;
+ * no code changes. It invalidates the signature, and the caller re-signs after.
+ *
+ * This asks the whole process for the current system's behaviour, not just the buttons — the title
+ * bar already tells the OS its own height (see installCustomTitleBar), so the larger controls
+ * centre on it. Without Xcode's command line tools there is no vtool and the stamp is skipped: the
+ * app is built and works, wearing the older chrome.
+ */
+fun Task.stampAppKitSdk(exe: File) {
+    if (!exe.isFile) return
+    val which = ProcessBuilder("xcrun", "-f", "vtool").redirectErrorStream(true).start()
+    val vtool = which.inputStream.readBytes().decodeToString().trim()
+    if (which.waitFor() != 0 || vtool.isEmpty()) {
+        logger.warn("no vtool on this machine — ${exe.name} keeps the older window chrome")
+        return
+    }
+    // minos stays where the stub had it (11.0): this says what it was built against, not what it
+    // needs. The SDK is one macOS behind the current release, which is what the apps that get the
+    // new chrome carry — nothing requires being stamped with the very latest.
+    val stamped = File(exe.parentFile, "${exe.name}.stamped")
+    val run = ProcessBuilder(
+        vtool, "-set-build-version", "macos", "11.0", "26.0",
+        "-replace", "-output", stamped.absolutePath, exe.absolutePath,
+    ).redirectErrorStream(true).start()
+    val said = run.inputStream.readBytes().decodeToString().trim()
+    if (run.waitFor() != 0 || !stamped.isFile) {
+        stamped.delete()
+        logger.warn("could not stamp ${exe.name} with a current macOS SDK: $said")
+        return
+    }
+    stamped.copyTo(exe, overwrite = true)
+    stamped.delete()
+    exe.setExecutable(true)
+    logger.lifecycle("stamped ${exe.name} as built against the macOS 26.0 SDK")
+}
+
+/**
  * Puts the `java` launcher back into the packaged runtime.
  *
  * jpackage builds the bundled runtime with jlink and strips its native commands, so the app image
@@ -220,9 +267,11 @@ val restoreRuntimeLauncher = tasks.register("restoreRuntimeLauncher") {
             target.setExecutable(true)
             logger.lifecycle("restored ${target.relativeTo(root)}")
         }
-        // ad-hoc, the way jpackage signs an app image it built: without this the copy leaves the
-        // signature it made no longer matching what is on disk, and macOS refuses to open it
         root.listFiles { f -> f.name.endsWith(".app") }?.forEach { app ->
+            stampAppKitSdk(File(app, "Contents/MacOS/${app.nameWithoutExtension}"))
+            // ad-hoc, the way jpackage signs an app image it built: without this the copy — and
+            // the SDK stamp above — leave the signature it made no longer matching what is on
+            // disk, and macOS refuses to open it
             val signed = ProcessBuilder("codesign", "--force", "--sign", "-", app.absolutePath)
                 .redirectErrorStream(true).start()
             val said = signed.inputStream.readBytes().decodeToString().trim()
