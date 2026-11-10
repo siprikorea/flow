@@ -24,7 +24,7 @@ import java.time.ZonedDateTime
 class CaModule : ModuleExtension {
     override val id = "flow.ca"
     override val displayName = "Certificate Authority"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val category = "pki"
 
     override val inputs = listOf("request", "caCertificate", "caPrivateKey")

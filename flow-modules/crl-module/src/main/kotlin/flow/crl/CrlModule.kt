@@ -29,7 +29,7 @@ import java.time.ZonedDateTime
 class CrlModule : ModuleExtension {
     override val id = "flow.crl"
     override val displayName = "Revocation List"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val category = "pki"
 
     override val inputs = listOf("caCertificate", "caPrivateKey", "revoked")
@@ -87,7 +87,7 @@ class CrlModule : ModuleExtension {
         val reason = REASONS[options["reason"] ?: "unspecified"] ?: 0
 
         val hash = options["hash"] ?: "SHA-256"
-        val signatureAlgorithm = Keys.signatureAlgorithm(hash, caKey.algorithm)
+        val signatureAlgorithm = Keys.signatureAlgorithm(hash, caKey)
         val algorithmId = Keys.signatureAlgorithmId(signatureAlgorithm)
 
         val entries = serials.map { serial ->

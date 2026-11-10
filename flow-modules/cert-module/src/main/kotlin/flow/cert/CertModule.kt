@@ -32,7 +32,7 @@ import javax.security.auth.x500.X500Principal
 class CertModule : ModuleExtension {
     override val id = "flow.cert"
     override val displayName = "Certificate"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val category = "pki"
 
     // all optional: with nothing connected it generates the key pair too, which is the common case

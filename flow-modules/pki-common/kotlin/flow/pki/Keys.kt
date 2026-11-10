@@ -6,6 +6,7 @@ import java.security.PrivateKey
 import java.security.PublicKey
 import java.security.cert.CertificateFactory
 import java.security.cert.X509Certificate
+import java.security.interfaces.EdECKey
 import java.security.spec.PKCS8EncodedKeySpec
 import java.security.spec.X509EncodedKeySpec
 
@@ -65,15 +66,20 @@ internal object Keys {
         inner.tag == 0x30 && inner.children().firstOrNull()?.tag == 0xA0
     }.getOrDefault(false)
 
-    /** "SHA-256" over an RSA key → "SHA256withRSA"; EC signs with ECDSA whatever the key is called. */
-    fun signatureAlgorithm(hash: String, keyAlgorithm: String): String {
+    /**
+     * "SHA-256" over an RSA key → "SHA256withRSA"; EC signs with ECDSA whatever the key is called.
+     *
+     * The curve of an Edwards key is read from the key: the JDK reports both Ed25519 and Ed448 as
+     * "EdDSA", which names neither signature. They take no digest — the algorithm has its own.
+     */
+    fun signatureAlgorithm(hash: String, key: PrivateKey): String {
         val digest = hash.replace("-", "").uppercase()
-        return when (keyAlgorithm.uppercase()) {
-            "ED25519" -> "Ed25519"
-            "ED448" -> "Ed448"
+        return when (val algorithm = key.algorithm.uppercase()) {
+            "EDDSA", "ED25519", "ED448" -> (key as? EdECKey)?.params?.name ?: key.algorithm
             "EC", "ECDSA" -> "${digest}withECDSA"
             "DSA" -> "${digest}withDSA"
-            else -> "${digest}withRSA"
+            "RSA" -> "${digest}withRSA"
+            else -> error("no signature algorithm for a $algorithm key")
         }
     }
 

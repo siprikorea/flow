@@ -27,7 +27,7 @@ import javax.security.auth.x500.X500Principal
 class CsrModule : ModuleExtension {
     override val id = "flow.csr"
     override val displayName = "Certificate Request"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val category = "pki"
 
     override val inputs = listOf("privateKey", "publicKey")
@@ -96,7 +96,7 @@ class CsrModule : ModuleExtension {
             pair.public.encoded,
             attributes,
         )
-        val signatureAlgorithm = Keys.signatureAlgorithm(hash, pair.private.algorithm)
+        val signatureAlgorithm = Keys.signatureAlgorithm(hash, pair.private)
         val signature = Signature.getInstance(signatureAlgorithm).run {
             initSign(pair.private)
             update(info)

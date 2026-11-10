@@ -1,6 +1,7 @@
 package flow.pki
 
 import java.io.ByteArrayInputStream
+import java.net.Inet6Address
 import java.security.MessageDigest
 import java.security.PrivateKey
 import java.security.PublicKey
@@ -80,8 +81,8 @@ internal object X509 {
     /**
      * The names a TLS client actually matches a hostname against. CN has not been enough for years.
      *
-     * An address is written as an iPAddress and everything else as a dNSName: 127.0.0.1 put in as
-     * a name matches nothing.
+     * An address — IPv4 or IPv6 — is written as an iPAddress and everything else as a dNSName:
+     * 127.0.0.1 or ::1 put in as a name matches nothing.
      */
     fun subjectAltNames(names: String): ByteArray? {
         val parts = names.split(',').map { it.trim() }.filter { it.isNotEmpty() }
@@ -90,9 +91,16 @@ internal object X509 {
     }
 
     private fun generalName(name: String): ByteArray {
-        val octets = name.split('.')
-        val isIpv4 = octets.size == 4 && octets.all { it.isNotEmpty() && it.all(Char::isDigit) && it.toInt() in 0..255 }
-        return if (isIpv4) Der.implicit(7, ByteArray(4) { octets[it].toInt().toByte() })
+        // a colon is in no hostname, so this is an IPv6 literal or a mistake — and ofLiteral
+        // parses without ever asking DNS
+        if (':' in name) {
+            val address = runCatching { Inet6Address.ofLiteral(name) }
+                .getOrElse { error("'$name' is not an IPv6 address") }
+            return Der.implicit(7, address.address)
+        }
+        val octets = name.split('.').map { it.takeIf { part -> part.length <= 3 }?.toIntOrNull() }
+        val isIpv4 = octets.size == 4 && octets.all { it != null && it in 0..255 }
+        return if (isIpv4) Der.implicit(7, ByteArray(4) { octets[it]!!.toByte() })
         else Der.implicit(2, name.toByteArray(Charsets.US_ASCII))
     }
 
@@ -118,7 +126,7 @@ internal object X509 {
         hash: String,
         extensions: List<ByteArray>,
     ): X509Certificate {
-        val signatureAlgorithm = Keys.signatureAlgorithm(hash, signingKey.algorithm)
+        val signatureAlgorithm = Keys.signatureAlgorithm(hash, signingKey)
         val algorithmId = Keys.signatureAlgorithmId(signatureAlgorithm)
         val tbs = Der.seq(
             Der.explicit(0, Der.integer(2)), // v3 — anything carrying extensions has to be

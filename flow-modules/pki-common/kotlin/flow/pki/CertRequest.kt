@@ -55,6 +55,7 @@ internal class CertRequest private constructor(
             "1.2.840.10045.4.3.3" to "SHA384withECDSA",
             "1.2.840.10045.4.3.4" to "SHA512withECDSA",
             "1.3.101.112" to "Ed25519",
+            "1.3.101.113" to "Ed448",
         )
 
         /** The extensionRequest attribute, where a CSR asks for the extensions it wants. */

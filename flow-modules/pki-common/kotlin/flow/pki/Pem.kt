@@ -41,8 +41,11 @@ internal object Pem {
             if (begin < 0) break
             val end = text.indexOf("-----END", begin)
             require(end > 0) { "PEM block has no END line" }
-            val close = text.indexOf("-----\n", end).let { if (it < 0) text.length else it + 6 }
-            blocks.add(der(text.substring(begin, minOf(close, text.length)).toByteArray()))
+            // to the end of the END line, however it is terminated: a chain exported on Windows
+            // ends its lines in CRLF, and looking for "-----\n" there ran the first block to the
+            // end of the file and dropped every certificate after it
+            val close = text.indexOf('\n', end).let { if (it < 0) text.length else it + 1 }
+            blocks.add(der(text.substring(begin, close).toByteArray()))
             at = close
         }
         return blocks
