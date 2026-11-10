@@ -30,7 +30,7 @@ import java.time.ZonedDateTime
 class Pkcs7Module : ModuleExtension {
     override val id = "flow.pkcs7"
     override val displayName = "PKCS#7"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val category = "pki"
 
     override val inputs = listOf("data", "certificate", "privateKey", "chain")
@@ -63,14 +63,14 @@ class Pkcs7Module : ModuleExtension {
             "signature, which is how chains are distributed.",
         "data" to "What is being signed, as the exact bytes — text as text, binary with 'hex:' or 'b64:'. With detached = no it is carried inside the blob; with yes only its digest is.",
         "certificate" to "The signer's certificate, PEM or DER — it identifies the signature and carries the key that verifies it. In 'certs' mode, the first certificate of the bundle.",
-        "privateKey" to "The signer's private key, PKCS#8 (DER or PEM). It has to be the certificate's key.",
+        "privateKey" to "The signer's private key, PKCS#8 (DER or PEM). It has to be the certificate's key — one that is not is refused.",
         "chain" to "Optional. Further certificates to include, PEM — the issuers above the signer, so a receiver can build the path.",
         "pkcs7" to "The PKCS#7 blob, PEM (-----BEGIN PKCS7-----) or DER. Save a signature as .p7s or .p7m, a bundle as .p7b.",
     )
 
     override val optionDescriptions = mapOf(
         "mode" to "sign makes a signature over the data. certs makes a certificate bundle (.p7b) and signs nothing.",
-        "hash" to "The digest the signature is made over. SHA-256 unless something requires more.",
+        "hash" to "The digest the signature is made over. SHA-256 unless something requires more. An Ed25519 key always uses SHA-512, as RFC 8419 requires.",
         "detached" to
             "yes leaves the data out of the blob — the signature travels beside the file it signs, " +
             "which is what a .p7s detached signature is. no keeps a copy inside, so the blob stands " +
@@ -102,7 +102,15 @@ class Pkcs7Module : ModuleExtension {
         val keyBytes = inputs["privateKey"] ?: error("no signing key")
         val signer = certificates.first()
         val privateKey = Keys.privateKey(keyBytes)
-        val hash = options["hash"] ?: "SHA-256"
+        val signatureAlgorithm = Keys.signatureAlgorithm(options["hash"] ?: "SHA-256", privateKey)
+        // An Edwards key brings its digest with it: RFC 8419 has Ed25519 digest the content with
+        // SHA-512 and nothing else, whatever was asked for. Ed448 wants SHAKE256, which the JDK
+        // has no MessageDigest for at the 512 bits CMS means by it.
+        val hash = when (signatureAlgorithm) {
+            "Ed25519" -> "SHA-512"
+            "Ed448" -> error("an Ed448 key cannot sign a PKCS#7 here — use Ed25519, EC or RSA")
+            else -> options["hash"] ?: "SHA-256"
+        }
         val detached = (options["detached"] ?: "no") == "yes"
 
         val digest = MessageDigest.getInstance(Keys.digestName(hash)).digest(data)
@@ -119,12 +127,22 @@ class Pkcs7Module : ModuleExtension {
         val signedAttrsForSigning = Der.tlv(0x31, Der.concat(*attributes.toTypedArray()))
         val signedAttrs = Der.tlv(0xA0, Der.concat(*attributes.toTypedArray()))
 
-        val signatureAlgorithm = Keys.signatureAlgorithm(hash, privateKey.algorithm)
         val signature = Signature.getInstance(signatureAlgorithm).run {
             initSign(privateKey)
             update(signedAttrsForSigning)
             sign()
         }
+        // The blob names the signer by its certificate, so the certificate's key is the one a
+        // receiver verifies with. Signed with any other key it is a well-formed PKCS#7 that
+        // verifies for nobody — better refused here than found out at the other end.
+        val verifies = runCatching {
+            Signature.getInstance(signatureAlgorithm).run {
+                initVerify(signer.publicKey)
+                update(signedAttrsForSigning)
+                verify(signature)
+            }
+        }.getOrDefault(false)
+        require(verifies) { "the private key is not the certificate's key: the signature does not verify against it" }
 
         val signerInfo = Der.seq(
             Der.integer(1), // version 1: the signer is named by issuer and serial number

@@ -11,6 +11,8 @@ dependencies {
     compileOnly(project(":flow-module-api"))
 }
 
+kotlin.sourceSets["main"].kotlin.srcDir("../pki-common/kotlin")
+
 // distribution JAR: ./gradlew :flow-modules:signature-module:jar → build/libs/signature-module.jar
 tasks.jar {
     archiveBaseName.set("signature-module")

@@ -2,6 +2,7 @@ package flow.modules
 
 import flow.extension.ModuleExtension
 import java.io.ByteArrayInputStream
+import java.security.KeyPairGenerator
 import java.security.KeyStore
 import java.security.MessageDigest
 import java.security.Signature
@@ -373,6 +374,159 @@ class PkiModulesTest {
         val cms = Cms(bundle)
         assertEquals(2, cms.certificates.size, "a .p7b should hold both certificates")
         assertTrue(cms.signature == null, "a certificate bundle must not claim to be signed")
+    }
+
+    @Test
+    fun `a PKCS7 signature made with somebody else's key is refused`() {
+        val signer = run("flow.cert", options = mapOf("subject" to "CN=signer"))
+        val other = run("flow.cert", options = mapOf("subject" to "CN=other"))
+
+        val failure = assertFailsWith<IllegalArgumentException> {
+            run(
+                "flow.pkcs7",
+                "data" to "x".encodeToByteArray(),
+                "certificate" to signer["certificate"],
+                "privateKey" to other["privateKey"],
+            )
+        }
+        assertTrue(failure.message.orEmpty().contains("not the certificate's key"), failure.message.orEmpty())
+    }
+
+    /* ───────── what arrives from elsewhere ───────── */
+
+    /** A chain exported on Windows ends its lines in CRLF, and is still every certificate in it. */
+    @Test
+    fun `a chain with Windows line endings is read whole`() {
+        val ca = root()
+        val request = run("flow.csr", options = mapOf("subject" to "CN=crlf"))
+        val issued = run(
+            "flow.ca",
+            "request" to request["request"],
+            "caCertificate" to ca["certificate"],
+            "caPrivateKey" to ca["privateKey"],
+        )
+        val chain = assertNotNull(issued["chain"]).decodeToString().replace("\n", "\r\n").encodeToByteArray()
+
+        val bundle = assertNotNull(
+            run("flow.pkcs7", "certificate" to chain, options = mapOf("mode" to "certs", "encoding" to "DER"))["pkcs7"],
+        )
+        assertEquals(2, Cms(bundle).certificates.size, "the second certificate of a CRLF chain was dropped")
+    }
+
+    @Test
+    fun `a length that runs off the end is refused as broken DER`() {
+        val ca = root()
+        // SEQUENCE claiming 0xFFFFFFFF bytes: as a signed int that is -1, which passes a naive bound
+        val broken = byteArrayOf(0x30, 0x84.toByte(), -1, -1, -1, -1, 0x00)
+        val failure = assertFailsWith<IllegalArgumentException> {
+            run("flow.ca", "request" to broken, "caCertificate" to ca["certificate"], "caPrivateKey" to ca["privateKey"])
+        }
+        assertTrue(failure.message.orEmpty().contains("DER"), failure.message.orEmpty())
+    }
+
+    @Test
+    fun `an IPv6 address goes in as an address`() {
+        val made = run("flow.cert", options = mapOf("subject" to "CN=v6", "altNames" to "::1, localhost"))
+        val names = certificate(assertNotNull(made["certificate"])).subjectAlternativeNames.orEmpty()
+            .map { (it[0] as Int) to (it[1] as String) }
+        assertTrue(7 to "0:0:0:0:0:0:0:1" in names, "::1 was not written as an iPAddress: $names")
+        assertTrue(2 to "localhost" in names, "the DNS name is missing: $names")
+    }
+
+    /* ───────── Ed25519 ───────── */
+
+    private fun ed25519(): Pair<ByteArray, ByteArray> =
+        KeyPairGenerator.getInstance("Ed25519").generateKeyPair().let { it.private.encoded to it.public.encoded }
+
+    /** The JDK calls an Ed25519 key "EdDSA", which is not a name any signature goes by. */
+    @Test
+    fun `an Ed25519 key runs the whole chain`() {
+        val (caPrivate, caPublic) = ed25519()
+        val ca = run(
+            "flow.cert", "privateKey" to caPrivate, "publicKey" to caPublic,
+            options = mapOf("subject" to "CN=Ed Root", "ca" to "yes"),
+        )
+        val root = certificate(assertNotNull(ca["certificate"]))
+        assertEquals("1.3.101.112", root.sigAlgOID)
+
+        val (private, public) = ed25519()
+        val request = run(
+            "flow.csr", "privateKey" to private, "publicKey" to public,
+            options = mapOf("subject" to "CN=ed.flow.test"),
+        )
+        val issued = run(
+            "flow.ca",
+            "request" to request["request"],
+            "caCertificate" to ca["certificate"],
+            "caPrivateKey" to ca["privateKey"],
+        )
+        val leaf = certificate(assertNotNull(issued["certificate"]))
+        leaf.verify(root.publicKey)
+
+        val crl = run(
+            "flow.crl",
+            "caCertificate" to ca["certificate"],
+            "caPrivateKey" to ca["privateKey"],
+            "revoked" to issued["certificate"],
+        )
+        val check = run(
+            "flow.certpath",
+            "certificate" to issued["certificate"],
+            "trusted" to ca["certificate"],
+            "crl" to crl["crl"],
+        )
+        assertEquals("false", assertNotNull(check["valid"]).decodeToString())
+        assertTrue(assertNotNull(check["problem"]).decodeToString().contains("revoked", ignoreCase = true))
+    }
+
+    /** RFC 8419: with signed attributes, Ed25519 digests the content with SHA-512 and nothing else. */
+    @Test
+    fun `a PKCS7 signature with an Ed25519 key digests with SHA-512`() {
+        val (private, public) = ed25519()
+        val signer = run("flow.cert", "privateKey" to private, "publicKey" to public, options = mapOf("subject" to "CN=ed signer"))
+        val data = "signed with a curve".encodeToByteArray()
+
+        val blob = assertNotNull(
+            run(
+                "flow.pkcs7",
+                "data" to data,
+                "certificate" to signer["certificate"],
+                "privateKey" to signer["privateKey"],
+                options = mapOf("encoding" to "DER"),
+            )["pkcs7"],
+        )
+        val cms = Cms(blob)
+        assertContentEquals(MessageDigest.getInstance("SHA-512").digest(data), cms.messageDigest)
+        val verified = Signature.getInstance("Ed25519").run {
+            initVerify(certificate(assertNotNull(signer["certificate"])).publicKey)
+            update(cms.signedAttributes)
+            verify(cms.signature)
+        }
+        assertTrue(verified, "the signature does not verify over the signed attributes")
+    }
+
+    /* ───────── into Signature ───────── */
+
+    /** Certificate hands out PEM by default, so that is what Signature has to take. */
+    @Test
+    fun `Signature signs with a PEM key and verifies against the certificate`() {
+        val made = run("flow.cert", options = mapOf("subject" to "CN=signs"))
+        val data = "to be signed".encodeToByteArray()
+
+        val signature = run("flow.signature", "in" to data, "key" to made["privateKey"])["out"]
+        val verified = run(
+            "flow.signature",
+            "in" to data, "key" to made["certificate"], "signature" to signature,
+            options = mapOf("operation" to "verify"),
+        )["out"]
+        assertEquals("true", assertNotNull(verified).decodeToString())
+
+        val withPublicKey = run(
+            "flow.signature",
+            "in" to data, "key" to made["publicKey"], "signature" to signature,
+            options = mapOf("operation" to "verify"),
+        )["out"]
+        assertEquals("true", assertNotNull(withPublicKey).decodeToString())
     }
 
     /** PEM by default, and DER when asked — both parse as what they claim to be. */

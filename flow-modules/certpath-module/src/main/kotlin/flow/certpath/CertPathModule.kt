@@ -25,7 +25,7 @@ import java.util.Date
 class CertPathModule : ModuleExtension {
     override val id = "flow.certpath"
     override val displayName = "Certificate Path"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val category = "pki"
 
     override val inputs = listOf("certificate", "chain", "trusted", "crl")

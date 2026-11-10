@@ -22,7 +22,7 @@ import java.security.cert.X509Certificate
 class Pkcs12Module : ModuleExtension {
     override val id = "flow.pkcs12"
     override val displayName = "PKCS#12"
-    override val version = "1.0.0"
+    override val version = "1.0.1"
     override val category = "pki"
 
     override val inputs = listOf("privateKey", "certificate", "chain", "password")
@@ -84,7 +84,7 @@ class Pkcs12Module : ModuleExtension {
      */
     private fun publicKeyOf(privateKey: java.security.PrivateKey, certificate: X509Certificate): ByteArray {
         val data = "flow pkcs12".encodeToByteArray()
-        val algorithm = Keys.signatureAlgorithm("SHA-256", privateKey.algorithm)
+        val algorithm = Keys.signatureAlgorithm("SHA-256", privateKey)
         val signature = java.security.Signature.getInstance(algorithm).run {
             initSign(privateKey)
             update(data)

@@ -88,7 +88,9 @@ internal class Asn1 private constructor(
                 at += count
                 length = value
             }
-            require(at + length <= bytes.size) { "DER length runs past the end" }
+            // four length bytes with the top bit set come out negative, and a negative length is
+            // inside any bound it is compared against
+            require(length >= 0 && length <= bytes.size - at) { "DER length runs past the end" }
             return Asn1(
                 tag = tag,
                 encoded = bytes.copyOfRange(from, at + length),

@@ -63,7 +63,7 @@
     {
       "id": "flow.cert",
       "name": "Certificate",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Make a self-signed X.509 certificate and the private key for it.",
       "file": "cert-module.jar",
       "inputs": [
@@ -83,7 +83,7 @@
     {
       "id": "flow.csr",
       "name": "Certificate Request",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Make a PKCS#10 signing request for a key, to send to a CA.",
       "file": "csr-module.jar",
       "inputs": [
@@ -101,7 +101,7 @@
     {
       "id": "flow.ca",
       "name": "Certificate Authority",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Issue a certificate from a signing request, signed by a CA key.",
       "file": "ca-module.jar",
       "inputs": [
@@ -119,7 +119,7 @@
     {
       "id": "flow.crl",
       "name": "Revocation List",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Publish a signed CRL of the certificates a CA has taken back.",
       "file": "crl-module.jar",
       "inputs": [
@@ -136,7 +136,7 @@
     {
       "id": "flow.certpath",
       "name": "Certificate Path",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Check a certificate against what you trust: chain, dates, and revocation.",
       "file": "certpath-module.jar",
       "inputs": [
@@ -156,7 +156,7 @@
     {
       "id": "flow.pkcs7",
       "name": "PKCS#7",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Make a PKCS#7/CMS signature carrying the signer's certificate, or a .p7b bundle.",
       "file": "pkcs7-module.jar",
       "inputs": [
@@ -174,7 +174,7 @@
     {
       "id": "flow.pkcs12",
       "name": "PKCS#12",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "description": "Pack a private key and its certificate chain into a password-protected .p12.",
       "file": "pkcs12-module.jar",
       "inputs": [
@@ -413,7 +413,7 @@
     {
       "id": "flow.signature",
       "name": "Signature",
-      "version": "1.0.2",
+      "version": "1.1.0",
       "description": "Sign data or verify a signature — RSA, DSA, ECDSA.",
       "file": "signature-module.jar",
       "inputs": [
